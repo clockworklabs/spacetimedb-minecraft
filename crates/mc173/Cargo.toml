@@ -1,0 +1,23 @@
+[package]
+name = "mc173"
+version = "0.1.0"
+edition = "2021"
+description = "Minecraft beta 1.7.3 base data structures and logic for running a world"
+readme = "../README.md"
+homepage = "https://github.com/mindstorm38/mc173"
+repository = "https://github.com/mindstorm38/mc173"
+license = "Apache-2.0"
+keywords = ["minecraft", "game", "backend"]
+categories = ["games"]
+
+[dependencies]
+crossbeam-channel = "0.5"
+byteorder = "1.5"
+indexmap = "2.0"
+flate2 = "1.0"
+glam = "0.24"
+spacetimedb = "0.8.0"
+
+thiserror = "1.0"
+
+tracing = "0.1"
