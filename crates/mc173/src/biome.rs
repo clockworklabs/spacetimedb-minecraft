@@ -3,11 +3,12 @@
 //! chunk load, biomes are also not sent to the client, so it is also recomputed 
 //! client-side in order to have the proper foliage color.
 
+use spacetimedb::SpacetimeType;
 use crate::entity::{EntityCategory, EntityKind};
 
 
 /// Possible biomes, only used server-side for natural mob spawning.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, SpacetimeType)]
 pub enum Biome {
     #[default]
     Void,

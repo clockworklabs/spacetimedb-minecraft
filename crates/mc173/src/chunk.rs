@@ -88,14 +88,14 @@ pub struct Chunk {
     /// and therefore all blocks above also have sky light 15. The height must be in
     /// range 0..=128.
     // pub height: ChunkArray2<u8>,
-    pub height: Vec<u8>
+    pub height: Vec<u8>,
     /// The biome map, this map is not actually saved nor sent to the client. It is
     /// internally used by this implementation to really split the chunk generation from
     /// the running world. The Notchian server is different because the mob spawning
     /// algorithms requires the biome map to be generated at runtime. This also explains
     /// why we can use a Rust enumeration for this one, and not raw value, because we
     /// don't need to deserialize it and therefore don't risk any unwanted value.
-    pub biome: ChunkArray2<Biome>,
+    pub biome: Vec<Biome>,
 }
 
 impl Chunk {
@@ -109,15 +109,18 @@ impl Chunk {
     /// order to be used as some kind of Clone-On-Write container (through the method
     /// [`Arc::make_mut`]), this is especially useful when dealing with zero-copy 
     /// asynchronous chunk saving.
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            block: [block::AIR; CHUNK_3D_SIZE],
+    pub fn new() -> Self {
+        Self {
+            // block: [block::AIR; CHUNK_3D_SIZE],
+            block: vec![block::AIR; CHUNK_3D_SIZE],
             metadata: ChunkNibbleArray3::new(0),
             block_light: ChunkNibbleArray3::new(0),
             sky_light: ChunkNibbleArray3::new(15),
-            height: [0; CHUNK_2D_SIZE],
-            biome: [Biome::Void; CHUNK_2D_SIZE],
-        })
+            // height: [0; CHUNK_2D_SIZE],
+            height: vec![0; CHUNK_2D_SIZE],
+            // biome: [Biome::Void; CHUNK_2D_SIZE],
+            biome: vec![Biome::Void; CHUNK_2D_SIZE],
+        }
     }
 
     /// Get block id and metadata at the given global position (rebased to chunk-local).
@@ -379,10 +382,12 @@ pub struct ChunkNibbleArray3 {
 
 impl ChunkNibbleArray3 {
 
-    pub const fn new(init: u8) -> Self {
+    // pub const fn new(init: u8) -> Self {
+    pub fn new(init: u8) -> Self {
         debug_assert!(init <= 0x0F);
         let init = init << 4 | init;
-        Self { inner: [init; CHUNK_3D_SIZE / 2] }
+        // Self { inner: [init; CHUNK_3D_SIZE / 2] }
+        Self { inner: vec![init; CHUNK_3D_SIZE / 2] }
     }
 
     #[inline]
