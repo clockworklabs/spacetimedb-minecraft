@@ -109,7 +109,11 @@ impl Chunk {
     /// order to be used as some kind of Clone-On-Write container (through the method
     /// [`Arc::make_mut`]), this is especially useful when dealing with zero-copy 
     /// asynchronous chunk saving.
-    pub fn new() -> Self {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self::new_no_arc())
+    }
+
+    pub fn new_no_arc() -> Self {
         Self {
             // block: [block::AIR; CHUNK_3D_SIZE],
             block: vec![block::AIR; CHUNK_3D_SIZE],

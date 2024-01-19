@@ -291,7 +291,7 @@ impl World {
         Some(ChunkSnapshot {
             cx, 
             cz,
-            chunk: &chunk,
+            chunk: Arc::clone(&chunk),
             entities: chunk_comp.entities.values()
                 // Ignoring entities being updated, silently for now.
                 .filter_map(|&index| self.entities.get(index).unwrap().inner.clone())
@@ -350,7 +350,7 @@ impl World {
     /// and block entities are not touched.
     /// 
     /// Only entities and block entities that are in a chunk will be ticked.
-    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) {
+    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Arc<Chunk>) {
        
         let chunk_comp = self.chunks.entry((cx, cz)).or_default();
         let was_unloaded = chunk_comp.data.replace(chunk).is_none();
@@ -1783,7 +1783,7 @@ pub struct ChunkSnapshot {
     /// The Z chunk coordinate.
     pub cz: i32,
     /// The block, light and height map data of the chunk.
-    pub chunk: Chunk,
+    pub chunk: Arc<Chunk>,
     /// The entities in that chunk, note that entities are not guaranteed to have a 
     /// position that is within chunk boundaries.
     pub entities: Vec<Box<Entity>>,
