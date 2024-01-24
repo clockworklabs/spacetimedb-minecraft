@@ -2,7 +2,7 @@
 //! This  module only provides low-level data structures, refer to the 
 //! [`world`](crate::world) module for world manipulation methods.
 
-use stdb_autogen::autogen;
+use autogen::autogen;
 use std::io::Write;
 use std::sync::Arc;
 use std::io;

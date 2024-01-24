@@ -1,7 +1,7 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
 use std::sync::{Arc, Mutex};
-use stdb_autogen::autogen::{connect, ReducerEvent, StdbChunk};
+use autogen::autogen::{connect, ReducerEvent, StdbChunk};
 use spacetimedb_sdk::subscribe;
 use spacetimedb_sdk::table::TableType;
 use std::sync::atomic::{AtomicBool, Ordering};

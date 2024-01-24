@@ -10,8 +10,10 @@ license = "Apache-2.0"
 keywords = ["minecraft", "game", "backend"]
 categories = ["games"]
 
+
+
 [dependencies]
-stdb-autogen = { path = "../stdb-autogen" }
+autogen = { path = "../autogen" }
 crossbeam-channel = "0.5"
 byteorder = "1.5"
 indexmap = "2.0"

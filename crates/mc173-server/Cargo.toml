@@ -10,9 +10,13 @@ license = "Apache-2.0"
 keywords = ["minecraft", "game", "server"]
 categories = ["games"]
 
+[[bin]]
+name = "mc173"
+path = "src/main.rs"
+
 [dependencies]
 mc173 = { path = "../mc173", version = "0.1.0" }
-stdb-autogen = { path = "../stdb-autogen" }
+autogen = { path = "../autogen" }
 spacetimedb-sdk = "0.8"
 
 mio = { version = "0.8", features = ["os-poll", "net"] }

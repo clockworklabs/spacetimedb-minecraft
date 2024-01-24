@@ -1,5 +1,5 @@
 [package]
-name = "mc173"
+name = "mc173-module"
 version = "0.1.0"
 edition = "2021"
 description = "Minecraft beta 1.7.3 base data structures and logic for running a world"

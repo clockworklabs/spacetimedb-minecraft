@@ -3,7 +3,7 @@
 //! chunk load, biomes are also not sent to the client, so it is also recomputed 
 //! client-side in order to have the proper foliage color.
 
-use stdb_autogen::autogen;
+use autogen::autogen;
 use crate::entity::{EntityCategory, EntityKind};
 
 
