@@ -1,6 +1,6 @@
-use mc173::gen::{ChunkGenerator, OverworldGenerator};
+use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
 use spacetimedb::{spacetimedb};
-use mc173::chunk::Chunk;
+use mc173_module::chunk::Chunk;
 
 #[spacetimedb(table)]
 pub struct StdbChunk {
