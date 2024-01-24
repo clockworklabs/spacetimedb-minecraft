@@ -1,0 +1,32 @@
+[package]
+name = "mc173-server"
+version = "0.1.0"
+edition = "2021"
+description = "Minecraft beta 1.7.3 protocol and server implementation compatible with Notchian client"
+readme = "../README.md"
+homepage = "https://github.com/mindstorm38/mc173"
+repository = "https://github.com/mindstorm38/mc173"
+license = "Apache-2.0"
+keywords = ["minecraft", "game", "server"]
+categories = ["games"]
+
+[dependencies]
+mc173 = { path = "../mc173", version = "0.1.0" }
+stdb-autogen = { path = "../stdb-autogen" }
+spacetimedb-sdk = "0.8"
+
+mio = { version = "0.8", features = ["os-poll", "net"] }
+crossbeam-channel = "0.5"
+byteorder = "1.5"
+flate2 = "1.0"
+arcstr = "1.1"
+glam = "0.24"
+
+once_cell = "1.19"
+
+ctrlc = "3.4.1"
+
+tracing = "0.1"
+tracing-flame = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+lazy_static = "1.4.0"

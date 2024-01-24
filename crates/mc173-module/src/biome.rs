@@ -3,12 +3,12 @@
 //! chunk load, biomes are also not sent to the client, so it is also recomputed 
 //! client-side in order to have the proper foliage color.
 
-use stdb_autogen::autogen;
+use spacetimedb::SpacetimeType;
 use crate::entity::{EntityCategory, EntityKind};
 
 
 /// Possible biomes, only used server-side for natural mob spawning.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, SpacetimeType)]
 pub enum Biome {
     #[default]
     Void,
@@ -25,27 +25,6 @@ pub enum Biome {
     Tundra,
     Nether,
     Sky,
-}
-
-impl From<autogen::Biome> for Biome {
-    fn from(value: autogen::Biome) -> Self {
-        match value {
-            autogen::Biome::Void => Biome::Void,
-            autogen::Biome::RainForest => Biome::RainForest,
-            autogen::Biome::Swampland => Biome::Swampland,
-            autogen::Biome::SeasonalForest => Biome::SeasonalForest,
-            autogen::Biome::Forest => Biome::Forest,
-            autogen::Biome::Savanna => Biome::Savanna,
-            autogen::Biome::ShrubLand => Biome::ShrubLand,
-            autogen::Biome::Taiga => Biome::Taiga,
-            autogen::Biome::Desert => Biome::Desert,
-            autogen::Biome::Plains => Biome::Plains,
-            autogen::Biome::IceDesert => Biome::IceDesert,
-            autogen::Biome::Tundra => Biome::Tundra,
-            autogen::Biome::Nether => Biome::Nether,
-            autogen::Biome::Sky => Biome::Sky,
-        }
-    }
 }
 
 impl Biome {

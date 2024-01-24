@@ -2,7 +2,7 @@
 //! This  module only provides low-level data structures, refer to the 
 //! [`world`](crate::world) module for world manipulation methods.
 
-use stdb_autogen::autogen;
+use spacetimedb::SpacetimeType;
 use std::io::Write;
 use std::sync::Arc;
 use std::io;
@@ -72,10 +72,11 @@ pub fn calc_entity_chunk_pos(pos: DVec3) -> (i32, i32) {
 
 /// Data structure storing every chunk-local data, chunks are a world subdivision of 
 /// 16x16x128 blocks.
-#[derive(Clone)]
+#[derive(Clone, SpacetimeType)]
 pub struct Chunk {
     /// The numeric identifier of the block.
-    pub block: ChunkArray3<u8>,
+    pub block: Vec<u8>,
+    // pub block: ChunkArray3<u8>,
     /// Four byte metadata for each block.
     pub metadata: ChunkNibbleArray3,
     /// Block list level for each block.
@@ -86,33 +87,15 @@ pub struct Chunk {
     /// is set to the first block in a column (start from Y = 0) that has sky light 15,
     /// and therefore all blocks above also have sky light 15. The height must be in
     /// range 0..=128.
-    pub height: ChunkArray2<u8>,
+    // pub height: ChunkArray2<u8>,
+    pub height: Vec<u8>,
     /// The biome map, this map is not actually saved nor sent to the client. It is
     /// internally used by this implementation to really split the chunk generation from
     /// the running world. The Notchian server is different because the mob spawning
     /// algorithms requires the biome map to be generated at runtime. This also explains
     /// why we can use a Rust enumeration for this one, and not raw value, because we
     /// don't need to deserialize it and therefore don't risk any unwanted value.
-    pub biome: ChunkArray2<Biome>,
-}
-
-impl From<autogen::Chunk> for Chunk {
-    fn from(value: autogen::Chunk) -> Self {
-        let mut result = Self {
-            block: [block::AIR; CHUNK_3D_SIZE],
-            metadata: value.metadata.into(),
-            block_light: value.block_light.into(),
-            sky_light: value.sky_light.into(),
-            height: [0; CHUNK_2D_SIZE],
-            biome: [Biome::Void; CHUNK_2D_SIZE],
-        };
-
-        result.block.copy_from_slice(&value.block[..]);
-        result.height.copy_from_slice(&value.height[..]);
-        result.biome.copy_from_slice(value.biome.iter().map(|b| (*b).clone().into()).collect::<Vec<_>>().as_slice());
-
-        result
-    }
+    pub biome: Vec<Biome>,
 }
 
 impl Chunk {
@@ -127,14 +110,21 @@ impl Chunk {
     /// [`Arc::make_mut`]), this is especially useful when dealing with zero-copy 
     /// asynchronous chunk saving.
     pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            block: [block::AIR; CHUNK_3D_SIZE],
+        Arc::new(Self::new_no_arc())
+    }
+
+    pub fn new_no_arc() -> Self {
+        Self {
+            // block: [block::AIR; CHUNK_3D_SIZE],
+            block: vec![block::AIR; CHUNK_3D_SIZE],
             metadata: ChunkNibbleArray3::new(0),
             block_light: ChunkNibbleArray3::new(0),
             sky_light: ChunkNibbleArray3::new(15),
-            height: [0; CHUNK_2D_SIZE],
-            biome: [Biome::Void; CHUNK_2D_SIZE],
-        })
+            // height: [0; CHUNK_2D_SIZE],
+            height: vec![0; CHUNK_2D_SIZE],
+            // biome: [Biome::Void; CHUNK_2D_SIZE],
+            biome: vec![Biome::Void; CHUNK_2D_SIZE],
+        }
     }
 
     /// Get block id and metadata at the given global position (rebased to chunk-local).
@@ -388,25 +378,20 @@ pub type ChunkArray2<T> = [T; CHUNK_2D_SIZE];
 pub type ChunkArray3<T> = [T; CHUNK_3D_SIZE];
 
 /// Special arrays for chunks that stores `u4 * CHUNK_3D_SIZE` values.
-#[derive(Clone)]
+#[derive(Clone, SpacetimeType)]
 pub struct ChunkNibbleArray3 {
-    pub inner: [u8; CHUNK_3D_SIZE / 2]
-}
-
-impl From<autogen::ChunkNibbleArray3> for ChunkNibbleArray3 {
-    fn from(value: autogen::ChunkNibbleArray3) -> Self {
-        let mut result = Self { inner: [0; CHUNK_3D_SIZE / 2] };
-        result.inner.copy_from_slice(&value.inner[..]);
-        result
-    }
+    // pub inner: [u8; CHUNK_3D_SIZE / 2]
+    pub inner: Vec<u8>,
 }
 
 impl ChunkNibbleArray3 {
 
-    pub const fn new(init: u8) -> Self {
+    // pub const fn new(init: u8) -> Self {
+    pub fn new(init: u8) -> Self {
         debug_assert!(init <= 0x0F);
         let init = init << 4 | init;
-        Self { inner: [init; CHUNK_3D_SIZE / 2] }
+        // Self { inner: [init; CHUNK_3D_SIZE / 2] }
+        Self { inner: vec![init; CHUNK_3D_SIZE / 2] }
     }
 
     #[inline]

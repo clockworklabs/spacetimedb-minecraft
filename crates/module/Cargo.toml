@@ -11,4 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 spacetimedb = "0.8.0"
 log = "0.4"
-mc173 = { path = "../mc173" }
+mc173-module = { path = "../mc173-module" }
