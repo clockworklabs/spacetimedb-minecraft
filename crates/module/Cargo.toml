@@ -12,3 +12,4 @@ crate-type = ["cdylib"]
 spacetimedb = "0.8.0"
 log = "0.4"
 mc173-module = { path = "../mc173-module" }
+glam = "0.24"

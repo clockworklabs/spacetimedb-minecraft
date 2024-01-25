@@ -13,34 +13,37 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct GenerateChunkArgs {}
+pub struct GenerateChunkArgs {
+    pub x: i32,
+    pub z: i32,
+}
 
 impl Reducer for GenerateChunkArgs {
     const REDUCER_NAME: &'static str = "generate_chunk";
 }
 
 #[allow(unused)]
-pub fn generate_chunk() {
-    GenerateChunkArgs {}.invoke();
+pub fn generate_chunk(x: i32, z: i32) {
+    GenerateChunkArgs { x, z }.invoke();
 }
 
 #[allow(unused)]
 pub fn on_generate_chunk(
-    mut __callback: impl FnMut(&Identity, Option<Address>, &Status) + Send + 'static,
+    mut __callback: impl FnMut(&Identity, Option<Address>, &Status, &i32, &i32) + Send + 'static,
 ) -> ReducerCallbackId<GenerateChunkArgs> {
     GenerateChunkArgs::on_reducer(move |__identity, __addr, __status, __args| {
-        let GenerateChunkArgs {} = __args;
-        __callback(__identity, __addr, __status);
+        let GenerateChunkArgs { x, z } = __args;
+        __callback(__identity, __addr, __status, x, z);
     })
 }
 
 #[allow(unused)]
 pub fn once_on_generate_chunk(
-    __callback: impl FnOnce(&Identity, Option<Address>, &Status) + Send + 'static,
+    __callback: impl FnOnce(&Identity, Option<Address>, &Status, &i32, &i32) + Send + 'static,
 ) -> ReducerCallbackId<GenerateChunkArgs> {
     GenerateChunkArgs::once_on_reducer(move |__identity, __addr, __status, __args| {
-        let GenerateChunkArgs {} = __args;
-        __callback(__identity, __addr, __status);
+        let GenerateChunkArgs { x, z } = __args;
+        __callback(__identity, __addr, __status, x, z);
     })
 }
 

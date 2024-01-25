@@ -15,17 +15,30 @@ use spacetimedb_sdk::{
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Biome {
     Void,
+
     RainForest,
+
     Swampland,
+
     SeasonalForest,
+
     Forest,
+
     Savanna,
+
     ShrubLand,
+
     Taiga,
+
     Desert,
+
     Plains,
+
     IceDesert,
+
     Tundra,
+
     Nether,
+
     Sky,
 }

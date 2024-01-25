@@ -24,18 +24,24 @@ pub mod biome;
 pub mod chunk;
 pub mod chunk_nibble_array_3;
 pub mod generate_chunk_reducer;
+pub mod generate_chunks_reducer;
+pub mod set_block_reducer;
 pub mod stdb_chunk;
 
 pub use biome::*;
 pub use chunk::*;
 pub use chunk_nibble_array_3::*;
 pub use generate_chunk_reducer::*;
+pub use generate_chunks_reducer::*;
+pub use set_block_reducer::*;
 pub use stdb_chunk::*;
 
 #[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ReducerEvent {
     GenerateChunk(generate_chunk_reducer::GenerateChunkArgs),
+    GenerateChunks(generate_chunks_reducer::GenerateChunksArgs),
+    SetBlock(set_block_reducer::SetBlockArgs),
 }
 
 #[allow(unused)]
@@ -85,6 +91,18 @@ impl SpacetimeModule for Module {
                     event,
                     _state,
                     ReducerEvent::GenerateChunk,
+                ),
+            "generate_chunks" => _reducer_callbacks
+                .handle_event_of_type::<generate_chunks_reducer::GenerateChunksArgs, ReducerEvent>(
+                    event,
+                    _state,
+                    ReducerEvent::GenerateChunks,
+                ),
+            "set_block" => _reducer_callbacks
+                .handle_event_of_type::<set_block_reducer::SetBlockArgs, ReducerEvent>(
+                    event,
+                    _state,
+                    ReducerEvent::SetBlock,
                 ),
             unknown => {
                 spacetimedb_sdk::log::error!("Event on an unknown reducer: {:?}", unknown);

@@ -20,7 +20,7 @@ use crate::world::ServerWorld;
 
 
 /// Target tick duration. Currently 20 TPS, so 50 ms/tick.
-const TICK_DURATION: Duration = Duration::from_millis(50);
+pub const TICK_DURATION: Duration = Duration::from_millis(50);
 
 
 /// This structure manages a whole server and its clients, dispatching incoming packets
@@ -63,24 +63,7 @@ impl Server {
 
     }
 
-    /// Run a single tick on the server network and worlds. This function also waits for
-    /// this function to approximately last for 50 ms (20 TPS), there is no sleep of the
-    /// tick was too long, in such case a warning is logged.
-    pub fn tick_padded(&mut self) -> io::Result<()> {
 
-        let start = Instant::now();
-        self.tick()?;
-        let elapsed = start.elapsed();
-
-        if let Some(missing) = TICK_DURATION.checked_sub(elapsed) {
-            std::thread::sleep(missing);
-        } else {
-            warn!("tick take too long {:?}, expected {:?}", elapsed, TICK_DURATION);
-        }
-
-        Ok(())
-
-    }
 
     /// Run a single tick on the server network and worlds.
     pub fn tick(&mut self) -> io::Result<()> {

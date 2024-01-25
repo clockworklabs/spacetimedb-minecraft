@@ -259,7 +259,7 @@ impl ServerWorld {
             tracker.tick_and_update_players(&self.players);
         }
 
-        // Drain dirty chunks coordinates and save them.
+        // Drain dirty chunk coordinates and save them.
         while let Some((cx, cz)) = self.state.chunk_trackers.next_save() {
             if let Some(snapshot) = self.world.take_chunk_snapshot(cx, cz) {
                 self.state.storage.request_save(snapshot);

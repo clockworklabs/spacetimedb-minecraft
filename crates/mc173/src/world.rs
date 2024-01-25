@@ -365,7 +365,6 @@ impl World {
         }
         
         self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
-
     }
 
     /// Return true if a given chunk is present in the world.
@@ -411,6 +410,21 @@ impl World {
     // =================== //
     //        BLOCKS       //
     // =================== //
+
+    pub fn notify_block_2(&mut self, pos: IVec3, id: u8, metadata: u8) {
+        let (cx, cz) = calc_chunk_pos(pos).unwrap();
+        let chunk = self.get_chunk_mut(cx, cz).unwrap();
+        let (prev_id, prev_metadata) = chunk.get_block(pos);
+        self.push_event(Event::Block {
+            pos,
+            inner: BlockEvent::Set {
+                id,
+                metadata,
+                prev_id,
+                prev_metadata,
+            }
+        });
+    }
 
     /// Set block and metadata at given position in the world, if the chunk is not
     /// loaded, none is returned, but if it is existing the previous block and metadata

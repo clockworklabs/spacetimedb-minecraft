@@ -1374,7 +1374,7 @@ impl ServerPlayer {
     pub fn update_chunks(&mut self, world: &World) {
 
         let (ocx, ocz) = chunk::calc_entity_chunk_pos(self.pos);
-        let view_range = 3;
+        let view_range = 20;
 
         for cx in (ocx - view_range)..(ocx + view_range) {
             for cz in (ocz - view_range)..(ocz + view_range) {

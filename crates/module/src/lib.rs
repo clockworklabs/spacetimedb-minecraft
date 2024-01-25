@@ -1,6 +1,9 @@
+use glam::IVec3;
 use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
 use spacetimedb::{spacetimedb};
-use mc173_module::chunk::Chunk;
+use mc173_module::block;
+use mc173_module::chunk::{calc_chunk_pos, Chunk};
+use mc173_module::world::{BlockEvent, ChunkEvent, Event, LightKind};
 
 #[spacetimedb(table)]
 pub struct StdbChunk {
@@ -19,11 +22,11 @@ pub const SEED: i64 = 9999;
 pub fn init() {
     log::info!("Starting Generation");
 
-    for x in -3..4 {
+/*    for x in -3..4 {
         for z in -3..4 {
             generate_chunk(x, z);
         }
-    }
+    }*/
 
     log::info!("Generation complete");
 }
@@ -40,4 +43,72 @@ pub fn generate_chunk(x: i32, z: i32) {
         log::error!("Failed to insert unique chunk");
     };
     log::info!("Chunk Generated: {}, {}", x, z);
+}
+
+#[spacetimedb(reducer)]
+pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
+    let generator = OverworldGenerator::new(SEED);
+    let mut state = <OverworldGenerator as ChunkGenerator>::State::default();
+    for x in from_x..to_x {
+        for z in from_z..to_z {
+            if StdbChunk::filter_by_x(&x).find(|mz| mz.z == z).is_some() {
+                log::info!("Chunk Skipped: {}, {}", x, z);
+                continue;
+            }
+
+            let mut chunk = Chunk::new_no_arc();
+            generator.gen_terrain(x, z, &mut chunk, &mut state);
+            log::info!("Chunk Generated: {}, {}", x, z);
+
+            if let Err(_) = StdbChunk::insert(StdbChunk {
+                chunk_id: 0, x, z, chunk,
+            }) {
+                log::error!("Failed to insert unique chunk");
+            };
+        }
+    }
+}
+
+/*pub fn break_block(pos_x: i32, pos_y: i32, pos_z: i32) -> Option<(u8, u8)> {
+    let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;
+    self.spawn_block_loot(pos, prev_id, prev_metadata, 1.0);
+    Some((prev_id, prev_metadata))
+}*/
+
+#[spacetimedb(reducer)]
+pub fn set_block(pos_x: i32, pos_y: i32, pos_z: i32, id: u8, metadata: u8) {
+    let pos = IVec3::new(pos_x, pos_y, pos_z);
+
+    let (cx, cz) = calc_chunk_pos(pos).unwrap();
+    let mut chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
+    let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
+
+    if id != prev_id || metadata != prev_metadata {
+        chunk.chunk.set_block(pos, id, metadata);
+        chunk.chunk.recompute_height(pos);
+
+        // Schedule light updates if the block light properties have changed.
+/*        if block::material::get_light_opacity(id) != block::material::get_light_opacity(prev_id)
+            || block::material::get_light_emission(id) != block::material::get_light_emission(prev_id) {
+            self.schedule_light_update(pos, LightKind::Block);
+            self.schedule_light_update(pos, LightKind::Sky);
+        }*/
+
+/*        self.push_event(Event::Block {
+            pos,
+            inner: BlockEvent::Set {
+                id,
+                metadata,
+                prev_id,
+                prev_metadata,
+            }
+        });*/
+
+        // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+
+    }
+
+    // Some((prev_id, prev_metadata))
+    let chunk_id = chunk.chunk_id;
+    StdbChunk::update_by_chunk_id(&chunk_id, chunk);
 }
