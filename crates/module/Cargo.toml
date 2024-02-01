@@ -2,6 +2,13 @@
 name = "spacetime-module"
 version = "0.1.0"
 edition = "2021"
+description = "A Minecraft server running in a SpacetimeDB module."
+readme = "../README.md"
+homepage = "https://github.com/clockworklabs/spacetimedb-minecraft"
+repository = "https://github.com/clockworklabs/spacetimedb-minecraft"
+license = "Apache-2.0"
+keywords = ["minecraft", "game", "spacetimedb"]
+categories = ["games"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,7 +16,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-spacetimedb = "0.8.0"
+spacetimedb = "0.8"
 log = "0.4"
 mc173-module = { path = "../mc173-module" }
 glam = "0.24"

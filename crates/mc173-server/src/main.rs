@@ -41,15 +41,15 @@ lazy_static! {
 }
 
 fn on_chunk_inserted(chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
+    println!("Received chunk inserted!");
     let mut s = SERVER.lock().unwrap();
     s.as_mut().unwrap().worlds[0].world.set_chunk(chunk.x, chunk.z, Arc::new(chunk.chunk.clone().into()));
 }
 
 fn on_chunk_update(chunk_old: &StdbChunk, chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
-    println!("On update called!");
+    println!("Received chunk update!");
     let mut s = SERVER.lock().unwrap();
     s.as_mut().unwrap().worlds[0].world.set_chunk(chunk.x, chunk.z, Arc::new(chunk.chunk.clone().into()));
-
 }
 
 fn on_block_set(_sender_id: &Identity, _sender_address: Option<Address>,

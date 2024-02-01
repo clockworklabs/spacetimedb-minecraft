@@ -271,7 +271,7 @@ impl ServerWorld {
         self.state.tick_duration.push(tick_duration.as_secs_f32(), 0.02);
 
         // Finally increase server-side tick time.
-        self.state.time += 1;
+        // self.state.time += 1;
 
     }
     
