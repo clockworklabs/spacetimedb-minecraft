@@ -10,9 +10,10 @@ This repository contains 2 separate applications:
 
 TODO: Block diagram here!
 
-In order to follow this quickstart guide, you'll need a valid version of `cargo`. If you check your cargo version you should get something like: 
+In order to follow this quickstart guide, you'll need a valid version of `cargo`. You can check your cargo version by doing this in a terminal: 
 
 You should get something like:
+
 ```bash
 $ cargo --version
 cargo 1.74.0 (ecb9851af 2023-10-18)
@@ -20,11 +21,7 @@ cargo 1.74.0 (ecb9851af 2023-10-18)
 
 ### Deploying to SpacetimeDB
 
-First you need to obtain the SpacetimeDB CLI tool, which can be found on the [SpacetimeDB Website](https://spacetimedb.com/install). You can alternatively install directly from crates.io via:
-
-```bash
-cargo install spacetimedb-cli
-```
+First you need to obtain the SpacetimeDB CLI tool, which can be found on the [SpacetimeDB Website](https://spacetimedb.com/install).
 
 Once you have `spacetime` installed, you can deploy the module by publishing to SpacetimeDB. In this guide, I'll just be publishing to testnet which at the time of writing is free to up a certain amount of energy. If you run out of energy or you just want to test locally, you can just run your own spacetime server by following [this guide](https://spacetimedb.com/docs/getting-started). 
 
@@ -45,12 +42,7 @@ spacetime logs -s testnet <module-name>
 The Minecraft Proxy Server is required because SpacetimeDB is currently not able to directly interface with the Minecraft client. You can run this directly in this repository:
 
 ```bash
-cargo run --release -- -m <module-name> -s <server-url>
-```
-
-As an example, here is the command that we've used on our Twitch stream. Our module name is `spacetimedb-minecraft` and we've deployed our module to the testnet.
-```bash
-cargo run --release -- -m spacetimedb-minecraft -s 'wss://testnet.spacetimedb.com'
+cargo run --release -p mc173-server -- -m <module-name> -s "https://testnet.spacetimedb.com"
 ```
 
 Once this is running you can connect to the server using your Minecraft client!

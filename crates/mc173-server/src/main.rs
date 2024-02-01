@@ -1,18 +1,19 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use std::io;
-use std::sync::{Arc, Mutex};
 use autogen::autogen::{connect, on_set_block, ReducerEvent, StdbChunk};
-use spacetimedb_sdk::{Address, subscribe};
-use spacetimedb_sdk::table::TableType;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
 use spacetimedb_sdk::identity::Identity;
 use spacetimedb_sdk::reducer::Status;
-use tracing::warn;
+use spacetimedb_sdk::table::TableType;
 use spacetimedb_sdk::table::TableWithPrimaryKey;
+use spacetimedb_sdk::{subscribe, Address};
+use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use tracing::warn;
 
 // The common configuration of the server.
 pub mod config;
@@ -22,13 +23,13 @@ pub mod net;
 pub mod proto;
 
 // This modules use each others, this is usually a bad design but here this was too huge
-// for a single module and it will be easier to maintain like this.  
-pub mod world;
+// for a single module and it will be easier to maintain like this.
 pub mod chunk;
+pub mod command;
 pub mod entity;
 pub mod offline;
 pub mod player;
-pub mod command;
+pub mod world;
 
 // This module link the previous ones to make a fully functional, multi-world server.
 pub mod server;
@@ -43,36 +44,77 @@ lazy_static! {
 fn on_chunk_inserted(chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
     println!("Received chunk inserted!");
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().worlds[0].world.set_chunk(chunk.x, chunk.z, Arc::new(chunk.chunk.clone().into()));
+    s.as_mut().unwrap().worlds[0].world.set_chunk(
+        chunk.x,
+        chunk.z,
+        Arc::new(chunk.chunk.clone().into()),
+    );
 }
 
-fn on_chunk_update(chunk_old: &StdbChunk, chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
+fn on_chunk_update(
+    chunk_old: &StdbChunk,
+    chunk: &StdbChunk,
+    _reducer_event: Option<&ReducerEvent>,
+) {
     println!("Received chunk update!");
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().worlds[0].world.set_chunk(chunk.x, chunk.z, Arc::new(chunk.chunk.clone().into()));
+    s.as_mut().unwrap().worlds[0].world.set_chunk(
+        chunk.x,
+        chunk.z,
+        Arc::new(chunk.chunk.clone().into()),
+    );
 }
 
-fn on_block_set(_sender_id: &Identity, _sender_address: Option<Address>,
-                status: &Status, pos_x: &i32, pos_y: &i32, pos_z: &i32, id: &u8, metadata: &u8) {
+fn on_block_set(
+    _sender_id: &Identity,
+    _sender_address: Option<Address>,
+    status: &Status,
+    pos_x: &i32,
+    pos_y: &i32,
+    pos_z: &i32,
+    id: &u8,
+    metadata: &u8,
+) {
     let mut s = SERVER.lock().unwrap();
     let pos = IVec3::new(*pos_x, *pos_y, *pos_z);
-    s.as_mut().unwrap().worlds[0].world.notify_block_2(pos, *id, *metadata);
+    s.as_mut().unwrap().worlds[0]
+        .world
+        .notify_block_2(pos, *id, *metadata);
 }
 
 /// Entrypoint!
 pub fn main() {
+    let command = Command::new("mc173-server")
+        .help_expected(true)
+        .arg(
+            Arg::new("module")
+                .long("module")
+                .short('m')
+                .required(true)
+                .help("The module name to connect to"),
+        )
+        .arg(
+            Arg::new("server")
+                .long("server")
+                .short('s')
+                .required(true)
+                .help("The remote server to connect to"),
+        );
+
+    let result = command.try_get_matches().unwrap();
+    let server = result
+        .get_one::<String>("server")
+        .unwrap();
+    let module = result
+        .get_one::<String>("module")
+        .unwrap();
 
     init_tracing();
-
     ctrlc::set_handler(|| RUNNING.store(false, Ordering::Relaxed)).unwrap();
     StdbChunk::on_insert(on_chunk_inserted);
     StdbChunk::on_update(on_chunk_update);
     on_set_block(on_block_set);
-    connect(
-        "ws://localhost:3000",
-        "spacetimedb-minecraft",
-        None,
-    ).expect("Failed to connect");
+    connect(server, module, None).expect("Failed to connect");
     subscribe(&["SELECT * FROM StdbChunk;"]).unwrap();
     println!("Connected to SpacetimeDB");
 
@@ -94,7 +136,11 @@ pub fn main() {
         if let Some(missing) = crate::server::TICK_DURATION.checked_sub(elapsed) {
             std::thread::sleep(missing);
         } else {
-            warn!("tick take too long {:?}, expected {:?}", elapsed, crate::server::TICK_DURATION);
+            warn!(
+                "tick take too long {:?}, expected {:?}",
+                elapsed,
+                crate::server::TICK_DURATION
+            );
         }
     }
 
@@ -104,26 +150,23 @@ pub fn main() {
 
 /// Initialize tracing to output into the console.
 fn init_tracing() {
-
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::EnvFilter;
     use tracing_flame::FlameLayer;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::EnvFilter;
 
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("debug"))
         .unwrap();
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .with_target(false);
+    let fmt_layer = tracing_subscriber::fmt::layer().with_target(false);
 
     let (flame_layer, _) = FlameLayer::with_file("./tracing.folded").unwrap();
     let flame_layer = flame_layer.with_file_and_line(false);
-    
+
     tracing_subscriber::registry()
         .with(filter_layer)
         .with(fmt_layer)
         .with(flame_layer)
         .init();
-
 }
