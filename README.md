@@ -1,6 +1,6 @@
 # Minecraft on SpacetimeDB
 
-A Minecraft server implementation running on SpacetimeDB.
+A Minecraft server implementation running on [SpacetimeDB](https://spacetimedb.com/).
 
 ## How to Run
 
