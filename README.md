@@ -4,15 +4,13 @@ A Minecraft server implementation running on SpacetimeDB.
 
 ## How to Run
 
-The requirements for this quickstart are pretty minimal and this quickstart can be followed completely for free.
-
-This repository requires 2 separate programs to run: 
+This repository contains 2 separate applications: 
  - SpacetimeDB: We will be deploying our module to SpacetimeDB which handles all of the server side logic. We will walk you through the install process in the next section.
  - Minecraft Proxy Server: The minecraft server which will be acting as a proxy between the Minecraft client and the SpacetimeDB module. This is required only because SpacetimeDB cannot interface directly with the Minecraft Client.
 
 TODO: Block diagram here!
 
-In order to follow this quickstart guide, you'll need a valid version of `rustc` and `cargo`. If you check your cargo version you should get something like: 
+In order to follow this quickstart guide, you'll need a valid version of `cargo`. If you check your cargo version you should get something like: 
 
 You should get something like:
 ```bash
@@ -30,7 +28,7 @@ cargo install spacetimedb-cli
 
 Once you have `spacetime` installed, you can deploy the module by publishing to SpacetimeDB. In this guide, I'll just be publishing to testnet which at the time of writing is free to up a certain amount of energy. If you run out of energy or you just want to test locally, you can just run your own spacetime server by following [this guide](https://spacetimedb.com/docs/getting-started). 
 
-The module name here doesn't matter as long as its unique. Publish via this command:
+The `module-name` here doesn't matter as long as its unique. Publish via this command:
 
 ```bash
 spacetime publish -s testnet <module-name>
@@ -63,7 +61,7 @@ When you're connecting using your Minecraft client, use the address of the Minec
 
 ## mc173
 
-The original Minecraft server rust implementation that we started with is called [mc173](https://github.com/mindstorm38/mc173) (Licensed under Apache 2.0 at the time of writing). This is not necissarily a fork of this repository, but we depend on both the `mc173` and `mc173-server` crates.
+The original Minecraft server rust implementation that we started with is called [mc173](https://github.com/mindstorm38/mc173) (Licensed under Apache 2.0 at the time of writing).
 
 ## License
 
