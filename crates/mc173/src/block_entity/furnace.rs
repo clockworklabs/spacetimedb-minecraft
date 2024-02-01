@@ -59,134 +59,133 @@ impl FurnaceBlockEntity {
 
     }
 
-    /// Tick the furnace block entity.
-    pub fn tick(&mut self, world: &mut World, pos: IVec3) {
-
-        // If the input stack have changed since last update, get the new recipe.
-        // TODO: Also update of output stack have changed.
-        if self.input_stack != self.last_input_stack || self.output_stack != self.last_output_stack {
-            self.active_output_stack = self.find_new_output_stack();
-            self.last_input_stack = self.input_stack;
-            self.last_output_stack = self.output_stack;
-        }
-
-        let mut smelt_modified = false;
-        let mut fuel_modified = false;
-
-        let initial_burning = self.burn_remaining_ticks != 0;
-        if initial_burning {
-            self.burn_remaining_ticks -= 1;
-            fuel_modified = true;
-        }
-
-        if let Some(active_output_stack) = &self.active_output_stack {
-
-            if self.burn_remaining_ticks == 0 && !self.fuel_stack.is_empty() {
-
-                self.burn_max_ticks = smelt::get_burn_ticks(self.fuel_stack.id);
-                self.burn_remaining_ticks = self.burn_max_ticks;
-                
-                if self.burn_max_ticks != 0 {
-
-                    self.fuel_stack.size -= 1;
-                    fuel_modified = true;
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceFuel,
-                            stack: self.fuel_stack,
-                        },
-                    });
-
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Progress { 
-                            progress: BlockEntityProgress::FurnaceBurnMaxTime, 
-                            value: self.burn_max_ticks,
-                        }, 
-                    });
-
-                }
-
-            }
-
-            if self.burn_remaining_ticks == 0 {
-                if self.smelt_ticks != 0 {
-                    self.smelt_ticks = 0;
-                    smelt_modified = true;
-                }
-            } else {
-
-                self.smelt_ticks += 1;
-                if self.smelt_ticks == 200 {
-
-                    self.smelt_ticks = 0;
-                    // This should not underflow because if input stack is empty, not
-                    // active output stack can be set.
-                    // NOTE: Modifying both of these will trigger an update of the active 
-                    // output stack on the next tick.
-                    self.input_stack.size -= 1;
-                    self.output_stack = *active_output_stack;
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceInput,
-                            stack: self.input_stack,
-                        },
-                    });
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceOutput,
-                            stack: self.output_stack,
-                        },
-                    });
-
-                }
-
-                smelt_modified = true;
-
-            }
-            
-        } else if self.smelt_ticks != 0 {
-            self.smelt_ticks = 0;
-            smelt_modified = true;
-        }
-
-        if smelt_modified {
-            world.push_event(Event::BlockEntity { 
-                pos, 
-                inner: BlockEntityEvent::Progress { 
-                    progress: BlockEntityProgress::FurnaceSmeltTime, 
-                    value: self.smelt_ticks,
-                }, 
-            });
-        }
-
-        if fuel_modified {
-            world.push_event(Event::BlockEntity { 
-                pos, 
-                inner: BlockEntityEvent::Progress { 
-                    progress: BlockEntityProgress::FurnaceBurnRemainingTime, 
-                    value: self.burn_remaining_ticks,
-                }, 
-            });
-        }
-
-        if initial_burning != (self.burn_remaining_ticks != 0) {
-            let (_id, metadata) = world.get_block(pos).expect("should not be ticking if not loaded");
-            if initial_burning {
-                // No longer burning.
-                world.set_block_notify(pos, block::FURNACE, metadata);
-            } else {
-                // Now burning.
-                world.set_block_notify(pos, block::FURNACE_LIT, metadata);
-            }
-        }
-
-    }
+    // Tick the furnace block entity.
+    // pub fn tick(&mut self, world: &mut World, pos: IVec3) {
+    //
+    //     // If the input stack have changed since last update, get the new recipe.
+    //     // TODO: Also update of output stack have changed.
+    //     if self.input_stack != self.last_input_stack || self.output_stack != self.last_output_stack {
+    //         self.active_output_stack = self.find_new_output_stack();
+    //         self.last_input_stack = self.input_stack;
+    //         self.last_output_stack = self.output_stack;
+    //     }
+    //
+    //     let mut smelt_modified = false;
+    //     let mut fuel_modified = false;
+    //
+    //     let initial_burning = self.burn_remaining_ticks != 0;
+    //     if initial_burning {
+    //         self.burn_remaining_ticks -= 1;
+    //         fuel_modified = true;
+    //     }
+    //
+    //     if let Some(active_output_stack) = &self.active_output_stack {
+    //
+    //         if self.burn_remaining_ticks == 0 && !self.fuel_stack.is_empty() {
+    //
+    //             self.burn_max_ticks = smelt::get_burn_ticks(self.fuel_stack.id);
+    //             self.burn_remaining_ticks = self.burn_max_ticks;
+    //
+    //             if self.burn_max_ticks != 0 {
+    //
+    //                 self.fuel_stack.size -= 1;
+    //                 fuel_modified = true;
+    //
+    //                 world.push_event(Event::BlockEntity {
+    //                     pos,
+    //                     inner: BlockEntityEvent::Storage {
+    //                         storage: BlockEntityStorage::FurnaceFuel,
+    //                         stack: self.fuel_stack,
+    //                     },
+    //                 });
+    //
+    //                 world.push_event(Event::BlockEntity {
+    //                     pos,
+    //                     inner: BlockEntityEvent::Progress {
+    //                         progress: BlockEntityProgress::FurnaceBurnMaxTime,
+    //                         value: self.burn_max_ticks,
+    //                     },
+    //                 });
+    //
+    //             }
+    //
+    //         }
+    //
+    //         if self.burn_remaining_ticks == 0 {
+    //             if self.smelt_ticks != 0 {
+    //                 self.smelt_ticks = 0;
+    //                 smelt_modified = true;
+    //             }
+    //         } else {
+    //
+    //             self.smelt_ticks += 1;
+    //             if self.smelt_ticks == 200 {
+    //
+    //                 self.smelt_ticks = 0;
+    //                 // This should not underflow because if input stack is empty, not
+    //                 // active output stack can be set.
+    //                 // NOTE: Modifying both of these will trigger an update of the active
+    //                 // output stack on the next tick.
+    //                 self.input_stack.size -= 1;
+    //                 self.output_stack = *active_output_stack;
+    //
+    //                 world.push_event(Event::BlockEntity {
+    //                     pos,
+    //                     inner: BlockEntityEvent::Storage {
+    //                         storage: BlockEntityStorage::FurnaceInput,
+    //                         stack: self.input_stack,
+    //                     },
+    //                 });
+    //
+    //                 world.push_event(Event::BlockEntity {
+    //                     pos,
+    //                     inner: BlockEntityEvent::Storage {
+    //                         storage: BlockEntityStorage::FurnaceOutput,
+    //                         stack: self.output_stack,
+    //                     },
+    //                 });
+    //
+    //             }
+    //
+    //             smelt_modified = true;
+    //
+    //         }
+    //
+    //     } else if self.smelt_ticks != 0 {
+    //         self.smelt_ticks = 0;
+    //         smelt_modified = true;
+    //     }
+    //
+    //     if smelt_modified {
+    //         world.push_event(Event::BlockEntity {
+    //             pos,
+    //             inner: BlockEntityEvent::Progress {
+    //                 progress: BlockEntityProgress::FurnaceSmeltTime,
+    //                 value: self.smelt_ticks,
+    //             },
+    //         });
+    //     }
+    //
+    //     if fuel_modified {
+    //         world.push_event(Event::BlockEntity {
+    //             pos,
+    //             inner: BlockEntityEvent::Progress {
+    //                 progress: BlockEntityProgress::FurnaceBurnRemainingTime,
+    //                 value: self.burn_remaining_ticks,
+    //             },
+    //         });
+    //     }
+    //
+    //     if initial_burning != (self.burn_remaining_ticks != 0) {
+    //         let (_id, metadata) = world.get_block(pos).expect("should not be ticking if not loaded");
+    //         if initial_burning {
+    //             // No longer burning.
+    //             world.set_block_notify(pos, block::FURNACE, metadata);
+    //         } else {
+    //             // Now burning.
+    //             world.set_block_notify(pos, block::FURNACE_LIT, metadata);
+    //         }
+    //     }
+    // }
 
 }

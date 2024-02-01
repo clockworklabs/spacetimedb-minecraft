@@ -105,9 +105,9 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
     let_expect!(Entity(base, BaseKind::Living(_, LivingKind::Creeper(creeper))) = entity);
 
     // Check if the creeper should be ignited depending on its current state.
-    let ignited = 
+    let ignited =
         eye_track &&
-        (creeper.ignited_time.is_none() && dist_squared < IDLE_MAX_DIST_SQUARED) || 
+        (creeper.ignited_time.is_none() && dist_squared < IDLE_MAX_DIST_SQUARED) ||
         (creeper.ignited_time.is_some() && dist_squared < IGNITED_MAX_DIST_SQUARED);
 
     if ignited {
@@ -123,12 +123,12 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
 
             // Kill the creeper and return none in order to loose focus on the entity.
             world.remove_entity(id, "creeper explode");
-            
-            if creeper.powered {
-                world.explode(base.pos, 6.0, false, Some(id));
-            } else {
-                world.explode(base.pos, 3.0, false, Some(id));
-            }
+
+            // if creeper.powered {
+            //     world.explode(base.pos, 6.0, false, Some(id));
+            // } else {
+            //     world.explode(base.pos, 3.0, false, Some(id));
+            // }
 
         }
 

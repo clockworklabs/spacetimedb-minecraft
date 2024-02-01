@@ -48,7 +48,7 @@ impl World {
     fn interact_button(&mut self, pos: IVec3, mut metadata: u8) -> bool {
         if !block::button::is_active(metadata) {
             block::button::set_active(&mut metadata, true);
-            self.set_block_notify(pos, block::BUTTON, metadata);
+            // self.set_block_notify(pos, block::BUTTON, metadata);
             self.schedule_block_tick(pos, block::BUTTON, 20);
         }
         true
@@ -57,14 +57,16 @@ impl World {
     fn interact_lever(&mut self, pos: IVec3, mut metadata: u8) -> bool {
         let active = block::lever::is_active(metadata);
         block::lever::set_active(&mut metadata, !active);
-        self.set_block_notify(pos, block::LEVER, metadata);
+        // TODO: SpacetimeDB
+        // self.set_block_notify(pos, block::LEVER, metadata);
         true
     }
 
     fn interact_trapdoor(&mut self, pos: IVec3, mut metadata: u8) -> bool {
         let active = block::trapdoor::is_open(metadata);
         block::trapdoor::set_open(&mut metadata, !active);
-        self.set_block_notify(pos, block::TRAPDOOR, metadata);
+        // TODO: SpacetimeDB
+        // self.set_block_notify(pos, block::TRAPDOOR, metadata);
         true
     }
 
@@ -79,11 +81,13 @@ impl World {
             let open = block::door::is_open(metadata);
             block::door::set_open(&mut metadata, !open);
 
-            self.set_block_notify(pos, block::WOOD_DOOR, metadata);
+            // TODO: SpacetimeDB
+            // self.set_block_notify(pos, block::WOOD_DOOR, metadata);
 
             if let Some((block::WOOD_DOOR, _)) = self.get_block(pos + IVec3::Y) {
                 block::door::set_upper(&mut metadata, true);
-                self.set_block_notify(pos + IVec3::Y, block::WOOD_DOOR, metadata);
+                // TODO: SpacetimeDB
+                // self.set_block_notify(pos + IVec3::Y, block::WOOD_DOOR, metadata);
             }
 
         }
@@ -95,12 +99,14 @@ impl World {
     fn interact_repeater(&mut self, pos: IVec3, id: u8, mut metadata: u8) -> bool {
         let delay = block::repeater::get_delay(metadata);
         block::repeater::set_delay(&mut metadata, (delay + 1) % 4);
-        self.set_block_notify(pos, id, metadata);
+        // TODO: SpacetimeDB
+        // self.set_block_notify(pos, id, metadata);
         true
     }
 
     fn interact_redstone_ore(&mut self, pos: IVec3) -> bool {
-        self.set_block_notify(pos, block::REDSTONE_ORE_LIT, 0);
+        // TODO: SpacetimeDB
+        // self.set_block_notify(pos, block::REDSTONE_ORE_LIT, 0);
         false  // Notchian client lit the ore but do not mark the interaction.
     }
 

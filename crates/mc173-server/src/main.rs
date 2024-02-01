@@ -58,11 +58,13 @@ fn on_chunk_update(
 ) {
     println!("Received chunk update!");
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().worlds[0].world.set_chunk(
+    let mut server = s.as_mut().unwrap();
+    server.worlds[0].world.set_chunk(
         chunk.x,
         chunk.z,
         Arc::new(chunk.chunk.clone().into()),
     );
+    server.worlds[0].state.chunk_trackers.flush_chunk(chunk.x, chunk.z);
 }
 
 fn on_block_set(

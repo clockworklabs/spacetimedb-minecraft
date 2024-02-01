@@ -50,8 +50,8 @@ pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity) {
     match entity {
         Entity(_, BaseKind::Item(_)) => tick_item(world, id, entity),
         Entity(_, BaseKind::Painting(_)) => tick_painting(world, id, entity),
-        Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
-        Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity),
+        // Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
+        // Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity),
         Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity),
         Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity),
         Entity(_, _) => tick_base(world, id, entity),
@@ -185,61 +185,61 @@ fn tick_painting(_world: &mut World, _id: u32, entity: &mut Entity) {
 
 }
 
-/// REF: EntityFallingSand::onUpdate
-fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
+// TODO: Move to SpacetimeDB (ticks for falling blocks like sand and gravel)
+// fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
+//
+//     // NOTE: Not calling tick_base
+//     let_expect!(Entity(base, BaseKind::FallingBlock(falling_block)) = entity);
+//
+//     if falling_block.block_id == 0 {
+//         world.remove_entity(id, "falling block has not block");
+//         return;
+//     }
+//
+//     base.vel.y -= 0.04;
+//
+//     apply_base_vel(world, id, base, base.vel, 0.0);
+//
+//     if base.on_ground {
+//
+//         base.vel *= DVec3::new(0.7, -0.5, 0.7);
+//         world.remove_entity(id, "falling block on ground");
+//
+//         let block_pos = base.pos.floor().as_ivec3();
+//         if world.can_place_block(block_pos, Face::PosY, falling_block.block_id) {
+//             world.set_block_notify(block_pos, falling_block.block_id, 0);
+//         } else {
+//             world.spawn_loot(base.pos, ItemStack::new_block(falling_block.block_id, 0), 0.0);
+//         }
+//
+//     } else if base.lifetime > 100 {
+//         world.remove_entity(id, "falling block too old");
+//         world.spawn_loot(base.pos, ItemStack::new_block(falling_block.block_id, 0), 0.0);
+//     }
+//
+// }
 
-    // NOTE: Not calling tick_base
-    let_expect!(Entity(base, BaseKind::FallingBlock(falling_block)) = entity);
-
-    if falling_block.block_id == 0 {
-        world.remove_entity(id, "falling block has not block");
-        return;
-    }
-
-    base.vel.y -= 0.04;
-
-    apply_base_vel(world, id, base, base.vel, 0.0);
-
-    if base.on_ground {
-
-        base.vel *= DVec3::new(0.7, -0.5, 0.7);
-        world.remove_entity(id, "falling block on ground");
-
-        let block_pos = base.pos.floor().as_ivec3();
-        if world.can_place_block(block_pos, Face::PosY, falling_block.block_id) {
-            world.set_block_notify(block_pos, falling_block.block_id, 0);
-        } else {
-            world.spawn_loot(base.pos, ItemStack::new_block(falling_block.block_id, 0), 0.0);
-        }
-
-    } else if base.lifetime > 100 {
-        world.remove_entity(id, "falling block too old");
-        world.spawn_loot(base.pos, ItemStack::new_block(falling_block.block_id, 0), 0.0);
-    }
-
-}
-
-/// REF: EntityTNTPrimed::onUpdate
-fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity) {
-
-    // NOTE: Not calling tick_base
-    let_expect!(Entity(base, BaseKind::Tnt(tnt)) = entity);
-
-    base.vel.y -= 0.04;
-    apply_base_vel(world, id, base, base.vel, 0.0);
-    base.vel.y *= 0.98;
-
-    if base.on_ground {
-        base.vel *= DVec3::new(0.7, -0.5, 0.7);
-    }
-
-    tnt.fuse_time = tnt.fuse_time.saturating_sub(1);
-    if tnt.fuse_time == 0 {
-        world.remove_entity(id, "tnt explode");
-        world.explode(base.pos, 4.0, false, None);
-    }
-
-}
+// REF: EntityTNTPrimed::onUpdate
+// fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity) {
+//
+//     // NOTE: Not calling tick_base
+//     let_expect!(Entity(base, BaseKind::Tnt(tnt)) = entity);
+//
+//     base.vel.y -= 0.04;
+//     apply_base_vel(world, id, base, base.vel, 0.0);
+//     base.vel.y *= 0.98;
+//
+//     if base.on_ground {
+//         base.vel *= DVec3::new(0.7, -0.5, 0.7);
+//     }
+//
+//     tnt.fuse_time = tnt.fuse_time.saturating_sub(1);
+//     if tnt.fuse_time == 0 {
+//         world.remove_entity(id, "tnt explode");
+//         world.explode(base.pos, 4.0, false, None);
+//     }
+//
+// }
 
 /// REF: EntityLiving::onUpdate
 fn tick_living(world: &mut World, id: u32, entity: &mut Entity) {
@@ -461,7 +461,7 @@ fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity) {
 
                 if hit_entity.is_some() || hit_block.is_some() {
                     world.remove_entity(id, "fireball hit");
-                    world.explode(base.pos, 1.0, true, projectile.owner_id);
+                    // world.explode(base.pos, 1.0, true, projectile.owner_id);
                 }
 
             }

@@ -105,7 +105,7 @@ pub fn set_block(pos_x: i32, pos_y: i32, pos_z: i32, id: u8, metadata: u8) {
     let mut chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
     let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
 
-    // if id != prev_id || metadata != prev_metadata {
+    if id != prev_id || metadata != prev_metadata {
         chunk.chunk.set_block(pos, id, metadata);
         chunk.chunk.recompute_height(pos);
 
@@ -128,9 +128,99 @@ pub fn set_block(pos_x: i32, pos_y: i32, pos_z: i32, id: u8, metadata: u8) {
 
         // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
         log::info!("Set Block: {} {} {}", pos_x, pos_y, pos_z);
-    // }
+
+        let chunk_id = chunk.chunk_id;
+        StdbChunk::update_by_chunk_id(&chunk_id, chunk);
+    }
 
     // Some((prev_id, prev_metadata))
-    let chunk_id = chunk.chunk_id;
-    StdbChunk::update_by_chunk_id(&chunk_id, chunk);
+}
+
+fn handle_break_block(&mut self, world: &mut World, packet: proto::BreakBlockPacket) {
+
+    let face = match packet.face {
+        0 => Face::NegY,
+        1 => Face::PosY,
+        2 => Face::NegZ,
+        3 => Face::PosZ,
+        4 => Face::NegX,
+        5 => Face::PosX,
+        _ => return,
+    };
+
+    let Some(entity) = world.get_entity_mut(self.entity_id) else { return };
+    let pos = IVec3::new(packet.x, packet.y as i32, packet.z);
+
+    tracing::trace!("packet: {packet:?}");
+    // TODO: Use server time for breaking blocks.
+
+    let in_water = entity.0.in_water;
+    let on_ground = entity.0.on_ground;
+    let mut stack = self.main_inv[self.hand_slot as usize];
+
+    if packet.status == 0 {
+
+        // Special case to extinguish fire.
+        if world.is_block(pos + face.delta(), block::FIRE) {
+            world.set_block_notify(pos + face.delta(), block::AIR, 0);
+        }
+
+        // We ignore any interaction result for the left click (break block) to
+        // avoid opening an inventory when breaking a container.
+        // NOTE: Interact before 'get_block': relevant for redstone_ore lit.
+        world.interact_block(pos);
+
+        // Start breaking a block, ignore if the position is invalid.
+        if let Some((id, _)) = world.get_block(pos) {
+
+            let break_duration = world.get_break_duration(stack.id, id, in_water, on_ground);
+            if break_duration.is_infinite() {
+                // Do nothing, the block is unbreakable.
+            } else if break_duration == 0.0 {
+                world.break_block(pos);
+            } else {
+                self.breaking_block = Some(BreakingBlock {
+                    start_time: world.get_time(), // + (break_duration * 0.7) as u64,
+                    pos,
+                    id,
+                });
+            }
+
+        }
+
+    } else if packet.status == 2 {
+        // Block breaking should be finished.
+        if let Some(state) = self.breaking_block.take() {
+            if state.pos == pos && world.is_block(pos, state.id) {
+                let break_duration = world.get_break_duration(stack.id, state.id, in_water, on_ground);
+                let min_time = state.start_time + (break_duration * 0.7) as u64;
+                if world.get_time() >= min_time {
+                    world.break_block(pos);
+                } else {
+                    warn!("from {}, incoherent break time, expected {min_time} but got {}", self.username, world.get_time());
+                }
+            } else {
+                warn!("from {}, incoherent break position, expected  {}, got {}", self.username, pos, state.pos);
+            }
+        }
+    } else if packet.status == 4 {
+        // Drop the selected item.
+
+        if !stack.is_empty() {
+
+            stack.size -= 1;
+            self.main_inv[self.hand_slot as usize] = stack.to_non_empty().unwrap_or_default();
+
+            self.send(OutPacket::WindowSetItem(proto::WindowSetItemPacket {
+                window_id: 0,
+                slot: 36 + self.hand_slot as i16,
+                stack: stack.to_non_empty(),
+            }));
+
+            self.drop_stack(world, stack.with_size(1), false);
+
+        }
+
+    }
+
 }

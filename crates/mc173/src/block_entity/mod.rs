@@ -33,13 +33,14 @@ impl BlockEntity {
     pub fn tick(&mut self, world: &mut World, pos: IVec3) {
         match self {
             BlockEntity::Chest(_) => (),
-            BlockEntity::Furnace(furnace) => furnace.tick(world, pos),
+            // BlockEntity::Furnace(furnace) => furnace.tick(world, pos),
             BlockEntity::Dispenser(_) => (),
             BlockEntity::Spawner(spawner) => spawner.tick(world, pos),
             BlockEntity::NoteBlock(_) => (),
             BlockEntity::Piston(piston) => piston.tick(world, pos),
             BlockEntity::Sign(_) => (),
             BlockEntity::Jukebox(_) => (),
+            _ => {}
         }
     }
 

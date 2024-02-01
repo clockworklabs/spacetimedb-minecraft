@@ -15,11 +15,11 @@ impl World {
     /// Break a block naturally and loot its items. This returns true if successful, false
     /// if the chunk/pos was not valid. It also notifies blocks around, this is basically
     /// a wrapper around [`set_block_notify`](Self::set_block_notify) method.
-    pub fn break_block(&mut self, pos: IVec3) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;
-        self.spawn_block_loot(pos, prev_id, prev_metadata, 1.0);
-        Some((prev_id, prev_metadata))
-    }
+    // pub fn break_block(&mut self, pos: IVec3) -> Option<(u8, u8)> {
+    //     let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;
+    //     self.spawn_block_loot(pos, prev_id, prev_metadata, 1.0);
+    //     Some((prev_id, prev_metadata))
+    // }
 
     /// Get the minimum ticks duration required to break the block given its id.
     pub fn get_break_duration(&self, item_id: u16, block_id: u8, in_water: bool, on_ground: bool) -> f32 {

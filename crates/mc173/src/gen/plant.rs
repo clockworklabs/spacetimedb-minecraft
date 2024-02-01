@@ -70,9 +70,9 @@ impl FeatureGenerator for PlantGenerator {
             };
 
             // PARITY: Check parity of "canBlockStay"...
-            if world.is_block_air(place_pos) && world.can_place_block(place_pos, Face::NegY, self.plant_id) {
-                world.set_block(place_pos, self.plant_id, self.plant_metadata);
-            }
+            // if world.is_block_air(place_pos) && world.can_place_block(place_pos, Face::NegY, self.plant_id) {
+            //     world.set_block(place_pos, self.plant_id, self.plant_metadata);
+            // }
 
         }
 
@@ -114,15 +114,13 @@ impl FeatureGenerator for SugarCanesGenerator {
                         let height = rand.next_int_bounded(v) + 2;
 
                         // Check that the bottom cane can be placed.
-                        if world.can_place_block(place_pos, Face::NegY, block::SUGAR_CANES) {
-                            for dy in 0..height {
-                                world.set_block(place_pos + IVec3::new(0, dy, 0), block::SUGAR_CANES, 0);
-                            }
-                        }
-
+                        // if world.can_place_block(place_pos, Face::NegY, block::SUGAR_CANES) {
+                        //     for dy in 0..height {
+                        //         world.set_block(place_pos + IVec3::new(0, dy, 0), block::SUGAR_CANES, 0);
+                        //     }
+                        // }
                     }
                 }
-
             }
 
         }
@@ -198,11 +196,11 @@ impl FeatureGenerator for CactusGenerator {
                 let height = rand.next_int_bounded(v) + 1;
 
                 // Check that the bottom cane can be placed.
-                for dy in 0..height {
-                    if world.can_place_block(place_pos, Face::NegY, block::CACTUS) {
-                        world.set_block(place_pos + IVec3::new(0, dy, 0), block::CACTUS, 0);
-                    }
-                }
+                // for dy in 0..height {
+                //     if world.can_place_block(place_pos, Face::NegY, block::CACTUS) {
+                //         world.set_block(place_pos + IVec3::new(0, dy, 0), block::CACTUS, 0);
+                //     }
+                // }
 
             }
 

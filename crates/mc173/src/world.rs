@@ -432,12 +432,12 @@ impl World {
     /// accordingly.
     pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
 
+        panic!("BLOCK SET");
         let (cx, cz) = calc_chunk_pos(pos)?;
         let chunk = self.get_chunk_mut(cx, cz)?;
         let (prev_id, prev_metadata) = chunk.get_block(pos);
-        
-        if id != prev_id || metadata != prev_metadata {
 
+        if id != prev_id || metadata != prev_metadata {
             chunk.set_block(pos, id, metadata);
             chunk.recompute_height(pos);
 
@@ -448,14 +448,14 @@ impl World {
                 self.schedule_light_update(pos, LightKind::Sky);
             }
 
-            self.push_event(Event::Block { 
-                pos, 
+            self.push_event(Event::Block {
+                pos,
                 inner: BlockEvent::Set {
-                    id, 
+                    id,
                     metadata,
-                    prev_id, 
-                    prev_metadata, 
-                } 
+                    prev_id,
+                    prev_metadata,
+                }
             });
 
             self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
@@ -470,21 +470,21 @@ impl World {
     /// notified of that removal and addition.
     /// 
     /// [`set_block`]: Self::set_block
-    pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block(pos, id, metadata)?;
-        self.notify_change_unchecked(pos, prev_id, prev_metadata, id, metadata);
-        Some((prev_id, prev_metadata))
-    }
+    // pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
+    //     let (prev_id, prev_metadata) = self.set_block(pos, id, metadata)?;
+    //     self.notify_change_unchecked(pos, prev_id, prev_metadata, id, metadata);
+    //     Some((prev_id, prev_metadata))
+    // }
 
-    /// Same as the [`set_block_self_notify`] method, but additionally the blocks around 
-    /// are notified of that neighbor change.
-    /// 
-    /// [`set_block_self_notify`]: Self::set_block_self_notify
-    pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata)?;
-        self.notify_blocks_around(pos, id);
-        Some((prev_id, prev_metadata))
-    }
+    // Same as the [`set_block_self_notify`] method, but additionally the blocks around
+    // are notified of that neighbor change.
+    //
+    // [`set_block_self_notify`]: Self::set_block_self_notify
+    // pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
+    //     let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata)?;
+    //     self.notify_blocks_around(pos, id);
+    //     Some((prev_id, prev_metadata))
+    // }
 
     /// Get block and metadata at given position in the world, if the chunk is not
     /// loaded, none is returned.
@@ -1046,7 +1046,8 @@ impl World {
 
         self.time += 1;
 
-        self.tick_blocks();
+        // TODO: Move this to SpacetimeDB
+        // self.tick_blocks();
         self.tick_entities();
         self.tick_block_entities();
 
@@ -1304,67 +1305,67 @@ impl World {
 
     }
 
-    /// Internal function to tick the internal scheduler.
-    fn tick_blocks(&mut self) {
-
-        debug_assert_eq!(self.block_ticks.len(), self.block_ticks_states.len());
-
-        // Schedule ticks...
-        while let Some(tick) = self.block_ticks.first() {
-            if self.time > tick.time {
-                // This tick should be activated.
-                let tick = self.block_ticks.pop_first().unwrap();
-                assert!(self.block_ticks_states.remove(&tick.state));
-                // Check coherency of the scheduled tick and current block.
-                if let Some((id, metadata)) = self.get_block(tick.state.pos) {
-                    if id == tick.state.id {
-                        self.tick_block_unchecked(tick.state.pos, id, metadata, false);
-                    }
-                }
-            } else {
-                // Our set is ordered by time first, so we break when past current time. 
-                break;
-            }
-        }
-
-        // Random ticking...
-        let mut pending_random_ticks = RANDOM_TICKS_PENDING.take();
-        debug_assert!(pending_random_ticks.is_empty());
-
-        // Random tick only on loaded chunks.
-        for (&(cx, cz), chunk) in &mut self.chunks {
-            if let Some(chunk_data) = &chunk.data {
-
-                // TODO: Lightning strikes.
-                // TODO: Random snowing.
-
-                let chunk_pos = IVec3::new(cx * CHUNK_WIDTH as i32, 0, cz * CHUNK_WIDTH as i32);
-                
-                // Minecraft run 80 random ticks per tick per chunk.
-                for _ in 0..80 {
-
-                    self.random_ticks_seed = self.random_ticks_seed
-                        .wrapping_mul(3)
-                        .wrapping_add(1013904223);
-
-                    let rand = self.random_ticks_seed >> 2;
-                    let pos = IVec3::new((rand >> 0) & 15, (rand >> 16) & 127, (rand >> 8) & 15);
-
-                    let (id, metadata) = chunk_data.get_block(pos);
-                    pending_random_ticks.push((chunk_pos + pos, id, metadata));
-
-                }
-
-            }
-        }
-
-        for (pos, id, metadata) in pending_random_ticks.drain(..) {
-            self.tick_block_unchecked(pos, id, metadata, true);
-        }
-
-        RANDOM_TICKS_PENDING.set(pending_random_ticks);
-
-    }
+    // Internal function to tick the internal scheduler.
+    // fn tick_blocks(&mut self) {
+    //
+    //     debug_assert_eq!(self.block_ticks.len(), self.block_ticks_states.len());
+    //
+    //     // Schedule ticks...
+    //     while let Some(tick) = self.block_ticks.first() {
+    //         if self.time > tick.time {
+    //             // This tick should be activated.
+    //             let tick = self.block_ticks.pop_first().unwrap();
+    //             assert!(self.block_ticks_states.remove(&tick.state));
+    //             // Check coherency of the scheduled tick and current block.
+    //             if let Some((id, metadata)) = self.get_block(tick.state.pos) {
+    //                 if id == tick.state.id {
+    //                     self.tick_block_unchecked(tick.state.pos, id, metadata, false);
+    //                 }
+    //             }
+    //         } else {
+    //             // Our set is ordered by time first, so we break when past current time.
+    //             break;
+    //         }
+    //     }
+    //
+    //     // Random ticking...
+    //     let mut pending_random_ticks = RANDOM_TICKS_PENDING.take();
+    //     debug_assert!(pending_random_ticks.is_empty());
+    //
+    //     // Random tick only on loaded chunks.
+    //     for (&(cx, cz), chunk) in &mut self.chunks {
+    //         if let Some(chunk_data) = &chunk.data {
+    //
+    //             // TODO: Lightning strikes.
+    //             // TODO: Random snowing.
+    //
+    //             let chunk_pos = IVec3::new(cx * CHUNK_WIDTH as i32, 0, cz * CHUNK_WIDTH as i32);
+    //
+    //             // Minecraft run 80 random ticks per tick per chunk.
+    //             for _ in 0..80 {
+    //
+    //                 self.random_ticks_seed = self.random_ticks_seed
+    //                     .wrapping_mul(3)
+    //                     .wrapping_add(1013904223);
+    //
+    //                 let rand = self.random_ticks_seed >> 2;
+    //                 let pos = IVec3::new((rand >> 0) & 15, (rand >> 16) & 127, (rand >> 8) & 15);
+    //
+    //                 let (id, metadata) = chunk_data.get_block(pos);
+    //                 pending_random_ticks.push((chunk_pos + pos, id, metadata));
+    //
+    //             }
+    //
+    //         }
+    //     }
+    //
+    //     for (pos, id, metadata) in pending_random_ticks.drain(..) {
+    //         self.tick_block_unchecked(pos, id, metadata, true);
+    //     }
+    //
+    //     RANDOM_TICKS_PENDING.set(pending_random_ticks);
+    //
+    // }
 
     /// Internal function to tick all entities.
     fn tick_entities(&mut self) {

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use glam::{DVec3, IVec3, Vec2};
+use spacetimedb_sdk::log;
 
 use tracing::{debug, info};
 
@@ -53,7 +54,7 @@ pub struct ServerWorldState {
     /// The chunk source used to load and save the world's chunk.
     storage: ChunkStorage,
     /// Chunks trackers used to send proper block changes packets.
-    chunk_trackers: ChunkTrackers,
+    pub chunk_trackers: ChunkTrackers,
     /// Entity tracker, each is associated to the entity id.
     entity_trackers: HashMap<u32, EntityTracker>,
     /// Instant of the last tick.
@@ -222,7 +223,7 @@ impl ServerWorld {
                         self.handle_block_entity_progress(pos, progress, value),
                 }
                 Event::Chunk { cx, cz, inner } => match inner {
-                    ChunkEvent::Set => {}
+                    ChunkEvent::Set => {},
                     ChunkEvent::Remove => {}
                     ChunkEvent::Dirty => self.state.chunk_trackers.set_dirty(cx, cz),
                 }

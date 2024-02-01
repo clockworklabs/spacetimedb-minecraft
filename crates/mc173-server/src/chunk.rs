@@ -5,8 +5,9 @@ use std::time::{Instant, Duration};
 use std::sync::Arc;
 
 use glam::IVec3;
+use spacetimedb_sdk::log;
 
-use mc173::chunk::{Chunk, self};
+use mc173::chunk::{Chunk, self, CHUNK_WIDTH, CHUNK_HEIGHT};
 use mc173::world::World;
 
 use crate::proto::{OutPacket, self};
@@ -48,6 +49,11 @@ impl ChunkTrackers {
 
         tracker.set_block(local_pos, block, metadata);
 
+    }
+
+    pub fn flush_chunk(&mut self, cx: i32, cz: i32) {
+        let tracker = self.inner.entry((cx, cz)).or_default();
+        tracker.flush();
     }
 
     /// Mark a chunk dirty, to be saved later.
@@ -175,6 +181,18 @@ impl ChunkTracker {
 
     }
 
+    fn flush(&mut self) {
+        self.set_blocks_full = true;
+        self.set_blocks.clear(); // Can be cleared because useless now.
+        self.set_blocks_min.x = 0;
+        self.set_blocks_min.y = 0;
+        self.set_blocks_min.z = 0;
+
+        self.set_blocks_max.x = CHUNK_WIDTH as u8 - 1;
+        self.set_blocks_max.y = CHUNK_HEIGHT as u8 - 1;
+        self.set_blocks_max.z = CHUNK_WIDTH as u8 - 1;
+    }
+
     /// Update the given players by sending them the correct packets to update the player
     /// client side. If the chunk is full of set blocks then the whole area is resent, 
     /// else only individual changes are sent to the players loading the chunk.
@@ -183,7 +201,6 @@ impl ChunkTracker {
     fn update_players(&mut self, cx: i32, cz: i32, players: &[ServerPlayer], world: &World) {
 
         if self.set_blocks_full {
-
             let chunk = world.get_chunk(cx, cz).expect("chunk has been removed");
             
             let from = IVec3 { 
@@ -203,6 +220,7 @@ impl ChunkTracker {
             let packet = OutPacket::ChunkData(new_chunk_data_packet(chunk, from, size));
             for player in players {
                 if player.tracked_chunks.contains(&(cx, cz)) {
+                    log::error!("Chunk is being sent: {cx}, {cz}");
                     player.send(packet.clone());
                 }
             }

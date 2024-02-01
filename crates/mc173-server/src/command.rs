@@ -428,7 +428,7 @@ fn cmd_clean(ctx: CommandContext) -> CommandResult {
 
 fn cmd_explode(ctx: CommandContext) -> CommandResult { 
 
-    ctx.world.explode(ctx.player.pos, 4.0, false, Some(ctx.player.entity_id));
+    // ctx.world.explode(ctx.player.pos, 4.0, false, Some(ctx.player.entity_id));
     ctx.player.send_chat(format!("§aExplode at:§r {}", ctx.player.pos));
     Ok(())
 
