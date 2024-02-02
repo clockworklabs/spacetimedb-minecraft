@@ -49,6 +49,8 @@ Once this is running you can connect to the server using your Minecraft client!
 
 ### Getting Connected
 
+The client version that is supported by this project is 1.7.3 Beta. In order to download this client version, you might have to go into the settings of the Minecraft Launcher and enable "Show Historical Versions of Minecraft: Java Edition in the Launcher"
+
 When you're connecting using your Minecraft client, use the address of the Minecraft Server Proxy. If you are running this locally, it will just be `localhost`. If you are hosting the Minecraft Server Proxy on another machine on the internet or on your home network, you will have to use the hostname or IP address of that machine in order to connect.
 
 ## mc173
