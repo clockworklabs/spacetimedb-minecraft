@@ -203,7 +203,6 @@ pub fn set_block(pos_x: i32, pos_y: i32, pos_z: i32, id: u8, metadata: u8) {
 
 #[spacetimedb(reducer)]
 fn handle_break_block(entity_id: u32, packet: BreakBlockPacket) {
-    return;
     let face = match packet.face {
         0 => Face::NegY,
         1 => Face::PosY,
