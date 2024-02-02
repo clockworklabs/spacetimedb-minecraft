@@ -295,6 +295,18 @@ pub struct BreakBlockPacket {
     pub status: u8,
 }
 
+impl From<BreakBlockPacket> for autogen::autogen::BreakBlockPacket {
+    fn from(value: BreakBlockPacket) -> Self {
+        autogen::autogen::BreakBlockPacket {
+            x: value.x,
+            y: value.y,
+            z: value.z,
+            face: value.face,
+            status: value.status,
+        }
+    }
+}
+
 /// Packet 15
 #[derive(Debug, Clone)]
 pub struct PlaceBlockPacket {

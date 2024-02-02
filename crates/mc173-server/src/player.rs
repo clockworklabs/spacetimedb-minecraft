@@ -168,8 +168,8 @@ impl ServerPlayer {
                 self.handle_look(world, packet),
             InPacket::PositionLook(packet) => 
                 self.handle_position_look(world, packet),
-            // InPacket::BreakBlock(packet) =>
-                // self.handle_break_block(world, packet),
+            InPacket::BreakBlock(packet) =>
+                self.handle_break_block(packet),
             // InPacket::PlaceBlock(packet) =>
                 // self.handle_place_block(world, packet),
             InPacket::HandSlot(packet) =>
@@ -246,6 +246,10 @@ impl ServerPlayer {
             world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Look { look: self.look } });
         }
 
+    }
+
+    fn handle_break_block(&mut self, packet: proto::BreakBlockPacket) {
+        autogen::autogen::handle_break_block(self.entity_id, packet.into());
     }
 
     /// Handle a break block packet.
