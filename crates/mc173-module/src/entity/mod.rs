@@ -565,8 +565,8 @@ impl Entity {
     /// 
     /// **This is really important to no change the entity kind when ticking the 
     /// function.**
-    pub fn tick(&mut self, world: &mut World, id: u32) {
-        tick::tick(world, id, self);
+    pub fn tick(&mut self, world: &mut World, id: u32, nano_time: u128) {
+        tick::tick(world, id, self, nano_time);
     }
 
     /// Recompute this entity's size and recompute the bounding box from its position.

@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_set_block, ReducerEvent, StdbChunk};
+use autogen::autogen::{connect, on_set_block, ReducerEvent, StdbChunk, StdbWeather};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -8,12 +8,13 @@ use spacetimedb_sdk::identity::Identity;
 use spacetimedb_sdk::reducer::Status;
 use spacetimedb_sdk::table::TableType;
 use spacetimedb_sdk::table::TableWithPrimaryKey;
-use spacetimedb_sdk::{subscribe, Address};
+use spacetimedb_sdk::{subscribe, Address, on_subscription_applied};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::warn;
+use mc173::world::Event;
 
 // The common configuration of the server.
 pub mod config;
@@ -36,9 +37,16 @@ pub mod server;
 
 /// Storing true while the server should run.
 static RUNNING: AtomicBool = AtomicBool::new(true);
+static READY: AtomicBool = AtomicBool::new(false);
 
 lazy_static! {
     static ref SERVER: Arc<Mutex<Option<server::Server>>> = Arc::new(Mutex::new(None));
+}
+
+fn on_weather_updated(old_weather: &StdbWeather, new_weather: &StdbWeather, _reducer_event: Option<&ReducerEvent>) {
+    println!("Received new weather!");
+    let mut s = SERVER.lock().unwrap();
+    s.as_mut().unwrap().worlds[0].world.push_event(Event::Weather { prev: old_weather.weather.clone().into(), new: new_weather.weather.clone().into() });
 }
 
 fn on_chunk_inserted(chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
@@ -84,6 +92,11 @@ fn on_block_set(
         .notify_block_2(pos, *id, *metadata);
 }
 
+fn on_subscription_applied_callback() {
+    READY.store(true, Ordering::Relaxed);
+    println!("Initial subscription!")
+}
+
 /// Entrypoint!
 pub fn main() {
     let command = Command::new("mc173-server")
@@ -115,15 +128,19 @@ pub fn main() {
     ctrlc::set_handler(|| RUNNING.store(false, Ordering::Relaxed)).unwrap();
     StdbChunk::on_insert(on_chunk_inserted);
     StdbChunk::on_update(on_chunk_update);
+    StdbWeather::on_update(on_weather_updated);
+    on_subscription_applied(on_subscription_applied_callback);
     on_set_block(on_block_set);
     connect(server, module, None).expect("Failed to connect");
-    subscribe(&["SELECT * FROM StdbChunk;"]).unwrap();
+    subscribe(&["SELECT * FROM StdbChunk; SELECT * FROM StdbTime; SELECT * FROM StdbWeather;"]).unwrap();
     println!("Connected to SpacetimeDB");
 
     {
         let mut s = SERVER.lock().unwrap();
         *s = Some(server::Server::bind("127.0.0.1:25565".parse().unwrap()).unwrap());
     }
+
+    while !READY.load(Ordering::Relaxed) { std::thread::sleep(Duration::from_millis(10));}
 
     while RUNNING.load(Ordering::Relaxed) {
         let start = Instant::now();

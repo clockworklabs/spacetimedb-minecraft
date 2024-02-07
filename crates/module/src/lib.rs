@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::time::Duration;
+mod weather;
+mod rand;
+
+use std::time::{Duration, UNIX_EPOCH};
 use glam::IVec3;
 use mc173_module::{block, item};
 use mc173_module::chunk::{calc_chunk_pos, Chunk};
 use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
 use mc173_module::world::{BlockEvent, ChunkEvent, Event, LightKind};
-use spacetimedb::{schedule, spacetimedb, SpacetimeType};
+use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
+use spacetimedb::rt::ReducerInfo;
 use mc173_module::block::material::Material;
 use mc173_module::geom::Face;
+use crate::rand::StdbRand;
 
 #[spacetimedb(table)]
 pub struct StdbChunk {
@@ -72,12 +77,16 @@ pub struct StdbBreakingBlock {
 pub const SEED: i64 = 9999;
 
 #[spacetimedb(init)]
-pub fn init() {
+pub fn init(context: ReducerContext) {
     log::info!("Starting Generation");
     generate_chunks(-5, -5, 5, 5);
     log::info!("Generation complete");
 
     StdbTime::insert(StdbTime { id: 0, time: 0 }).unwrap();
+    weather::init();
+    rand::init(context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos());
+
+    // This has to be here because this is how we schedule tick
     tick();
 }
 
@@ -87,9 +96,18 @@ pub fn tick() {
     // Do stuff...
 
     // Lastly, tick time
+    weather::tick_weather();
     tick_time();
     // reschedule self
     schedule!(Duration::from_millis(50), tick());
+}
+
+#[spacetimedb(reducer)]
+pub fn set_time(time: u64) {
+    StdbTime::update_by_id(&0, StdbTime {
+        id: 0,
+        time,
+    });
 }
 
 pub fn tick_time() {
@@ -203,6 +221,7 @@ pub fn set_block(pos_x: i32, pos_y: i32, pos_z: i32, id: u8, metadata: u8) {
 
 #[spacetimedb(reducer)]
 fn handle_break_block(entity_id: u32, packet: BreakBlockPacket) {
+
     let face = match packet.face {
         0 => Face::NegY,
         1 => Face::PosY,
@@ -241,16 +260,20 @@ fn handle_break_block(entity_id: u32, packet: BreakBlockPacket) {
 
         // Start breaking a block, ignore if the position is invalid.
         if let Some((id, _)) = chunk.get_block(pos) {
+            let breaking_pos = IVec3 {
+                x: packet.x,
+                y: packet.y as i32,
+                z: packet.z,
+            };
             // let break_duration = get_break_duration(stack.id, id, in_water, on_ground);
-            let break_duration = get_break_duration(0, id, false, false);
+            let break_duration = get_break_duration(0, id, false, true);
             if break_duration.is_infinite() {
                 // Do nothing, the block is unbreakable.
             } else if break_duration == 0.0 {
-                // world.break_block(pos);
-
+                set_block(breaking_pos.x, breaking_pos.y, breaking_pos.z, 0, 0);
             } else {
                 let new_breaking_block = BreakingBlock {
-                    start_time: time + (break_duration * 0.7) as u64,
+                    start_time: time,
                     pos_x: pos.x,
                     pos_y: pos.y,
                     pos_z: pos.z,
@@ -286,15 +309,15 @@ fn handle_break_block(entity_id: u32, packet: BreakBlockPacket) {
 
             if breaking_pos == pos && chunk.is_block(pos, breaking_block.state.id) {
                 // let break_duration = get_break_duration(stack.id, state.id, in_water, on_ground);
-                let break_duration = get_break_duration(0, breaking_block.state.id, false, false);
+                let break_duration = get_break_duration(0, breaking_block.state.id, false, true);
                 let min_time = breaking_block.state.start_time + (break_duration * 0.7) as u64;
-                // if time >= min_time {
+                if time >= min_time {
                     set_block(breaking_pos.x, breaking_pos.y, breaking_pos.z, 0, 0);
                     // world.break_block(pos);
-                // } else {
+                } else {
                     // log::warn!("from {}, incoherent break time, expected {min_time} but got {}", self.username, world.get_time());
-                    // log::warn!("from {entity_id}, incoherent break time, expected {min_time} but got {}", time);
-                // }
+                    log::warn!("from {entity_id}, incoherent break time, expected {min_time} but got {}", time);
+                }
             } else {
                 // log::warn!("from {}, incoherent break position, expected  {}, got {}", self.username, pos, state.pos);
                 log::warn!("from {entity_id}, incoherent break position, expected  {pos}, got {breaking_pos}");

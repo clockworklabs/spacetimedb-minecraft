@@ -29,11 +29,17 @@ pub mod chunk_nibble_array_3;
 pub mod generate_chunk_reducer;
 pub mod generate_chunks_reducer;
 pub mod handle_break_block_reducer;
+pub mod java_random;
 pub mod set_block_reducer;
+pub mod set_time_reducer;
+pub mod set_weather_reducer;
 pub mod stdb_breaking_block;
 pub mod stdb_chunk;
+pub mod stdb_rand;
 pub mod stdb_time;
+pub mod stdb_weather;
 pub mod tick_reducer;
+pub mod weather;
 
 pub use biome::*;
 pub use break_block_packet::*;
@@ -44,11 +50,17 @@ pub use chunk_nibble_array_3::*;
 pub use generate_chunk_reducer::*;
 pub use generate_chunks_reducer::*;
 pub use handle_break_block_reducer::*;
+pub use java_random::*;
 pub use set_block_reducer::*;
+pub use set_time_reducer::*;
+pub use set_weather_reducer::*;
 pub use stdb_breaking_block::*;
 pub use stdb_chunk::*;
+pub use stdb_rand::*;
 pub use stdb_time::*;
+pub use stdb_weather::*;
 pub use tick_reducer::*;
+pub use weather::*;
 
 #[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -58,6 +70,8 @@ pub enum ReducerEvent {
     GenerateChunks(generate_chunks_reducer::GenerateChunksArgs),
     HandleBreakBlock(handle_break_block_reducer::HandleBreakBlockArgs),
     SetBlock(set_block_reducer::SetBlockArgs),
+    SetTime(set_time_reducer::SetTimeArgs),
+    SetWeather(set_weather_reducer::SetWeatherArgs),
     Tick(tick_reducer::TickArgs),
 }
 
@@ -82,8 +96,15 @@ impl SpacetimeModule for Module {
                     callbacks,
                     table_update,
                 ),
+            "StdbRand" => client_cache
+                .handle_table_update_no_primary_key::<stdb_rand::StdbRand>(callbacks, table_update),
             "StdbTime" => client_cache
                 .handle_table_update_no_primary_key::<stdb_time::StdbTime>(callbacks, table_update),
+            "StdbWeather" => client_cache
+                .handle_table_update_with_primary_key::<stdb_weather::StdbWeather>(
+                    callbacks,
+                    table_update,
+                ),
             _ => {
                 spacetimedb_sdk::log::error!("TableRowOperation on unknown table {:?}", table_name)
             }
@@ -102,7 +123,9 @@ impl SpacetimeModule for Module {
             state,
         );
         reminders.invoke_callbacks::<stdb_chunk::StdbChunk>(worker, &reducer_event, state);
+        reminders.invoke_callbacks::<stdb_rand::StdbRand>(worker, &reducer_event, state);
         reminders.invoke_callbacks::<stdb_time::StdbTime>(worker, &reducer_event, state);
+        reminders.invoke_callbacks::<stdb_weather::StdbWeather>(worker, &reducer_event, state);
     }
     fn handle_event(
         &self,
@@ -121,6 +144,8 @@ match &function_call.reducer[..] {
 			"generate_chunks" => _reducer_callbacks.handle_event_of_type::<generate_chunks_reducer::GenerateChunksArgs, ReducerEvent>(event, _state, ReducerEvent::GenerateChunks),
 			"handle_break_block" => _reducer_callbacks.handle_event_of_type::<handle_break_block_reducer::HandleBreakBlockArgs, ReducerEvent>(event, _state, ReducerEvent::HandleBreakBlock),
 			"set_block" => _reducer_callbacks.handle_event_of_type::<set_block_reducer::SetBlockArgs, ReducerEvent>(event, _state, ReducerEvent::SetBlock),
+			"set_time" => _reducer_callbacks.handle_event_of_type::<set_time_reducer::SetTimeArgs, ReducerEvent>(event, _state, ReducerEvent::SetTime),
+			"set_weather" => _reducer_callbacks.handle_event_of_type::<set_weather_reducer::SetWeatherArgs, ReducerEvent>(event, _state, ReducerEvent::SetWeather),
 			"tick" => _reducer_callbacks.handle_event_of_type::<tick_reducer::TickArgs, ReducerEvent>(event, _state, ReducerEvent::Tick),
 			unknown => { spacetimedb_sdk::log::error!("Event on an unknown reducer: {:?}", unknown); None }
 }
@@ -139,9 +164,14 @@ match &function_call.reducer[..] {
                 ),
             "StdbChunk" => client_cache
                 .handle_resubscribe_for_type::<stdb_chunk::StdbChunk>(callbacks, new_subs),
+            "StdbRand" => {
+                client_cache.handle_resubscribe_for_type::<stdb_rand::StdbRand>(callbacks, new_subs)
+            }
             "StdbTime" => {
                 client_cache.handle_resubscribe_for_type::<stdb_time::StdbTime>(callbacks, new_subs)
             }
+            "StdbWeather" => client_cache
+                .handle_resubscribe_for_type::<stdb_weather::StdbWeather>(callbacks, new_subs),
             _ => {
                 spacetimedb_sdk::log::error!("TableRowOperation on unknown table {:?}", table_name)
             }

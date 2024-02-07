@@ -20,14 +20,14 @@ impl World {
 
     /// Make an explosion in the world at the given position and size. The explosion can
     /// optionally propagate flames around.
-    pub fn explode(&mut self, center: DVec3, radius: f32, set_fire: bool, origin_id: Option<u32>) {
+    pub fn explode(&mut self, center: DVec3, radius: f32, set_fire: bool, origin_id: Option<u32>, nano_time: u128) {
         
         /// This is the step to advance each explosion ray.
         const STEP: f32 = 0.3;
 
         trace!("explode, center: {center}, radius: {radius}, set fire: {set_fire}, origin id: {origin_id:?}");
 
-        let mut rand = JavaRandom::new_seeded();
+        let mut rand = JavaRandom::new_seeded(nano_time);
         let mut affected_pos = Vec::new();
 
         // Start by computing each destroyed block.

@@ -15,13 +15,13 @@ use super::tick_attack;
 
 
 /// Tick entity "artificial intelligence", like attacking players.
-pub(super) fn tick_ai(world: &mut World, id: u32, entity: &mut Entity) {
+pub(super) fn tick_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
     match entity {
         Entity(_, BaseKind::Living(_, LivingKind::Human(_))) => (),
         Entity(_, BaseKind::Living(_, LivingKind::Ghast(_))) => tick_ghast_ai(world, id, entity),
         Entity(_, BaseKind::Living(_, LivingKind::Squid(_))) => tick_squid_ai(world, id, entity),
         Entity(_, BaseKind::Living(_, LivingKind::Slime(_))) => tick_slime_ai(world, id, entity),
-        Entity(_, BaseKind::Living(_, _)) => tick_ground_ai(world, id, entity),
+        Entity(_, BaseKind::Living(_, _)) => tick_ground_ai(world, id, entity, nano_time),
         _ => unreachable!("invalid argument for this function")
     }
 }
@@ -107,7 +107,7 @@ fn tick_living_ai(world: &mut World, _id: u32, entity: &mut Entity) {
 /// Tick an ground creature (animal/mob) entity AI.
 /// 
 /// REF: EntityCreature::updatePlayerActionState
-fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
 
     /// Maximum distance for the path finder.
     const PATH_FINDER_MAX_DIST: f32 = 16.0;
@@ -147,7 +147,7 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity) {
                 overwrite: true,
             });
             
-            tick_attack(world, id, entity, target_id, dist_squared, eye_track, &mut should_strafe);
+            tick_attack(world, id, entity, target_id, dist_squared, eye_track, &mut should_strafe, nano_time);
 
         } else {
             // Entity has been release by the attack function.

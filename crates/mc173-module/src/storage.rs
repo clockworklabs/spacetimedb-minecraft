@@ -163,7 +163,7 @@ impl ChunkStorage {
             .spawn(move || StorageWorker {
                 generator,
                 state: G::State::default(),
-                world: World::new(Dimension::Overworld), // Not relevant in worker.
+                world: World::new(Dimension::Overworld, 0), // Not relevant in worker.
                 chunks_populated: HashMap::new(),
                 region_dir: RegionDir::new(region_dir),
                 storage_request_receiver,

@@ -15,6 +15,7 @@ use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
 
 use tracing::trace;
+use autogen::autogen::{StdbTime, StdbWeather};
 
 use crate::entity::{Entity, EntityCategory, EntityKind};
 use crate::block_entity::BlockEntity;
@@ -27,6 +28,7 @@ use crate::geom::{BoundingBox, Face};
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
+use crate::world::Weather::{Clear, Rain, Thunder};
 
 
 // Following modules are order by order of importance, last modules depends on first ones.
@@ -128,7 +130,7 @@ pub struct World {
     dimension: Dimension,
     /// The world time, increasing on each tick. This is used for day/night cycle but 
     /// also for registering scheduled ticks.
-    time: u64,
+    // time: u64,
     /// The world's global random number generator, it is used everywhere to randomize
     /// events in the world, such as plant grow.
     rand: JavaRandom,
@@ -163,9 +165,9 @@ pub struct World {
     /// The current weather in that world, note that the Notchian server do not work like
     /// this, but rather store two independent state for rain and thunder, but we simplify
     /// the logic in this implementation since it is not strictly needed to be on parity.
-    weather: Weather,
+    // weather: Weather,
     /// Next time when the weather should be recomputed.
-    weather_next_time: u64,
+    // weather_next_time: u64,
     /// The current sky light level, depending on the current time. This value is used
     /// when subtracted from a chunk sky light level.
     sky_light_subtracted: u8,
@@ -180,7 +182,6 @@ impl World {
         Self {
             events: None,
             dimension,
-            time: 0,
             rand: JavaRandom::new_seeded(),
             chunks: HashMap::new(),
             entities_count: 0,
@@ -194,8 +195,8 @@ impl World {
             block_ticks_states: HashSet::new(),
             light_updates: VecDeque::new(),
             random_ticks_seed: JavaRandom::new_seeded().next_int(),
-            weather: Weather::Clear,
-            weather_next_time: 0,
+            // weather: Weather::Clear,
+            // weather_next_time: 0,
             sky_light_subtracted: 0,
         }
     }
@@ -238,7 +239,7 @@ impl World {
 
     /// Get the world time, in ticks.
     pub fn get_time(&self) -> u64 {
-        self.time
+        StdbTime::filter_by_id(0).unwrap().time
     }
 
     /// Get a mutable access to this world's random number generator.
@@ -248,17 +249,18 @@ impl World {
 
     /// Get the current weather in the world.
     pub fn get_weather(&self) -> Weather {
-        self.weather
+        StdbWeather::filter_by_id(0).unwrap().weather.into()
     }
 
     /// Set the current weather in this world. If the weather has changed an event will
     /// be pushed into the events queue.
-    pub fn set_weather(&mut self, weather: Weather) {
-        if self.weather != weather {
-            self.push_event(Event::Weather { prev: self.weather, new: weather });
-            self.weather = weather;
-        }
-    }
+    // pub fn set_weather(&mut self, weather: Weather) {
+    //
+    //     // if self.weather != weather {
+    //
+    //         // self.weather = weather;
+    //     // }
+    // }
 
     // =================== //
     //   CHUNK SNAPSHOTS   //
@@ -889,7 +891,7 @@ impl World {
 
         let state = BlockTickState { pos, id };
         if self.block_ticks_states.insert(state) {
-            self.block_ticks.insert(BlockTick { time: self.time + delay, state, uid });
+            self.block_ticks.insert(BlockTick { time: self.get_time() + delay, state, uid });
         }
 
     }
@@ -1030,21 +1032,21 @@ impl World {
     /// TODO: Guard this from being called recursively from tick functions.
     pub fn tick(&mut self) {
 
-        if self.time % 20 == 0 {
+        if self.get_time() % 20 == 0 {
             // println!("time: {}", self.time);
             // println!("weather: {:?}", self.weather);
             // println!("weather_next_time: {}", self.weather_next_time);
             // println!("sky_light_subtracted: {}", self.sky_light_subtracted);
         }
 
-        self.tick_weather();
+        // self.tick_weather();
         // TODO: Wake up all sleeping player if day time.
         
         self.tick_natural_spawn();
 
         self.tick_sky_light();
 
-        self.time += 1;
+        // self.time += 1;
 
         // TODO: Move this to SpacetimeDB
         // self.tick_blocks();
@@ -1056,32 +1058,32 @@ impl World {
     }
 
     /// Update current weather in the world.
-    fn tick_weather(&mut self) {
-
-        // No weather in the nether.
-        if self.dimension == Dimension::Nether {
-            return;
-        }
-
-        // When it's time to recompute weather.
-        if self.time >= self.weather_next_time {
-
-            // Don't update weather on first world tick.
-            if self.time != 0 {
-                let new_weather = match self.weather {
-                    Weather::Clear => self.rand.next_choice(&[Weather::Rain, Weather::Thunder]),
-                    _ => self.rand.next_choice(&[self.weather, Weather::Clear]),
-                };
-                self.set_weather(new_weather);
-            }
-
-            let bound = if self.weather == Weather::Clear { 168000 } else { 12000 };
-            let delay = self.rand.next_int_bounded(bound) as u64 + 12000;
-            self.weather_next_time = self.time + delay;
-
-        }
-
-    }
+    // fn tick_weather(&mut self) {
+    //
+    //     // No weather in the nether.
+    //     if self.dimension == Dimension::Nether {
+    //         return;
+    //     }
+    //
+    //     // When it's time to recompute weather.
+    //     if self.get_time() >= self.weather_next_time {
+    //
+    //         // Don't update weather on first world tick.
+    //         if self.get_time() != 0 {
+    //             let new_weather = match self.weather {
+    //                 Weather::Clear => self.rand.next_choice(&[Weather::Rain, Weather::Thunder]),
+    //                 _ => self.rand.next_choice(&[self.weather, Weather::Clear]),
+    //             };
+    //             self.set_weather(new_weather);
+    //         }
+    //
+    //         let bound = if self.weather == Weather::Clear { 168000 } else { 12000 };
+    //         let delay = self.rand.next_int_bounded(bound) as u64 + 12000;
+    //         self.weather_next_time = self.get_time() + delay;
+    //
+    //     }
+    //
+    // }
 
     /// Do natural animal and mob spawning in the world.
     fn tick_natural_spawn(&mut self) {
@@ -1279,7 +1281,7 @@ impl World {
     /// the real light value of blocks.
     fn tick_sky_light(&mut self) {
 
-        let time_wrapped = self.time % 24000;
+        let time_wrapped = self.get_time() % 24000;
         let mut half_turn = (time_wrapped as f32 + 1.0) / 24000.0 - 0.25;
 
         if half_turn < 0.0 {
@@ -1295,7 +1297,7 @@ impl World {
 
         let factor = (celestial_angle * std::f32::consts::TAU).cos() * 2.0 + 0.5;
         let factor = factor.clamp(0.0, 1.0);
-        let factor = match self.weather {
+        let factor = match StdbWeather::filter_by_id(0).unwrap().weather.into() {
             Weather::Clear => 1.0,
             Weather::Rain => 0.6875,
             Weather::Thunder => 0.47265625,
@@ -1570,6 +1572,16 @@ pub enum Weather {
     Rain,
     /// It is thundering.
     Thunder,
+}
+
+impl From<autogen::autogen::Weather> for Weather {
+    fn from(value: autogen::autogen::Weather) -> Self {
+        match value {
+            autogen::autogen::Weather::Clear => Clear,
+            autogen::autogen::Weather::Rain => Rain,
+            autogen::autogen::Weather::Thunder => Thunder,
+        }
+    }
 }
 
 /// Light values of a position in the world.

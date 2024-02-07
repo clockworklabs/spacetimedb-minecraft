@@ -1,10 +1,10 @@
 //! Different kind of pseudo-random number generator.
 
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::time::{UNIX_EPOCH, SystemTime};
 use std::num::Wrapping;
 
 use glam::{Vec3, DVec3};
+use spacetimedb::SpacetimeType;
 
 
 const MULTIPLIER: Wrapping<i64> = Wrapping(0x5DEECE66D);
@@ -22,7 +22,7 @@ fn initial_scramble(seed: i64) -> Wrapping<i64> {
 
 
 /// Generate a new seed in the same way as `java.f.Random` (same constants).
-fn gen_seed() -> i64 {
+fn gen_seed(nano_time: u128) -> i64 {
     static SEED: AtomicI64 = AtomicI64::new(8682522807148012);
     let mut current = SEED.load(Ordering::Relaxed);
     loop {
@@ -33,10 +33,7 @@ fn gen_seed() -> i64 {
                 // as an integer value is not available in Rust, even with Instant.
                 // So we're using duration since unix epoch of the system time, maybe not
                 // as safe as the Java implementation.
-                return match SystemTime::now().duration_since(UNIX_EPOCH) {
-                    Ok(d) => next ^ (d.as_nanos() as i64),
-                    Err(_) => next
-                };
+                return next ^ (nano_time as i64);
             }
             Err(old) => current = old
         }
@@ -46,15 +43,15 @@ fn gen_seed() -> i64 {
 
 /// A pseudo-random number generator ported from the Java standard *RNG* with additional
 /// utility methods better suited for rust.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, SpacetimeType)]
 pub struct JavaRandom {
-    seed: Wrapping<i64>,
+    seed: i64,
     next_gaussian: Option<f64>,
 }
 
 impl Default for JavaRandom {
     fn default() -> Self {
-        Self::new_seeded()
+        Self::new_seeded(0)
     }
 }
 
@@ -62,37 +59,37 @@ impl JavaRandom {
 
     #[inline]
     pub fn new(seed: i64) -> JavaRandom {
-        JavaRandom { seed: initial_scramble(seed), next_gaussian: None }
+        JavaRandom { seed: initial_scramble(seed).0, next_gaussian: None }
     }
 
     #[inline]
-    pub fn new_seeded() -> JavaRandom {
-        Self::new(gen_seed())
+    pub fn new_seeded(nano_time: u128) -> JavaRandom {
+        Self::new(gen_seed(nano_time))
     }
 
     #[inline]
     pub fn new_blank() -> JavaRandom {
-        JavaRandom { seed: Wrapping(0), next_gaussian: None }
+        JavaRandom { seed: Wrapping(0).0, next_gaussian: None }
     }
 
     #[inline]
     pub fn set_seed(&mut self, seed: i64) {
-        self.seed = initial_scramble(seed);
+        self.seed = initial_scramble(seed).0;
     }
 
     #[inline]
     pub fn get_seed(&self) -> i64 {
-        self.seed.0
+        self.seed
     }
 
     pub fn next_blank(&mut self) {
-        self.seed = (self.seed * MULTIPLIER + ADDEND) & MASK;
+        self.seed = ((Wrapping(self.seed) * MULTIPLIER + ADDEND) & MASK).0;
     }
 
     #[inline]
     fn next(&mut self, bits: u8) -> i32 {
         self.next_blank();
-        (self.seed.0 as u64 >> (48 - bits)) as i32
+        (self.seed as u64 >> (48 - bits)) as i32
     }
 
     #[inline]

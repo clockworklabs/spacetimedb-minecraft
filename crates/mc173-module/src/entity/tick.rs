@@ -30,7 +30,7 @@ use super::tick_ai;
 
 
 /// Entry point tick method for all entities.
-pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity) {
+pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
     
     let Entity(base, _) = entity;
 
@@ -51,9 +51,9 @@ pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity) {
         Entity(_, BaseKind::Item(_)) => tick_item(world, id, entity),
         Entity(_, BaseKind::Painting(_)) => tick_painting(world, id, entity),
         Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
-        Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity),
-        Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity),
-        Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity),
+        Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity, nano_time),
+        Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity, nano_time),
+        Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity, nano_time),
         Entity(_, _) => tick_base(world, id, entity),
     }
 
@@ -220,7 +220,7 @@ fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
 }
 
 /// REF: EntityTNTPrimed::onUpdate
-fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
 
     // NOTE: Not calling tick_base
     let_expect!(Entity(base, BaseKind::Tnt(tnt)) = entity);
@@ -236,18 +236,17 @@ fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity) {
     tnt.fuse_time = tnt.fuse_time.saturating_sub(1);
     if tnt.fuse_time == 0 {
         world.remove_entity(id, "tnt explode");
-        world.explode(base.pos, 4.0, false, None);
+        world.explode(base.pos, 4.0, false, None, nano_time);
     }
-
 }
 
 /// REF: EntityLiving::onUpdate
-fn tick_living(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_living(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
 
     // Super call.
     tick_base(world, id, entity);
 
-    tick_ai(world, id, entity);
+    tick_ai(world, id, entity, nano_time);
 
     let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
 
@@ -273,7 +272,7 @@ fn tick_living(world: &mut World, id: u32, entity: &mut Entity) {
 /// - EntitySnowball::onUpdate
 /// - EntityFireball::onUpdate
 /// - EntityEgg:onUpdate
-fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
 
     // Super call.
     tick_base(world, id, entity);
@@ -461,7 +460,7 @@ fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity) {
 
                 if hit_entity.is_some() || hit_block.is_some() {
                     world.remove_entity(id, "fireball hit");
-                    world.explode(base.pos, 1.0, true, projectile.owner_id);
+                    world.explode(base.pos, 1.0, true, projectile.owner_id, nano_time);
                 }
 
             }

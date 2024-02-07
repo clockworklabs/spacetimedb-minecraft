@@ -13,10 +13,10 @@ use super::common::{self, let_expect};
 /// as argument and the entity is guaranteed to be present in the world as living entity.
 /// 
 /// REF: EntityCreature::attackEntity
-pub(super) fn tick_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool) {
+pub(super) fn tick_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool, nano_time: u128) {
     match entity {
         Entity(_, BaseKind::Living(_, LivingKind::Spider(_))) => tick_spider_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        Entity(_, BaseKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+        Entity(_, BaseKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe, nano_time),
         Entity(_, BaseKind::Living(_, LivingKind::Skeleton(_))) => tick_skeleton_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
         Entity(_, BaseKind::Living(_, _)) => tick_mob_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
         _ => unreachable!("expected a living entity for this function")
@@ -95,7 +95,7 @@ fn tick_spider_attack(world: &mut World, id: u32, entity: &mut Entity, target_id
 }
 
 /// REF: EntityCreeper::attackEntity
-fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_id: u32, dist_squared: f64, eye_track: bool, _should_strafe: &mut bool) {
+fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_id: u32, dist_squared: f64, eye_track: bool, _should_strafe: &mut bool, nano_time: u128) {
 
     /// Minimum distance from a player to trigger a climb of the spider.
     const IDLE_MAX_DIST_SQUARED: f64 = 3.0 * 3.0;
@@ -125,9 +125,9 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
             world.remove_entity(id, "creeper explode");
             
             if creeper.powered {
-                world.explode(base.pos, 6.0, false, Some(id));
+                world.explode(base.pos, 6.0, false, Some(id), nano_time);
             } else {
-                world.explode(base.pos, 3.0, false, Some(id));
+                world.explode(base.pos, 3.0, false, Some(id), nano_time);
             }
 
         }

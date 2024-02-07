@@ -13,6 +13,7 @@ use std::mem;
 
 use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
+use spacetimedb::SpacetimeType;
 
 use tracing::trace;
 
@@ -176,12 +177,12 @@ impl World {
 
     /// Create a new world of the given dimension with no events queue by default, so
     /// events are disabled.
-    pub fn new(dimension: Dimension) -> Self {
+    pub fn new(dimension: Dimension, nano_time: u128) -> Self {
         Self {
             events: None,
             dimension,
             time: 0,
-            rand: JavaRandom::new_seeded(),
+            rand: JavaRandom::new_seeded(nano_time),
             chunks: HashMap::new(),
             entities_count: 0,
             entities: TickVec::new(),
@@ -193,7 +194,7 @@ impl World {
             block_ticks: BTreeSet::new(),
             block_ticks_states: HashSet::new(),
             light_updates: VecDeque::new(),
-            random_ticks_seed: JavaRandom::new_seeded().next_int(),
+            random_ticks_seed: JavaRandom::new_seeded(nano_time).next_int(),
             weather: Weather::Clear,
             weather_next_time: 0,
             sky_light_subtracted: 0,
@@ -1014,7 +1015,7 @@ impl World {
     
     /// Tick the world, this ticks all entities.
     /// TODO: Guard this from being called recursively from tick functions.
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, nano_time: u128) {
 
         if self.time % 20 == 0 {
             // println!("time: {}", self.time);
@@ -1033,7 +1034,7 @@ impl World {
         self.time += 1;
 
         self.tick_blocks();
-        self.tick_entities();
+        self.tick_entities(nano_time);
         self.tick_block_entities();
 
         self.tick_light(1000);
@@ -1353,7 +1354,7 @@ impl World {
     }
 
     /// Internal function to tick all entities.
-    fn tick_entities(&mut self) {
+    fn tick_entities(&mut self, nano_time: u128) {
 
         self.entities.reset();
 
@@ -1369,7 +1370,7 @@ impl World {
 
             let id = comp.id;
             let (prev_cx, prev_cz) = (comp.cx, comp.cz);
-            entity.tick(&mut *self, id);
+            entity.tick(&mut *self, id, nano_time);
 
             // Get the component again, the entity may have been removed.
             if let Some((index, comp)) = self.entities.current_mut() {
@@ -1547,7 +1548,7 @@ pub enum Dimension {
 }
 
 /// Type of weather currently in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SpacetimeType)]
 pub enum Weather {
     /// The weather is clear.
     Clear,

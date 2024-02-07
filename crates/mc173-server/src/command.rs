@@ -3,6 +3,7 @@
 use std::mem;
 
 use glam::IVec3;
+use autogen::autogen::set_weather;
 
 use mc173::item::{self, ItemStack};
 use mc173::world::{World, Event, Weather};
@@ -104,6 +105,30 @@ const COMMANDS: &'static [Command] = &[
         usage: "",
         description: "Display world and server time",
         handler: cmd_time
+    },
+    Command {
+        name: "set_time",
+        usage: "<time>",
+        description: "Sets the current world time",
+        handler: cmd_set_time
+    },
+    Command {
+        name: "set_block",
+        usage: "<x> <y> <z> <id> <metadata>",
+        description: "Sets the block at the given position",
+        handler: cmd_set_block
+    },
+    Command {
+        name: "generate_chunks",
+        usage: "<from_x> <from_z> <to_x> <to_z>",
+        description: "Generate chunks from (x, z) to (x, z)",
+        handler: cmd_generate_chunks
+    },
+    Command {
+        name: "chop_terrain",
+        usage: "<x> <y> <z> <size>",
+        description: "Sets blocks starting at (x, y, z) going to (x + size, 128, z + size)",
+        handler: cmd_chop_terrain
     },
     Command {
         name: "weather",
@@ -259,18 +284,97 @@ fn cmd_time(ctx: CommandContext) -> CommandResult {
     Ok(())
 }
 
+fn cmd_set_time(ctx: CommandContext) -> CommandResult {
+    if ctx.parts.len() != 1 {
+        return Err(None);
+    }
+
+    if let Ok(time) = ctx.parts[0].parse::<u64>() {
+        autogen::autogen::set_time(time);
+        Ok(())
+    } else {
+        Err(None)
+    }
+}
+
+fn cmd_chop_terrain(ctx: CommandContext) -> CommandResult {
+    if ctx.parts.len() != 4 {
+        return Err(None);
+    }
+
+    let Ok(x) = ctx.parts[0].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(y) = ctx.parts[1].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(z) = ctx.parts[2].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(size) = ctx.parts[3].parse::<i32>() else {
+        return Err(None)
+    };
+    autogen::autogen::chop_terrain(x, y, z, size);
+    Ok(())
+}
+
+fn cmd_generate_chunks(ctx: CommandContext) -> CommandResult {
+    if ctx.parts.len() != 4 {
+        return Err(None);
+    }
+
+    let Ok(from_x) = ctx.parts[0].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(from_z) = ctx.parts[1].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(to_x) = ctx.parts[2].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(to_z) = ctx.parts[3].parse::<i32>() else {
+        return Err(None)
+    };
+    autogen::autogen::generate_chunks(from_x, from_z, to_x, to_z);
+    Ok(())
+}
+
+fn cmd_set_block(ctx: CommandContext) -> CommandResult {
+    if ctx.parts.len() != 5 {
+        return Err(None);
+    }
+
+    let Ok(x) = ctx.parts[0].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(y) = ctx.parts[1].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(z) = ctx.parts[2].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(id) = ctx.parts[3].parse::<i32>() else {
+        return Err(None)
+    };
+    let Ok(metadata) = ctx.parts[4].parse::<i32>() else {
+        return Err(None)
+    };
+    autogen::autogen::set_block(x, y, z, id as u8, metadata as u8);
+    Ok(())
+}
+
 fn cmd_weather(ctx: CommandContext) -> CommandResult { 
 
     if ctx.parts.len() == 1 {
         
         let weather = match ctx.parts[0] {
-            "clear" => Weather::Clear,
-            "rain" => Weather::Rain,
-            "thunder" => Weather::Thunder,
+            "clear" => autogen::autogen::Weather::Clear,
+            "rain" => autogen::autogen::Weather::Rain,
+            "thunder" => autogen::autogen::Weather::Thunder,
             _ => return Err(None)
         };
 
-        ctx.world.set_weather(weather);
+        set_weather(weather.clone());
         ctx.player.send_chat(format!("§aWeather set to:§r {:?}", weather));
         Ok(())
 
