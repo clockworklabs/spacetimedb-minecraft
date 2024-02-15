@@ -10,7 +10,7 @@ use crate::block::material::Material;
 use crate::item::{self, ItemStack};
 use crate::block;
 
-use super::{Entity, BaseKind, Base, Living};
+use super::{Entity, EntityKind, EntityBase, Living};
 use super::common::{self, let_expect};
 
 
@@ -18,7 +18,7 @@ use super::common::{self, let_expect};
 /// so we split it here.
 pub(super) fn tick_state(world: &mut World, id: u32, entity: &mut Entity) {
     match entity {
-        Entity(_, BaseKind::Living(_, _)) => tick_state_living(world, id, entity),
+        Entity(_, EntityKind::Living(_, _)) => tick_state_living(world, id, entity),
         Entity(_, _) => tick_state_base(world, id, entity),
     }
 }
@@ -30,7 +30,7 @@ fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
 
     // Compute the bounding box used for water collision, it depends on the entity kind.
     let water_bb = match base_kind {
-        BaseKind::Item(_) => base.bb,
+        EntityKind::Item(_) => base.bb,
         _ => base.bb.inflate(DVec3::new(-0.001, -0.4 - 0.001, -0.001)),
     };
 
@@ -58,7 +58,7 @@ fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
     if base.in_water {
         base.fire_time = 0;
         base.fall_distance = 0.0;
-    } else if matches!(base_kind, BaseKind::Living(_, LivingKind::Ghast(_) | LivingKind::PigZombie(_))) {
+    } else if matches!(base_kind, EntityKind::Living(_, LivingKind::Ghast(_) | LivingKind::PigZombie(_))) {
         base.fire_time = 0;
     }
 
@@ -85,12 +85,12 @@ fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
             for (entity_id, entity) in world.iter_entities_colliding(base.bb.inflate(DVec3::new(1.0, 0.0, 1.0))) {
 
                 match &entity.1 {
-                    BaseKind::Item(item) => {
+                    EntityKind::Item(item) => {
                         if item.frozen_time == 0 {
                             picked_up_entities.push(entity_id);
                         }
                     }
-                    BaseKind::Projectile(projectile, ProjectileKind::Arrow(arrow)) => {
+                    EntityKind::Projectile(projectile, ProjectileKind::Arrow(arrow)) => {
                         if projectile.state.is_some() && arrow.from_player {
                             picked_up_entities.push(entity_id);
                         }
@@ -120,7 +120,7 @@ fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
     // Super call.
     tick_state_base(world, id, entity);
 
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
     
     // Suffocate entities if inside opaque cubes (except for sleeping players).
     let mut check_suffocate = true;
@@ -252,7 +252,7 @@ fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
             if let LivingKind::Creeper(_) = living_kind {
                 if let Some(killer_id) = killer_id {
                     
-                    if let Some(Entity(_, BaseKind::Living(_, LivingKind::Skeleton(_)))) = world.get_entity(killer_id) {
+                    if let Some(Entity(_, EntityKind::Living(_, LivingKind::Skeleton(_)))) = world.get_entity(killer_id) {
                         let item = base.rand.next_choice(&[item::RECORD_13, item::RECORD_CAT]);
                         let stack = ItemStack::new_single(item, 0);
                         world.spawn_loot(base.pos, stack, 0.0);
@@ -273,7 +273,7 @@ fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
 }
 
 
-fn spawn_living_loot(world: &mut World, base: &mut Base, _living: &mut Living, living_kind: &mut LivingKind) {
+fn spawn_living_loot(world: &mut World, base: &mut EntityBase, _living: &mut Living, living_kind: &mut LivingKind) {
     
     let stack = match living_kind {
         LivingKind::Chicken(_) => 

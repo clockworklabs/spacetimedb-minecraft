@@ -1,5 +1,6 @@
 //! Item enumeration and behaviors.
 
+use spacetimedb::SpacetimeType;
 use crate::block;
 
 pub mod attack;
@@ -201,7 +202,7 @@ impl Item {
 
 
 /// An item stack defines the actual number of items and their damage value.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, SpacetimeType)]
 pub struct ItemStack {
     /// The item id.
     pub id: u16,

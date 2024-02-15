@@ -9,8 +9,8 @@ use glam::{DVec3, IVec3};
 /// An axis-aligned bounding box.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct BoundingBox {
-    pub min: DVec3,
-    pub max: DVec3,
+    pub min: Vec<f64>,
+    pub max: Vec<f64>,
 }
 
 impl BoundingBox {

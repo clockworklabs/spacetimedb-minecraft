@@ -1,177 +1,164 @@
 //! Base function for ticking entity.
-//! 
+//!
 //! This module gives in documentation the reference to the Java methods, as known from
 //! the decompilation of Minecraft b1.7.3 by RetroMCP.
-//! 
+//!
 //! This module architecture is quite complicated because we want to replicate almost the
-//! same logic path as the Notchian implementation, so we need to emulate method 
+//! same logic path as the Notchian implementation, so we need to emulate method
 //! overriding and super class calls. To achieve that, we use base/living/projectile kind
-//! enumerations in order to route logic, each function that is created must exists 
+//! enumerations in order to route logic, each function that is created must exists
 
 use glam::{DVec3, IVec3, Vec2, Vec3Swizzles};
-
-use tracing::trace;
+use mc173_module::entity::{EntityKind, Entity};
 
 use crate::block::material::Material;
-use crate::world::bound::RayTraceKind;
-use crate::world::{World, Event, EntityEvent};
-use crate::entity::Chicken;
 use crate::item::ItemStack;
-use crate::geom::{Face, BoundingBox};
 use crate::block;
 
-use super::{Entity,
-    BaseKind, ProjectileKind, LivingKind, 
-    Base, Living, Hurt, ProjectileHit};
 
-use super::common::{self, let_expect};
-use super::tick_state;
-use super::tick_ai;
+/// Entry point tick method for all entities.
+pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity) {
 
+    let Entity(base, _) = entity;
 
-//// Entry point tick method for all entities.
-// pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity) {
-//
-//     let Entity(base, _) = entity;
-//
-//     // Just kill the entity if far in the void.
-//     if base.pos.y < -64.0 {
-//         world.remove_entity(id, "void");
-//         return;
-//     }
-//
-//     let prev_pos = base.pos;
-//     let prev_vel = base.vel;
-//     let prev_look = base.look;
-//
-//     // Increase the entity lifetime, used by some entities and is interesting for debug.
-//     base.lifetime += 1;
-//
-//     match entity {
-//         Entity(_, BaseKind::Item(_)) => tick_item(world, id, entity),
-//         Entity(_, BaseKind::Painting(_)) => tick_painting(world, id, entity),
-//         // Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
-//         // Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity),
-//         Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity),
-//         Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity),
-//         Entity(_, _) => tick_base(world, id, entity),
-//     }
-//
-//     // Finally check all major changes and push events if needed.
-//     let Entity(base, _) = entity;
-//
-//     if prev_pos != base.pos {
-//         world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
-//     }
-//
-//     if prev_vel != base.vel {
-//         world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
-//     }
-//
-//     if prev_look != base.look {
-//         world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
-//     }
-//
-// }
+    // Just kill the entity if far in the void.
+    if base.pos.y < -64.0 {
+        world.remove_entity(id, "void");
+        return;
+    }
+
+    let prev_pos = base.pos;
+    let prev_vel = base.vel;
+    let prev_look = base.look;
+
+    // Increase the entity lifetime, used by some entities and is interesting for debug.
+    base.lifetime += 1;
+
+    match entity {
+        Entity(_, EntityKind::Item(_)) => tick_item(world, id, entity),
+        // Entity(_, BaseKind::Painting(_)) => tick_painting(world, id, entity),
+        // Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
+        // Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity),
+        // Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity),
+        // Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity),
+        Entity(_, _) => tick_base(world, id, entity),
+    }
+
+    // Finally check all major changes and push events if needed.
+    let Entity(base, _) = entity;
+
+    if prev_pos != base.pos {
+        world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
+    }
+
+    if prev_vel != base.vel {
+        world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
+    }
+
+    if prev_look != base.look {
+        world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
+    }
+
+}
 
 
-//// REF: Entity::onUpdate
-// fn tick_base(world: &mut World, id: u32, entity: &mut Entity) {
+/// REF: Entity::onUpdate
+fn tick_base(world: &mut World, id: u32, entity: &mut Entity) {
     tick_state(world, id, entity);
 }
 
-//// REF: EntityItem::onUpdate
-// fn tick_item(world: &mut World, id: u32, entity: &mut Entity) {
-//
-//     tick_base(world, id, entity);
-//     let_expect!(Entity(base, BaseKind::Item(item)) = entity);
-//
-//     if item.frozen_time > 0 {
-//         item.frozen_time -= 1;
-//     }
-//
-//     // Update item velocity.
-//     base.vel.y -= 0.04;
-//
-//     // If the item is in lava, apply random motion like it's burning.
-//     // PARITY: The real client don't use 'in_lava', check if problematic.
-//     if base.in_lava {
-//         base.vel.y = 0.2;
-//         base.vel.x = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
-//         base.vel.z = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
-//     }
-//
-//     // If the item is in an opaque block.
-//     let block_pos = base.pos.floor().as_ivec3();
-//     if world.is_block_opaque_cube(block_pos) {
-//
-//         let delta = base.pos - block_pos.as_dvec3();
-//
-//         // Find a block face where we can bump the item.
-//         let bump_face = Face::ALL.into_iter()
-//             .filter(|face| !world.is_block_opaque_cube(block_pos + face.delta()))
-//             .map(|face| {
-//                 let mut delta = delta[face.axis_index()];
-//                 if face.is_pos() {
-//                     delta = 1.0 - delta;
-//                 }
-//                 (face, delta)
-//             })
-//             .min_by(|&(_, delta1), &(_, delta2)| delta1.total_cmp(&delta2))
-//             .map(|(face, _)| face);
-//
-//         // If we found a non opaque face then we bump the item to that face.
-//         if let Some(bump_face) = bump_face {
-//             let accel = (base.rand.next_float() * 0.2 + 0.1) as f64;
-//             if bump_face.is_neg() {
-//                 base.vel[bump_face.axis_index()] = -accel;
-//             } else {
-//                 base.vel[bump_face.axis_index()] = accel;
-//             }
-//         }
-//
-//     }
-//
-//     // Move the item while checking collisions if needed.
-//     apply_base_vel(world, id, base, base.vel, 0.0);
-//
-//     let mut slipperiness = 0.98;
-//
-//     if base.on_ground {
-//
-//         slipperiness = 0.1 * 0.1 * 58.8;
-//
-//         let ground_pos = IVec3 {
-//             x: base.pos.x.floor() as i32,
-//             y: base.bb.min.y.floor() as i32 - 1,
-//             z: base.pos.z.floor() as i32,
-//         };
-//
-//         if let Some((ground_id, _)) = world.get_block(ground_pos) {
-//             if ground_id != block::AIR {
-//                 slipperiness = block::material::get_slipperiness(ground_id);
-//             }
-//         }
-//
-//     }
-//
-//     // Slow its velocity depending on ground slipperiness.
-//     base.vel.x *= slipperiness as f64;
-//     base.vel.y *= 0.98;
-//     base.vel.z *= slipperiness as f64;
-//
-//     if base.on_ground {
-//         base.vel.y *= -0.5;
-//     }
-//
-//     // Kill the item self after 5 minutes (5 * 60 * 20).
-//     if base.lifetime >= 6000 {
-//         world.remove_entity(id, "item too old");
-//     }
-//
-// }
+/// REF: EntityItem::onUpdate
+fn tick_item(id: u32, entity: &mut Entity) {
 
-//// REF: EntityPainting::onUpdate
+    tick_base(world, id, entity);
+    // let_expect!(Entity(base, BaseKind::Item(item)) = entity);
+
+    if item.frozen_time > 0 {
+        item.frozen_time -= 1;
+    }
+
+    // Update item velocity.
+    base.vel.y -= 0.04;
+
+    // If the item is in lava, apply random motion like it's burning.
+    // PARITY: The real client don't use 'in_lava', check if problematic.
+    if base.in_lava {
+        base.vel.y = 0.2;
+        base.vel.x = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
+        base.vel.z = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
+    }
+
+    // If the item is in an opaque block.
+    let block_pos = base.pos.floor().as_ivec3();
+    if world.is_block_opaque_cube(block_pos) {
+
+        let delta = base.pos - block_pos.as_dvec3();
+
+        // Find a block face where we can bump the item.
+        let bump_face = Face::ALL.into_iter()
+            .filter(|face| !world.is_block_opaque_cube(block_pos + face.delta()))
+            .map(|face| {
+                let mut delta = delta[face.axis_index()];
+                if face.is_pos() {
+                    delta = 1.0 - delta;
+                }
+                (face, delta)
+            })
+            .min_by(|&(_, delta1), &(_, delta2)| delta1.total_cmp(&delta2))
+            .map(|(face, _)| face);
+
+        // If we found a non opaque face then we bump the item to that face.
+        if let Some(bump_face) = bump_face {
+            let accel = (base.rand.next_float() * 0.2 + 0.1) as f64;
+            if bump_face.is_neg() {
+                base.vel[bump_face.axis_index()] = -accel;
+            } else {
+                base.vel[bump_face.axis_index()] = accel;
+            }
+        }
+
+    }
+
+    // Move the item while checking collisions if needed.
+    apply_base_vel(world, id, base, base.vel, 0.0);
+
+    let mut slipperiness = 0.98;
+
+    if base.on_ground {
+
+        slipperiness = 0.1 * 0.1 * 58.8;
+
+        let ground_pos = IVec3 {
+            x: base.pos.x.floor() as i32,
+            y: base.bb.min.y.floor() as i32 - 1,
+            z: base.pos.z.floor() as i32,
+        };
+
+        if let Some((ground_id, _)) = world.get_block(ground_pos) {
+            if ground_id != block::AIR {
+                slipperiness = block::material::get_slipperiness(ground_id);
+            }
+        }
+
+    }
+
+    // Slow its velocity depending on ground slipperiness.
+    base.vel.x *= slipperiness as f64;
+    base.vel.y *= 0.98;
+    base.vel.z *= slipperiness as f64;
+
+    if base.on_ground {
+        base.vel.y *= -0.5;
+    }
+
+    // Kill the item self after 5 minutes (5 * 60 * 20).
+    if base.lifetime >= 6000 {
+        world.remove_entity(id, "item too old");
+    }
+
+}
+
+// /// REF: EntityPainting::onUpdate
 // fn tick_painting(_world: &mut World, _id: u32, entity: &mut Entity) {
 //
 //     // NOTE: Not calling tick_base
@@ -241,7 +228,7 @@ use super::tick_ai;
 //
 // }
 
-//// REF: EntityLiving::onUpdate
+// /// REF: EntityLiving::onUpdate
 // fn tick_living(world: &mut World, id: u32, entity: &mut Entity) {
 //
 //     // Super call.
@@ -268,11 +255,11 @@ use super::tick_ai;
 //
 // }
 
-//// REF:
-//// - EntityArrow::onUpdate
-//// - EntitySnowball::onUpdate
-//// - EntityFireball::onUpdate
-//// - EntityEgg:onUpdate
+// /// REF:
+// /// - EntityArrow::onUpdate
+// /// - EntitySnowball::onUpdate
+// /// - EntityFireball::onUpdate
+// /// - EntityEgg:onUpdate
 // fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity) {
 //
 //     // Super call.
@@ -588,7 +575,7 @@ use super::tick_ai;
 //
 // }
 
-//// Tick a living entity to push/being pushed an entity.
+// /// Tick a living entity to push/being pushed an entity.
 // fn tick_living_push(world: &mut World, _id: u32, base: &mut Base) {
 //
 //     // TODO: pushing minecart
@@ -632,7 +619,7 @@ use super::tick_ai;
 //
 // }
 
-//// REF: EntityLiving::moveEntityWithHeading
+// /// REF: EntityLiving::moveEntityWithHeading
 // fn tick_living_pos(world: &mut World, id: u32, base: &mut Base, living: &mut Living, living_kind: &mut LivingKind) {
 //
 //     // Squid has no special rule for moving.
@@ -750,7 +737,7 @@ use super::tick_ai;
 //
 // }
 
-//// Update a living entity velocity according to its strafing/forward accel.
+// /// Update a living entity velocity according to its strafing/forward accel.
 // pub fn apply_living_accel(base: &mut Base, living: &mut Living, factor: f32) {
 //
 //     let mut strafing = living.accel_strafing;
@@ -768,9 +755,9 @@ use super::tick_ai;
 //
 // }
 
-//// Common method for moving an entity by a given amount while checking collisions.
-////
-//// REF: Entity::moveEntity
+// /// Common method for moving an entity by a given amount while checking collisions.
+// ///
+// /// REF: Entity::moveEntity
 // pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut Base, delta: DVec3, step_height: f32) {
 //
 //     if base.no_clip {

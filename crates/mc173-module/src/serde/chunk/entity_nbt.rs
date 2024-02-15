@@ -2,10 +2,10 @@
 
 use glam::IVec3;
 
-use crate::entity::{self as e, 
-    Entity, 
-    Base, BaseKind, Projectile, ProjectileKind, Living, LivingKind,
-    PaintingOrientation, PaintingArt};
+use crate::entity::{self as e,
+                    Entity,
+                    EntityBase, EntityKind, Projectile, ProjectileKind, Living, LivingKind,
+                    PaintingOrientation, PaintingArt};
 
 use crate::serde::nbt::{NbtCompoundParse, NbtCompound, NbtParseError};
 use crate::item::ItemStack;
@@ -16,7 +16,7 @@ use super::slot_nbt;
 
 pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
 
-    let mut base = Base::default();
+    let mut base = EntityBase::default();
     base.persistent = true;
 
     // Position list.
@@ -48,10 +48,10 @@ pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
             let mut item = e::Item::default();
             item.health = comp.get_short("Health").unwrap_or_default().max(0) as u16;
             item.stack = item_stack_nbt::from_nbt(comp.get_compound("Item")?)?;
-            BaseKind::Item(item)
+            EntityKind::Item(item)
 
         }
-        "Painting" => BaseKind::Painting(e::Painting {
+        "Painting" => EntityKind::Painting(e::Painting {
             block_pos: IVec3 {
                 x: comp.get_int("TileX")?,
                 y: comp.get_int("TileY")?,
@@ -66,15 +66,15 @@ pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
             art: PaintingArt::Kebab, // FIXME:
             ..Default::default()
         }),
-        "PrimedTnt" => BaseKind::Tnt(e::Tnt {
+        "PrimedTnt" => EntityKind::Tnt(e::Tnt {
             fuse_time: comp.get_byte("Fuse")?.max(0) as u32,
         }),
-        "FallingSand" => BaseKind::FallingBlock(e::FallingBlock {
+        "FallingSand" => EntityKind::FallingBlock(e::FallingBlock {
             block_id: comp.get_byte("Tile")? as u8,
             ..Default::default()
         }),
         "Minecart" => {
-            BaseKind::Minecart(match comp.get_int("Type")? {
+            EntityKind::Minecart(match comp.get_int("Type")? {
                 1 => {
                     let mut inv: Box<[ItemStack; 27]> = Box::default();
                     slot_nbt::from_nbt_to_inv(comp.get_list("Items")?, &mut inv[..])?;
@@ -90,7 +90,7 @@ pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
                 _ => e::Minecart::Normal
             })
         }
-        "Boat" => BaseKind::Boat(e::Boat::default()),
+        "Boat" => EntityKind::Boat(e::Boat::default()),
         "Arrow" |
         "Snowball" => {
 
@@ -120,7 +120,7 @@ pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
                 _ => unreachable!()
             };
 
-            BaseKind::Projectile(projectile, projectile_kind)
+            EntityKind::Projectile(projectile, projectile_kind)
 
         }
         "Creeper" |
@@ -183,7 +183,7 @@ pub fn from_nbt(comp: NbtCompoundParse) -> Result<Box<Entity>, NbtParseError> {
                 _ => unreachable!()
             };
 
-            BaseKind::Living(living, living_kind)
+            EntityKind::Living(living, living_kind)
 
         }
         _ => return Err(NbtParseError::new(format!("{}/id", comp.path()), "valid entity id"))
@@ -201,7 +201,7 @@ pub fn to_nbt<'a>(comp: &'a mut NbtCompound, entity: &Entity) -> Option<&'a mut 
     let Entity(base, base_kind) = entity;
 
     match base_kind {
-        BaseKind::Item(item) => {
+        EntityKind::Item(item) => {
 
             comp.insert("id", "Item");
             comp.insert("Age", base.lifetime);
@@ -212,7 +212,7 @@ pub fn to_nbt<'a>(comp: &'a mut NbtCompound, entity: &Entity) -> Option<&'a mut 
             comp.insert("Item", item_comp);
 
         }
-        BaseKind::Painting(painting) => {
+        EntityKind::Painting(painting) => {
             comp.insert("id", "Painting");
             comp.insert("TileX", painting.block_pos.x);
             comp.insert("TileY", painting.block_pos.y);
@@ -225,35 +225,35 @@ pub fn to_nbt<'a>(comp: &'a mut NbtCompound, entity: &Entity) -> Option<&'a mut 
             });
             comp.insert("Motive", "Kebab");
         }
-        BaseKind::Boat(_) => {
+        EntityKind::Boat(_) => {
             comp.insert("id", "Boat");
         }
-        BaseKind::Minecart(e::Minecart::Normal) => {
+        EntityKind::Minecart(e::Minecart::Normal) => {
             comp.insert("id", "Minecart");
             comp.insert("Type", 0i32);
         }
-        BaseKind::Minecart(e::Minecart::Chest { inv }) => {
+        EntityKind::Minecart(e::Minecart::Chest { inv }) => {
             comp.insert("id", "Minecart");
             comp.insert("Type", 1i32);
             comp.insert("Items", slot_nbt::to_nbt_from_inv(&inv[..]));
         }
-        &BaseKind::Minecart(e::Minecart::Furnace { push_x, push_z, fuel }) => {
+        &EntityKind::Minecart(e::Minecart::Furnace { push_x, push_z, fuel }) => {
             comp.insert("id", "Minecart");
             comp.insert("Type", 2i32);
             comp.insert("fuel", fuel.min(i16::MAX as _) as i16);
             comp.insert("PushX", push_x);
             comp.insert("PushZ", push_z);
         }
-        BaseKind::LightningBolt(_) => return None, // Not serializable
-        BaseKind::FallingBlock(falling_block) => {
+        EntityKind::LightningBolt(_) => return None, // Not serializable
+        EntityKind::FallingBlock(falling_block) => {
             comp.insert("id", "FallingSand");
             comp.insert("Tile", falling_block.block_id);
         }
-        BaseKind::Tnt(tnt) => {
+        EntityKind::Tnt(tnt) => {
             comp.insert("id", "PrimedTnt");
             comp.insert("Fuse", tnt.fuse_time.min(i8::MAX as _) as i8);
         }
-        BaseKind::Projectile(projectile, projectile_kind) => {
+        EntityKind::Projectile(projectile, projectile_kind) => {
 
             match projectile_kind {
                 ProjectileKind::Arrow(arrow) => {
@@ -276,7 +276,7 @@ pub fn to_nbt<'a>(comp: &'a mut NbtCompound, entity: &Entity) -> Option<&'a mut 
             comp.insert("shake", projectile.shake.min(i8::MAX as _) as i8);
 
         }
-        BaseKind::Living(living, living_kind) => {
+        EntityKind::Living(living, living_kind) => {
 
             match living_kind {
                 LivingKind::Ghast(_) => comp.insert("id", "Ghast"),

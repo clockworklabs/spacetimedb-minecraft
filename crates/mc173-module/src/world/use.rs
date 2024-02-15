@@ -2,7 +2,7 @@
 
 use glam::{IVec3, DVec3, Vec3};
 
-use crate::entity::{Arrow, Entity, Snowball, Tnt, Bobber, BaseKind, ProjectileKind, Item};
+use crate::entity::{Arrow, Entity, Snowball, Tnt, Bobber, EntityKind, ProjectileKind, Item};
 use crate::inventory::InventoryHandle;
 use crate::gen::tree::TreeGenerator;
 use crate::block::sapling::TreeKind;
@@ -450,7 +450,7 @@ impl World {
 
         if let Some(bobber_id) = new_bobber_id {
             
-            if let Some(Entity(bobber_base, BaseKind::Projectile(bobber_projectile, ProjectileKind::Bobber(bobber)))) = self.get_entity(bobber_id) {
+            if let Some(Entity(bobber_base, EntityKind::Projectile(bobber_projectile, ProjectileKind::Bobber(bobber)))) = self.get_entity(bobber_id) {
 
                 let bobber_pos = bobber_base.pos;
 

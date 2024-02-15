@@ -11,7 +11,7 @@ use crate::geom::{Face, BoundingBox};
 use crate::world::{World, Light};
 use crate::block;
 
-use super::{Entity, LivingKind, Base};
+use super::{Entity, LivingKind, EntityBase};
 
 
 /// Internal macro to make a refutable pattern assignment that just panic if refuted.
@@ -36,7 +36,7 @@ thread_local! {
 }
 
 /// Calculate the eye position of the given entity.
-pub fn calc_eye_pos(base: &Base) -> DVec3 {
+pub fn calc_eye_pos(base: &EntityBase) -> DVec3 {
     let mut pos = base.pos;
     pos.y += base.eye_height as f64;
     pos
@@ -96,7 +96,7 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
 }
 
 /// Calculate the light levels for an entity given its base component.
-pub fn get_entity_light(world: &World, base: &Base) -> Light {
+pub fn get_entity_light(world: &World, base: &EntityBase) -> Light {
     let mut check_pos = base.pos;
     check_pos.y += (base.size.height * 0.66 - base.size.center) as f64;
     world.get_light(check_pos.floor().as_ivec3())
@@ -114,7 +114,7 @@ pub fn find_closest_player_entity(world: &World, center: DVec3, max_dist: f64) -
 
 /// This function recompute the current bounding box from the position and the last
 /// size that was used to create it.
-pub fn update_bounding_box_from_pos(base: &mut Base) {
+pub fn update_bounding_box_from_pos(base: &mut EntityBase) {
     let half_width = (base.size.width / 2.0) as f64;
     let height = base.size.height as f64;
     let center = base.size.center as f64;
@@ -126,7 +126,7 @@ pub fn update_bounding_box_from_pos(base: &mut Base) {
 
 /// This position recompute the current position based on the bounding box' position
 /// the size that was used to create it.
-pub fn update_pos_from_bounding_box(base: &mut Base) {
+pub fn update_pos_from_bounding_box(base: &mut EntityBase) {
     let center = base.size.center as f64;
     base.pos = DVec3 {
         x: (base.bb.min.x + base.bb.max.x) / 2.0,
@@ -137,7 +137,7 @@ pub fn update_pos_from_bounding_box(base: &mut Base) {
 
 /// Modify the look angles of this entity, limited to the given step. 
 /// We need to call this function many time to reach the desired look.
-pub fn update_look_by_step(base: &mut Base, look: Vec2, step: Vec2) {
+pub fn update_look_by_step(base: &mut EntityBase, look: Vec2, step: Vec2) {
     
     let look_norm = Vec2 {
         // Yaw can be normalized between 0 and tau
@@ -152,7 +152,7 @@ pub fn update_look_by_step(base: &mut Base, look: Vec2, step: Vec2) {
 
 /// Modify the look angles to point to a given target step by step. The eye height is
 /// included in the calculation in order to make the head looking at target.
-pub fn update_look_at_by_step(base: &mut Base, target: DVec3, step: Vec2) {
+pub fn update_look_at_by_step(base: &mut EntityBase, target: DVec3, step: Vec2) {
     let delta = target - calc_eye_pos(base);
     let yaw = f64::atan2(delta.z, delta.x) as f32 - std::f32::consts::FRAC_PI_2;
     let pitch = -f64::atan2(delta.y, delta.xz().length()) as f32;
@@ -161,12 +161,12 @@ pub fn update_look_at_by_step(base: &mut Base, target: DVec3, step: Vec2) {
 
 /// Almost the same as [`update_look_at_by_step`] but the target is another entity base,
 /// this function will make the entity look at the eyes of the target one.
-pub fn update_look_at_entity_by_step(base: &mut Base, target_base: &Base, step: Vec2) {
+pub fn update_look_at_entity_by_step(base: &mut EntityBase, target_base: &EntityBase, step: Vec2) {
     update_look_at_by_step(base, calc_eye_pos(target_base), step);
 }
 
 /// Apply knock back to this entity's velocity.
-pub fn update_knock_back(base: &mut Base, dir: DVec3) {
+pub fn update_knock_back(base: &mut EntityBase, dir: DVec3) {
 
     let mut accel = dir.normalize_or_zero();
     accel.y -= 1.0;
@@ -178,7 +178,7 @@ pub fn update_knock_back(base: &mut Base, dir: DVec3) {
 }
 
 /// Return true if the entity can eye track the target entity, this use ray tracing.
-pub fn can_eye_track(world: &World, base: &Base, target_base: &Base) -> bool {
+pub fn can_eye_track(world: &World, base: &EntityBase, target_base: &EntityBase) -> bool {
     let origin = calc_eye_pos(base);
     let ray = calc_eye_pos(target_base) - origin;
     world.ray_trace_blocks(origin, ray, RayTraceKind::Overlay).is_none()

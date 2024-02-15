@@ -9,7 +9,7 @@ use crate::entity::{Fireball, Path, LookTarget};
 use crate::world::{World, Event, EntityEvent};
 use crate::path::PathFinder;
 
-use super::{Entity, BaseKind, LivingKind, EntityCategory};
+use super::{Entity, EntityKind, LivingKind, EntityCategory};
 use super::common::{self, let_expect};
 use super::tick_attack;
 
@@ -17,11 +17,11 @@ use super::tick_attack;
 /// Tick entity "artificial intelligence", like attacking players.
 pub(super) fn tick_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
     match entity {
-        Entity(_, BaseKind::Living(_, LivingKind::Human(_))) => (),
-        Entity(_, BaseKind::Living(_, LivingKind::Ghast(_))) => tick_ghast_ai(world, id, entity),
-        Entity(_, BaseKind::Living(_, LivingKind::Squid(_))) => tick_squid_ai(world, id, entity),
-        Entity(_, BaseKind::Living(_, LivingKind::Slime(_))) => tick_slime_ai(world, id, entity),
-        Entity(_, BaseKind::Living(_, _)) => tick_ground_ai(world, id, entity, nano_time),
+        Entity(_, EntityKind::Living(_, LivingKind::Human(_))) => (),
+        Entity(_, EntityKind::Living(_, LivingKind::Ghast(_))) => tick_ghast_ai(world, id, entity),
+        Entity(_, EntityKind::Living(_, LivingKind::Squid(_))) => tick_squid_ai(world, id, entity),
+        Entity(_, EntityKind::Living(_, LivingKind::Slime(_))) => tick_slime_ai(world, id, entity),
+        Entity(_, EntityKind::Living(_, _)) => tick_ground_ai(world, id, entity, nano_time),
         _ => unreachable!("invalid argument for this function")
     }
 }
@@ -40,7 +40,7 @@ fn tick_living_ai(world: &mut World, _id: u32, entity: &mut Entity) {
     /// Slow look step used for sitting dogs.
     const SLOW_LOOK_STEP: Vec2 = Vec2::new(0.17453292519943295, 0.3490658503988659);
 
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
 
     living.accel_strafing = 0.0;
     living.accel_forward = 0.0;
@@ -127,7 +127,7 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u1
         return;
     }
 
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
     
     // Target position to path find to.
     let mut target_pos = None;
@@ -137,7 +137,7 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u1
     // Start by finding an attack target, or attack the existing one.
     if let Some(target_id) = living.attack_target {
 
-        if let Some(Entity(target_base, BaseKind::Living(_, _))) = world.get_entity(target_id) {
+        if let Some(Entity(target_base, EntityKind::Living(_, _))) = world.get_entity(target_id) {
 
             let dist_squared = base.pos.distance_squared(target_base.pos);
             let eye_track = common::can_eye_track(world, base, target_base);
@@ -184,7 +184,7 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u1
 
     // Here we need to rematch the whole entity because we passed it to `tick_attack`
     // and we are no longer guaranteed of its type.
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
 
     // If the entity has not attacked its target entity and is path finder toward it, 
     // there is 95% chance too go into the then branch.
@@ -339,7 +339,7 @@ fn tick_slime_ai(world: &mut World, id: u32, entity: &mut Entity) {
         return;
     }
 
-    let_expect!(Entity(base, BaseKind::Living(living, LivingKind::Slime(slime))) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Slime(slime))) = entity);
 
     // Searching the closest player entities behind 16.0 blocks.
     let closest_player = common::find_closest_player_entity(world, base.pos, 16.0);
@@ -389,7 +389,7 @@ fn tick_ghast_ai(world: &mut World, id: u32, entity: &mut Entity) {
         return;
     }
 
-    let_expect!(Entity(base, BaseKind::Living(living, LivingKind::Ghast(ghast))) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Ghast(ghast))) = entity);
 
     // If we are too close or too far, change the waypoint.
     let dist = (ghast.waypoint - base.pos).length();
@@ -525,7 +525,7 @@ fn tick_squid_ai(world: &mut World, id: u32, entity: &mut Entity) {
         return;
     }
 
-    let_expect!(Entity(base, BaseKind::Living(_living, LivingKind::Squid(_squid))) = entity);
+    let_expect!(Entity(base, EntityKind::Living(_living, LivingKind::Squid(_squid))) = entity);
 
     if base.rand.next_int_bounded(50) == 0 || !base.in_water || false /* not yet accelerated */ {
         
@@ -546,7 +546,7 @@ fn tick_squid_ai(world: &mut World, id: u32, entity: &mut Entity) {
 fn tick_natural_despawn(world: &mut World, id: u32, entity: &mut Entity) -> bool {
 
     // Only living entities can naturally despawned.
-    let Entity(base, BaseKind::Living(living, living_kind)) = entity else {
+    let Entity(base, EntityKind::Living(living, living_kind)) = entity else {
         return false;
     };
 

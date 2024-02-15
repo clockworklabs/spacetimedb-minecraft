@@ -1,6 +1,7 @@
 //! Entities structures and logic implementation.
 
 use glam::{DVec3, Vec2, IVec3};
+use spacetimedb::SpacetimeType;
 
 use crate::block::material::Material;
 use crate::util::default as def;
@@ -73,59 +74,62 @@ pub enum EntityCategory {
 /// which is common to all entities, and the base kind that is the first sub division in
 /// entities. Each subdivision in the entity family tree is composed of the family's
 /// common data as the first tuple element, and the kind of entity as the second element.
-#[derive(Debug, Clone)]
-pub struct Entity(pub Base, pub BaseKind);
+/*#[derive(Debug, Clone)]
+pub struct Entity {
+    pub base: Base,
+    pub kind: BaseKind,
+};*/
 
 /// Kind of base entity.
 #[derive(Debug, Clone)]
-pub enum BaseKind {
-    Item(Item),
-    Painting(Painting),
-    Boat(Boat),
-    Minecart(Minecart),
-    LightningBolt(LightningBolt),
-    FallingBlock(FallingBlock),
-    Tnt(Tnt),
-    Projectile(Projectile, ProjectileKind),
-    Living(Living, LivingKind),
+pub enum EntityKind {
+    Item,
+    Painting,
+    Boat,
+    Minecart,
+    LightningBolt,
+    FallingBlock,
+    Tnt,
+    Projectile,
+    Living,
 }
 
 /// Kind of projectile entity.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, SpacetimeType)]
 pub enum ProjectileKind {
-    Arrow(Arrow),
-    Egg(Egg),
-    Fireball(Fireball),
-    Snowball(Snowball),
-    Bobber(Bobber),
+    Arrow,
+    Egg,
+    Fireball,
+    Snowball,
+    Bobber,
 }
 
 /// Kind of living entity, this include animals and mobs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, SpacetimeType)]
 pub enum LivingKind {
     // Not categorized
-    Human(Human),
-    Ghast(Ghast),
-    Slime(Slime),
+    Human,
+    Ghast,
+    Slime,
     // Animal
-    Pig(Pig),
-    Chicken(Chicken),
-    Cow(Cow),
-    Sheep(Sheep),
-    Squid(Squid),
-    Wolf(Wolf),
+    Pig,
+    Chicken,
+    Cow,
+    Sheep,
+    Squid,
+    Wolf,
     // Mob
-    Creeper(Creeper),
-    Giant(Giant),
-    PigZombie(PigZombie),
-    Skeleton(Skeleton),
-    Spider(Spider),
-    Zombie(Zombie),
+    Creeper,
+    Giant,
+    PigZombie,
+    Skeleton,
+    Spider,
+    Zombie,
 }
 
 /// The base data common to all entities.
 #[derive(Debug, Clone, Default)]
-pub struct Base {
+pub struct EntityBase {
     /// Tell if this entity is persistent or not. A persistent entity is saved with its
     /// chunk, but non-persistent entities are no saved. For example, all player entities
     /// are typically non-persistent because these are not real entities. Some entities
@@ -142,17 +146,17 @@ pub struct Base {
     pub bb: BoundingBox,
     /// The current entity position, it is derived from the bounding box and size, it can
     /// be forced by setting it and then calling `resize` on entity.
-    pub pos: DVec3,
+    pub pos: Vec<f64>,
     /// True if an entity pos event should be sent after update.
     /// The current entity velocity.
-    pub vel: DVec3,
+    pub vel: Vec<f64>,
     /// Yaw a pitch angles of this entity's look. These are in radians with no range 
     /// guarantee, although this will often be normalized in 2pi range. The yaw angle
     /// in Minecraft is set to zero when pointing toward PosZ, and then rotate clockwise
     /// to NegX, NegZ and then PosX.
     /// 
     /// Yaw is X and pitch is Y.
-    pub look: Vec2,
+    pub look: Vec<f32>,
     /// Lifetime of the entity since it was spawned in the world, it increase at every
     /// world tick.
     pub lifetime: u32,
@@ -188,7 +192,7 @@ pub struct Base {
 }
 
 /// Hurt data to apply on the next tick to the entity.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Hurt {
     /// The damage to deal.
     pub damage: u16,
@@ -198,7 +202,7 @@ pub struct Hurt {
 }
 
 /// The data common to all living entities.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Living {
     /// Set to true if an entity is artificial, as opposed to natural. If not artificial,
     /// an entity is despawned when too far from the closest player (maximum distance of 
@@ -238,7 +242,7 @@ pub struct Living {
 }
 
 /// The data common to all projectile entities.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Projectile {
     /// The state of the projectile, none when in air, set to block/metadata when in.
     pub state: Option<ProjectileHit>,
@@ -251,17 +255,17 @@ pub struct Projectile {
     pub shake: u8,
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, SpacetimeType)]
 pub struct ProjectileHit {
     /// The block position the projectile is in.
-    pub pos: IVec3,
+    pub pos: Vec<i32>,
     /// The block the projectile is in.
     pub block: u8,
     /// The block metadata the projectile is in.
     pub metadata: u8,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Item {
     /// The item stack represented by this entity.
     pub stack: ItemStack,
@@ -271,10 +275,10 @@ pub struct Item {
     pub frozen_time: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Painting {
     /// Block position of this painting.
-    pub block_pos: IVec3,
+    pub block_pos: Vec<i32>,
     /// Orientation of this painting at block position.
     pub orientation: PaintingOrientation,
     /// The art of the painting, which define its size.
@@ -283,7 +287,7 @@ pub struct Painting {
     pub check_valid_time: u8,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, SpacetimeType)]
 pub enum PaintingOrientation {
     #[default]
     NegX,
@@ -292,7 +296,7 @@ pub enum PaintingOrientation {
     PosZ,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, SpacetimeType)]
 pub enum PaintingArt {
     #[default]
     Kebab,
@@ -325,23 +329,15 @@ pub enum PaintingArt {
 #[derive(Debug, Clone, Default)]
 pub struct Boat { }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub enum Minecart { 
     /// A normal minecart for living entity transportation.
     #[default]
     Normal,
     /// A chest minecart for storing a single chest of items.
-    Chest {
-        /// The inventory storing the items.
-        inv: Box<[ItemStack; 27]>,
-    },
+    Chest,
     /// A furnace minecart that push when fueled.
-    Furnace {
-        push_x: f64,
-        push_z: f64,
-        /// Remaining fuel amount.
-        fuel: u32,
-    }
+    Furnace,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -354,10 +350,7 @@ pub struct Bobber {
     pub catch_time: u16,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct LightningBolt { }
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct FallingBlock {
     /// Number of ticks since this block is falling.
     pub fall_time: u32,
@@ -365,30 +358,24 @@ pub struct FallingBlock {
     pub block_id: u8,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Tnt {
     pub fuse_time: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Arrow {
     /// Set to true for arrows that are sent by players and therefore can be picked up.
     pub from_player: bool,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Egg { }
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Fireball {
     /// Acceleration to that fireball.
-    pub accel: DVec3,
+    pub accel: Vec<f64>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Snowball { }
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Human {
     /// The player username.
     pub username: String,
@@ -398,17 +385,17 @@ pub struct Human {
     pub sneaking: bool,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Ghast {
     /// The ghast waypoint defaults to zero.
-    pub waypoint: DVec3,
+    pub waypoint: Vec<f64>,
     /// Remaining time before changing the target waypoint of the ghast.
     pub waypoint_check_time: u8,
     /// Remaining time before searching an attack target again.
     pub attack_target_time: u8,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Slime {
     /// Size of the slime, this is a bit different because here the size is initially 
     /// at 0 and this is equivalent to 1 in Notchian implementation.
@@ -417,28 +404,25 @@ pub struct Slime {
     pub jump_remaining_time: u32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Pig {
     /// True when the pig has a saddle.
     pub saddle: bool,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Chicken {
     /// Ticks remaining until this chicken lays an egg.
     pub next_egg_ticks: u32,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Cow { }
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Sheep {
     pub sheared: bool,
     pub color: u8, // TODO: Color enumeration.
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Squid {
     /// Animation progress for the squid.
     pub animation: f32,
@@ -446,14 +430,14 @@ pub struct Squid {
     pub animation_speed: f32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Wolf {
     pub angry: bool,
     pub sitting: bool,
     pub owner: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct Creeper { 
     /// True when the creeper is powered.
     pub powered: bool,
@@ -461,27 +445,15 @@ pub struct Creeper {
     pub ignited_time: Option<u16>
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Giant { }
-
-#[derive(Debug, Clone, Default)]
-pub struct PigZombie { 
+#[derive(Debug, Clone, Default, SpacetimeType)]
+pub struct PigZombie {
     pub anger: bool,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct Skeleton { }
-
-#[derive(Debug, Clone, Default)]
-pub struct Spider { }
-
-#[derive(Debug, Clone, Default)]
-pub struct Zombie { }
 
 
 /// Size of an entity, used to update each entity bounding box prior to ticking if 
 /// relevant.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, SpacetimeType)]
 pub struct Size {
     /// Width of the bounding box, centered on the X/Z coordinates.
     pub width: f32,
@@ -506,7 +478,7 @@ impl Size {
 }
 
 /// Define a target for an entity to look at.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, SpacetimeType)]
 pub struct LookTarget {
     /// The entity id to look at.
     pub entity_id: u32,
@@ -515,9 +487,9 @@ pub struct LookTarget {
 }
 
 /// A result of the path finder.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, SpacetimeType)]
 pub struct Path {
-    pub points: Vec<IVec3>,
+    pub points: Vec<Vec<i32>>,
     pub index: usize,
 }
 
@@ -576,49 +548,49 @@ impl Entity {
 
         // Calculate the new size from the entity properties.
         base.size = match base_kind {
-            BaseKind::Item(_) => Size::new_centered(0.25, 0.25),
-            BaseKind::Painting(_) => Size::new(0.5, 0.5),
-            BaseKind::Boat(_) => Size::new_centered(1.5, 0.6),
-            BaseKind::Minecart(_) => Size::new_centered(0.98, 0.7),
-            BaseKind::LightningBolt(_) => Size::new(0.0, 0.0),
-            BaseKind::FallingBlock(_) => Size::new_centered(0.98, 0.98),
-            BaseKind::Tnt(_) => Size::new_centered(0.98, 0.98),
-            BaseKind::Projectile(_, ProjectileKind::Arrow(_)) => Size::new(0.5, 0.5),
-            BaseKind::Projectile(_, ProjectileKind::Egg(_)) => Size::new(0.5, 0.5),
-            BaseKind::Projectile(_, ProjectileKind::Fireball(_)) => Size::new(1.0, 1.0),
-            BaseKind::Projectile(_, ProjectileKind::Snowball(_)) => Size::new(0.5, 0.5),
-            BaseKind::Projectile(_, ProjectileKind::Bobber(_)) => Size::new(0.25, 0.25),
-            BaseKind::Living(_, LivingKind::Human(player)) => {
+            EntityKind::Item(_) => Size::new_centered(0.25, 0.25),
+            EntityKind::Painting(_) => Size::new(0.5, 0.5),
+            EntityKind::Boat(_) => Size::new_centered(1.5, 0.6),
+            EntityKind::Minecart(_) => Size::new_centered(0.98, 0.7),
+            EntityKind::LightningBolt(_) => Size::new(0.0, 0.0),
+            EntityKind::FallingBlock(_) => Size::new_centered(0.98, 0.98),
+            EntityKind::Tnt(_) => Size::new_centered(0.98, 0.98),
+            EntityKind::Projectile(_, ProjectileKind::Arrow(_)) => Size::new(0.5, 0.5),
+            EntityKind::Projectile(_, ProjectileKind::Egg(_)) => Size::new(0.5, 0.5),
+            EntityKind::Projectile(_, ProjectileKind::Fireball(_)) => Size::new(1.0, 1.0),
+            EntityKind::Projectile(_, ProjectileKind::Snowball(_)) => Size::new(0.5, 0.5),
+            EntityKind::Projectile(_, ProjectileKind::Bobber(_)) => Size::new(0.25, 0.25),
+            EntityKind::Living(_, LivingKind::Human(player)) => {
                 if player.sleeping {
                     Size::new(0.2, 0.2)
                 } else {
                     Size::new(0.6, 1.8)
                 }
             }
-            BaseKind::Living(_, LivingKind::Ghast(_)) => Size::new(4.0, 4.0),
-            BaseKind::Living(_, LivingKind::Slime(slime)) => {
+            EntityKind::Living(_, LivingKind::Ghast(_)) => Size::new(4.0, 4.0),
+            EntityKind::Living(_, LivingKind::Slime(slime)) => {
                 let factor = slime.size as f32 + 1.0;
                 Size::new(0.6 * factor, 0.6 * factor)
             }
-            BaseKind::Living(_, LivingKind::Pig(_)) => Size::new(0.9, 0.9),
-            BaseKind::Living(_, LivingKind::Chicken(_)) => Size::new(0.3, 0.4),
-            BaseKind::Living(_, LivingKind::Cow(_)) => Size::new(0.9, 1.3),
-            BaseKind::Living(_, LivingKind::Sheep(_)) =>Size::new(0.9, 1.3),
-            BaseKind::Living(_, LivingKind::Squid(_)) => Size::new(0.95, 0.95),
-            BaseKind::Living(_, LivingKind::Wolf(_)) => Size::new(0.8, 0.8),
-            BaseKind::Living(_, LivingKind::Creeper(_)) => Size::new(0.6, 1.8),
-            BaseKind::Living(_, LivingKind::Giant(_)) => Size::new(3.6, 10.8),
-            BaseKind::Living(_, LivingKind::PigZombie(_)) => Size::new(0.6, 1.8),
-            BaseKind::Living(_, LivingKind::Skeleton(_)) => Size::new(0.6, 1.8),
-            BaseKind::Living(_, LivingKind::Spider(_)) => Size::new(1.4, 0.9),
-            BaseKind::Living(_, LivingKind::Zombie(_)) => Size::new(0.6, 1.8),
+            EntityKind::Living(_, LivingKind::Pig(_)) => Size::new(0.9, 0.9),
+            EntityKind::Living(_, LivingKind::Chicken(_)) => Size::new(0.3, 0.4),
+            EntityKind::Living(_, LivingKind::Cow(_)) => Size::new(0.9, 1.3),
+            EntityKind::Living(_, LivingKind::Sheep(_)) =>Size::new(0.9, 1.3),
+            EntityKind::Living(_, LivingKind::Squid(_)) => Size::new(0.95, 0.95),
+            EntityKind::Living(_, LivingKind::Wolf(_)) => Size::new(0.8, 0.8),
+            EntityKind::Living(_, LivingKind::Creeper(_)) => Size::new(0.6, 1.8),
+            EntityKind::Living(_, LivingKind::Giant(_)) => Size::new(3.6, 10.8),
+            EntityKind::Living(_, LivingKind::PigZombie(_)) => Size::new(0.6, 1.8),
+            EntityKind::Living(_, LivingKind::Skeleton(_)) => Size::new(0.6, 1.8),
+            EntityKind::Living(_, LivingKind::Spider(_)) => Size::new(1.4, 0.9),
+            EntityKind::Living(_, LivingKind::Zombie(_)) => Size::new(0.6, 1.8),
         };
 
         // Calculate new eyes height.
         base.eye_height = match base_kind {
-            BaseKind::Living(_, LivingKind::Human(_)) => 1.62,
-            BaseKind::Living(_, LivingKind::Wolf(_)) => base.size.height * 0.8,
-            BaseKind::Living(_, _) => base.size.height * 0.85,
+            EntityKind::Living(_, LivingKind::Human(_)) => 1.62,
+            EntityKind::Living(_, LivingKind::Wolf(_)) => base.size.height * 0.8,
+            EntityKind::Living(_, _) => base.size.height * 0.85,
             _ => 0.0,
         };
 
@@ -640,7 +612,7 @@ impl Entity {
     /// RNG may be used.
     pub fn can_natural_spawn(&mut self, world: &World) -> bool {
 
-        let Entity(base, BaseKind::Living(_, living_kind)) = self else {
+        let Entity(base, EntityKind::Living(_, living_kind)) = self else {
             // Non-living entities cannot naturally spawn.
             return false;
         };
@@ -716,7 +688,7 @@ impl Entity {
     /// size or sheep color or make a spider with jokey.
     pub fn init_natural_spawn(&mut self, _world: &mut World) {
 
-        let Entity(base, BaseKind::Living(_, living_kind)) = self else {
+        let Entity(base, EntityKind::Living(_, living_kind)) = self else {
             // Non-living entities cannot naturally spawn.
             return;
         };
@@ -744,20 +716,20 @@ impl Entity {
 
 }
 
-impl BaseKind {
+impl EntityKind {
 
     /// Get the generic entity kind from this base entity kind.
     pub fn entity_kind(&self) -> EntityKind {
         match self {
-            BaseKind::Item(_) => EntityKind::Item,
-            BaseKind::Painting(_) => EntityKind::Painting,
-            BaseKind::Boat(_) => EntityKind::Boat,
-            BaseKind::Minecart(_) => EntityKind::Minecart,
-            BaseKind::LightningBolt(_) => EntityKind::LightningBolt,
-            BaseKind::FallingBlock(_) => EntityKind::FallingBlock,
-            BaseKind::Tnt(_) => EntityKind::Tnt,
-            BaseKind::Projectile(_, kind) => kind.entity_kind(),
-            BaseKind::Living(_, kind) => kind.entity_kind(),
+            EntityKind::Item(_) => EntityKind::Item,
+            EntityKind::Painting(_) => EntityKind::Painting,
+            EntityKind::Boat(_) => EntityKind::Boat,
+            EntityKind::Minecart(_) => EntityKind::Minecart,
+            EntityKind::LightningBolt(_) => EntityKind::LightningBolt,
+            EntityKind::FallingBlock(_) => EntityKind::FallingBlock,
+            EntityKind::Tnt(_) => EntityKind::Tnt,
+            EntityKind::Projectile(_, kind) => kind.entity_kind(),
+            EntityKind::Living(_, kind) => kind.entity_kind(),
         }
     }
 
@@ -924,9 +896,9 @@ macro_rules! impl_new_with {
             /// Create a new instance of this entity type and initialize the entity with
             /// a closure, the entity is then resized to initialize its bounding box.
             #[inline]
-            pub fn new_with(func: impl FnOnce(&mut Base, &mut $kind)) -> Box<Entity> {
-                let mut entity = Box::new(Entity(def(), BaseKind::$kind(def())));
-                let Entity(base, BaseKind::$kind(this)) = &mut *entity else { unreachable!() };
+            pub fn new_with(func: impl FnOnce(&mut EntityBase, &mut $kind)) -> Box<Entity> {
+                let mut entity = Box::new(Entity(def(), EntityKind::$kind(def())));
+                let Entity(base, EntityKind::$kind(this)) = &mut *entity else { unreachable!() };
                 $( ($def)(base, this); )?
                 func(base, this);
                 entity.resize();
@@ -949,9 +921,9 @@ macro_rules! impl_new_with {
             /// Create a new instance of this entity type and initialize the entity with
             /// a closure, the entity is then resized to initialize its bounding box.
             #[inline]
-            pub fn new_with(func: impl FnOnce(&mut Base, &mut Living, &mut $kind)) -> Box<Entity> {
-                let mut entity = Box::new(Entity(def(), BaseKind::Living(def(), LivingKind::$kind(def()))));
-                let Entity(base, BaseKind::Living(living, LivingKind::$kind(this))) = &mut *entity else { unreachable!() };
+            pub fn new_with(func: impl FnOnce(&mut EntityBase, &mut Living, &mut $kind)) -> Box<Entity> {
+                let mut entity = Box::new(Entity(def(), EntityKind::Living(def(), LivingKind::$kind(def()))));
+                let Entity(base, EntityKind::Living(living, LivingKind::$kind(this))) = &mut *entity else { unreachable!() };
                 living.health = $def_health;
                 $( ($def)(base, living, this); )?
                 func(base, living, this);
@@ -975,9 +947,9 @@ macro_rules! impl_new_with {
             /// Create a new instance of this entity type and initialize the entity with
             /// a closure, the entity is then resized to initialize its bounding box.
             #[inline]
-            pub fn new_with(func: impl FnOnce(&mut Base, &mut Projectile, &mut $kind)) -> Box<Entity> {
-                let mut entity = Box::new(Entity(def(), BaseKind::Projectile(def(), ProjectileKind::$kind(def()))));
-                let Entity(base, BaseKind::Projectile(projectile, ProjectileKind::$kind(this))) = &mut *entity else { unreachable!() };
+            pub fn new_with(func: impl FnOnce(&mut EntityBase, &mut Projectile, &mut $kind)) -> Box<Entity> {
+                let mut entity = Box::new(Entity(def(), EntityKind::Projectile(def(), ProjectileKind::$kind(def()))));
+                let Entity(base, EntityKind::Projectile(projectile, ProjectileKind::$kind(this))) = &mut *entity else { unreachable!() };
                 func(base, projectile, this);
                 entity.resize();
                 entity
@@ -995,7 +967,7 @@ macro_rules! impl_new_with {
 }
 
 impl_new_with!(Base: 
-    Item |_: &mut Base, this: &mut Item| { 
+    Item |_: &mut EntityBase, this: &mut Item| {
         this.health = 5; 
         this.stack = ItemStack::new_block(block::STONE, 0);
     },
@@ -1003,7 +975,7 @@ impl_new_with!(Base:
     Boat, 
     Minecart, 
     LightningBolt, 
-    FallingBlock |_: &mut Base, this: &mut FallingBlock| {
+    FallingBlock |_: &mut EntityBase, this: &mut FallingBlock| {
         this.block_id = block::SAND;
     }, 
     Tnt);

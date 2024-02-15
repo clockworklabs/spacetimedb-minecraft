@@ -274,7 +274,7 @@ impl World {
         
         for entity in snapshot.entities {
             debug_assert_eq!(calc_entity_chunk_pos(entity.0.pos), (snapshot.cx, snapshot.cz), "incoherent entity in chunk snapshot");
-            self.spawn_entity_inner(entity);
+            // self.spawn_entity_inner(entity);
         }
 
         for (pos, block_entity) in snapshot.block_entities {
@@ -568,50 +568,50 @@ impl World {
     //       ENTITIES      //
     // =================== //
 
-    /// Internal function to ensure monomorphization and reduce bloat of the 
-    /// generic [`spawn_entity`].
-    #[inline(never)]
-    fn spawn_entity_inner(&mut self, entity: Box<Entity>) -> u32 {
+    //// Internal function to ensure monomorphization and reduce bloat of the
+    //// generic [`spawn_entity`].
+    // #[inline(never)]
+    // fn spawn_entity_inner(&mut self, entity: Box<Entity>) -> u32 {
+    //
+    //     // Get the next unique entity id.
+    //     let id = self.entities_count;
+    //     self.entities_count = self.entities_count.checked_add(1)
+    //         .expect("entity count overflow");
+    //
+    //     let kind = entity.kind();
+    //     trace!("spawn entity #{id} ({:?})", kind);
+    //
+    //     let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
+    //     let chunk_comp = self.chunks.entry((cx, cz)).or_default();
+    //     let entity_index = self.entities.push(EntityComponent {
+    //         inner: Some(entity),
+    //         id,
+    //         cx,
+    //         cz,
+    //         loaded: chunk_comp.data.is_some(),
+    //         kind,
+    //     });
+    //
+    //     chunk_comp.entities.insert(id, entity_index);
+    //     self.entities_id_map.insert(id, entity_index);
+    //
+    //     self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
+    //     self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+    //
+    //     id
+    //
+    // }
 
-        // Get the next unique entity id.
-        let id = self.entities_count;
-        self.entities_count = self.entities_count.checked_add(1)
-            .expect("entity count overflow");
-
-        let kind = entity.kind();
-        trace!("spawn entity #{id} ({:?})", kind);
-
-        let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
-        let chunk_comp = self.chunks.entry((cx, cz)).or_default();
-        let entity_index = self.entities.push(EntityComponent {
-            inner: Some(entity),
-            id,
-            cx,
-            cz,
-            loaded: chunk_comp.data.is_some(),
-            kind,
-        });
-
-        chunk_comp.entities.insert(id, entity_index);
-        self.entities_id_map.insert(id, entity_index);
-        
-        self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
-        self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
-
-        id
-
-    }
-
-    /// Spawn an entity in this world, this function gives it a unique id and ensure 
-    /// coherency with chunks cache.
-    /// 
-    /// **This function is legal to call from ticking entities, but such entities will be
-    /// ticked once in the same cycle as the currently ticking entity.**
-    #[inline(always)]
-    pub fn spawn_entity(&mut self, entity: impl Into<Box<Entity>>) -> u32 {
-        // NOTE: This method is just a wrapper to erase generics.
-        self.spawn_entity_inner(entity.into())
-    }
+    //// Spawn an entity in this world, this function gives it a unique id and ensure
+    //// coherency with chunks cache.
+    ////
+    //// **This function is legal to call from ticking entities, but such entities will be
+    //// ticked once in the same cycle as the currently ticking entity.**
+    // #[inline(always)]
+    // pub fn spawn_entity(&mut self, entity: impl Into<Box<Entity>>) -> u32 {
+    //     // NOTE: This method is just a wrapper to erase generics.
+    //     self.spawn_entity_inner(entity.into())
+    // }
 
     /// Return true if an entity is present from its id.
     pub fn contains_entity(&self, id: u32) -> bool {

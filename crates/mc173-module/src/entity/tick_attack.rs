@@ -5,7 +5,7 @@ use glam::{Vec3Swizzles, DVec3};
 use crate::entity::{Hurt, Arrow};
 use crate::world::{World, Event, EntityEvent};
 
-use super::{Entity, BaseKind, LivingKind};
+use super::{Entity, EntityKind, LivingKind};
 use super::common::{self, let_expect};
 
 
@@ -15,10 +15,10 @@ use super::common::{self, let_expect};
 /// REF: EntityCreature::attackEntity
 pub(super) fn tick_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool, nano_time: u128) {
     match entity {
-        Entity(_, BaseKind::Living(_, LivingKind::Spider(_))) => tick_spider_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        Entity(_, BaseKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe, nano_time),
-        Entity(_, BaseKind::Living(_, LivingKind::Skeleton(_))) => tick_skeleton_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        Entity(_, BaseKind::Living(_, _)) => tick_mob_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+        Entity(_, EntityKind::Living(_, LivingKind::Spider(_))) => tick_spider_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+        Entity(_, EntityKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe, nano_time),
+        Entity(_, EntityKind::Living(_, LivingKind::Skeleton(_))) => tick_skeleton_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+        Entity(_, EntityKind::Living(_, _)) => tick_mob_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
         _ => unreachable!("expected a living entity for this function")
     }
 }
@@ -29,12 +29,12 @@ fn tick_mob_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u
     /// Maximum distance for the mob to attack.
     const MAX_DIST_SQUARED: f64 = 2.0 * 2.0;
 
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
 
     living.attack_time = living.attack_time.saturating_sub(1);
     if eye_track && living.attack_time == 0 && dist_squared < MAX_DIST_SQUARED {
 
-        let Some(Entity(target_base, BaseKind::Living(_, _))) = world.get_entity_mut(target_id) else {
+        let Some(Entity(target_base, EntityKind::Living(_, _))) = world.get_entity_mut(target_id) else {
             panic!("target entity should exists");
         };
 
@@ -68,7 +68,7 @@ fn tick_spider_attack(world: &mut World, id: u32, entity: &mut Entity, target_id
     /// Maximum distance from a player to trigger a climb of the spider.
     const MAX_DIST_SQUARED: f64 = 6.0 * 6.0;
 
-    let_expect!(Entity(base, BaseKind::Living(living, LivingKind::Spider(_))) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Spider(_))) = entity);
     
     // If the brightness has changed, there if 1% chance to loose target.
     if common::get_entity_light(world, base).brightness() > 0.5 && base.rand.next_int_bounded(100) == 0 {
@@ -102,7 +102,7 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
     /// Maximum distance from a player to trigger a climb of the spider.
     const IGNITED_MAX_DIST_SQUARED: f64 = 7.0 * 7.0;
 
-    let_expect!(Entity(base, BaseKind::Living(_, LivingKind::Creeper(creeper))) = entity);
+    let_expect!(Entity(base, EntityKind::Living(_, LivingKind::Creeper(creeper))) = entity);
 
     // Check if the creeper should be ignited depending on its current state.
     let ignited = 
@@ -150,7 +150,7 @@ fn tick_skeleton_attack(world: &mut World, id: u32, entity: &mut Entity, target_
     
     if eye_track && dist_squared < MAX_DIST_SQUARED {
 
-        let_expect!(Entity(base, BaseKind::Living(living, LivingKind::Skeleton(_))) = entity);
+        let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Skeleton(_))) = entity);
         let Entity(target_base, _) = world.get_entity(target_id).unwrap();
 
         living.attack_time = living.attack_time.saturating_sub(1);

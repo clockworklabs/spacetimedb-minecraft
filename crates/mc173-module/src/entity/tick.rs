@@ -21,8 +21,8 @@ use crate::geom::{Face, BoundingBox};
 use crate::block;
 
 use super::{Entity,
-    BaseKind, ProjectileKind, LivingKind, 
-    Base, Living, Hurt, ProjectileHit};
+            EntityKind, ProjectileKind, LivingKind,
+            EntityBase, Living, Hurt, ProjectileHit};
 
 use super::common::{self, let_expect};
 use super::tick_state;
@@ -48,12 +48,12 @@ pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity, nano_time: u
     base.lifetime += 1;
 
     match entity {
-        Entity(_, BaseKind::Item(_)) => tick_item(world, id, entity),
-        Entity(_, BaseKind::Painting(_)) => tick_painting(world, id, entity),
-        Entity(_, BaseKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
-        Entity(_, BaseKind::Tnt(_)) => tick_tnt(world, id, entity, nano_time),
-        Entity(_, BaseKind::Living(_, _)) => tick_living(world, id, entity, nano_time),
-        Entity(_, BaseKind::Projectile(_, _)) => tick_projectile(world, id, entity, nano_time),
+        Entity(_, EntityKind::Item(_)) => tick_item(world, id, entity),
+        Entity(_, EntityKind::Painting(_)) => tick_painting(world, id, entity),
+        Entity(_, EntityKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
+        Entity(_, EntityKind::Tnt(_)) => tick_tnt(world, id, entity, nano_time),
+        Entity(_, EntityKind::Living(_, _)) => tick_living(world, id, entity, nano_time),
+        Entity(_, EntityKind::Projectile(_, _)) => tick_projectile(world, id, entity, nano_time),
         Entity(_, _) => tick_base(world, id, entity),
     }
 
@@ -84,7 +84,7 @@ fn tick_base(world: &mut World, id: u32, entity: &mut Entity) {
 fn tick_item(world: &mut World, id: u32, entity: &mut Entity) {
 
     tick_base(world, id, entity);
-    let_expect!(Entity(base, BaseKind::Item(item)) = entity);
+    let_expect!(Entity(base, EntityKind::Item(item)) = entity);
 
     if item.frozen_time > 0 {
         item.frozen_time -= 1;
@@ -175,7 +175,7 @@ fn tick_item(world: &mut World, id: u32, entity: &mut Entity) {
 fn tick_painting(_world: &mut World, _id: u32, entity: &mut Entity) {
 
     // NOTE: Not calling tick_base
-    let_expect!(Entity(_, BaseKind::Painting(painting)) = entity);
+    let_expect!(Entity(_, EntityKind::Painting(painting)) = entity);
 
     painting.check_valid_time += 1;
     if painting.check_valid_time >= 100 {
@@ -189,7 +189,7 @@ fn tick_painting(_world: &mut World, _id: u32, entity: &mut Entity) {
 fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
 
     // NOTE: Not calling tick_base
-    let_expect!(Entity(base, BaseKind::FallingBlock(falling_block)) = entity);
+    let_expect!(Entity(base, EntityKind::FallingBlock(falling_block)) = entity);
 
     if falling_block.block_id == 0 {
         world.remove_entity(id, "falling block has not block");
@@ -223,7 +223,7 @@ fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
 fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
 
     // NOTE: Not calling tick_base
-    let_expect!(Entity(base, BaseKind::Tnt(tnt)) = entity);
+    let_expect!(Entity(base, EntityKind::Tnt(tnt)) = entity);
 
     base.vel.y -= 0.04;
     apply_base_vel(world, id, base, base.vel, 0.0);
@@ -248,7 +248,7 @@ fn tick_living(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128)
 
     tick_ai(world, id, entity, nano_time);
 
-    let_expect!(Entity(base, BaseKind::Living(living, living_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
 
     if living.jumping {
         if base.in_water || base.in_lava {
@@ -277,7 +277,7 @@ fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity, nano_time: u
     // Super call.
     tick_base(world, id, entity);
 
-    let_expect!(Entity(base, BaseKind::Projectile(projectile, projectile_kind)) = entity);
+    let_expect!(Entity(base, EntityKind::Projectile(projectile, projectile_kind)) = entity);
 
     projectile.shake = projectile.shake.saturating_sub(1);
     projectile.state_time = projectile.state_time.saturating_add(1);
@@ -354,9 +354,9 @@ fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity, nano_time: u
             // Filter out entities that we cannot collide with.
             .filter(|(target_id, Entity(_, target_base_kind))| {
                 match target_base_kind {
-                    BaseKind::Item(_) |
-                    BaseKind::LightningBolt(_) |
-                    BaseKind::Projectile(_, _) => false,
+                    EntityKind::Item(_) |
+                    EntityKind::LightningBolt(_) |
+                    EntityKind::Projectile(_, _) => false,
                     // Do not collide with owner...
                     _ => Some(*target_id) != owner_id,
                 }
@@ -588,7 +588,7 @@ fn tick_projectile(world: &mut World, id: u32, entity: &mut Entity, nano_time: u
 }
 
 /// Tick a living entity to push/being pushed an entity.
-fn tick_living_push(world: &mut World, _id: u32, base: &mut Base) {
+fn tick_living_push(world: &mut World, _id: u32, base: &mut EntityBase) {
 
     // TODO: pushing minecart
 
@@ -598,9 +598,9 @@ fn tick_living_push(world: &mut World, _id: u32, base: &mut Base) {
         let Entity(push_base, push_base_kind) = push_entity;
 
         match push_base_kind {
-            BaseKind::Boat(_) |
-            BaseKind::Living(_, _) |
-            BaseKind::Minecart(_) => {}
+            EntityKind::Boat(_) |
+            EntityKind::Living(_, _) |
+            EntityKind::Minecart(_) => {}
             _ => continue // Other entities cannot be pushed.
         }
 
@@ -632,7 +632,7 @@ fn tick_living_push(world: &mut World, _id: u32, base: &mut Base) {
 }
 
 /// REF: EntityLiving::moveEntityWithHeading
-fn tick_living_pos(world: &mut World, id: u32, base: &mut Base, living: &mut Living, living_kind: &mut LivingKind) {
+fn tick_living_pos(world: &mut World, id: u32, base: &mut EntityBase, living: &mut Living, living_kind: &mut LivingKind) {
 
     // Squid has no special rule for moving.
     if let LivingKind::Squid(squid) = living_kind {
@@ -750,7 +750,7 @@ fn tick_living_pos(world: &mut World, id: u32, base: &mut Base, living: &mut Liv
 }
 
 /// Update a living entity velocity according to its strafing/forward accel.
-pub fn apply_living_accel(base: &mut Base, living: &mut Living, factor: f32) {
+pub fn apply_living_accel(base: &mut EntityBase, living: &mut Living, factor: f32) {
 
     let mut strafing = living.accel_strafing;
     let mut forward = living.accel_forward;
@@ -770,7 +770,7 @@ pub fn apply_living_accel(base: &mut Base, living: &mut Living, factor: f32) {
 /// Common method for moving an entity by a given amount while checking collisions.
 /// 
 /// REF: Entity::moveEntity
-pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut Base, delta: DVec3, step_height: f32) {
+pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut EntityBase, delta: DVec3, step_height: f32) {
 
     if base.no_clip {
         base.bb += delta;
@@ -799,7 +799,7 @@ pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut Base, delta: DVec3
             colliding_bbs.extend(world.iter_entities_colliding(colliding_bb)
                 .filter_map(|(_entity_id, entity)| {
                     // Only the boat entity acts like a hard bounding box.
-                    if let Entity(base, BaseKind::Boat(_)) = entity {
+                    if let Entity(base, EntityKind::Boat(_)) = entity {
                         Some(base.bb)
                     } else {
                         None
