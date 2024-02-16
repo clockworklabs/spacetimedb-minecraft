@@ -11,8 +11,9 @@ use crate::block::sapling::TreeKind;
 use crate::gen::tree::TreeGenerator;
 use crate::geom::{Face, FaceSet};
 use crate::{block, item};
+use crate::stdb::weather::StdbWeather;
 
-use super::{World, Dimension, Event, BlockEntityEvent, BlockEntityStorage, Weather};
+use super::{World, Dimension, Weather};
 
 
 /// Methods related to block scheduled ticking and random ticking.
@@ -133,13 +134,14 @@ impl World {
             stack = stack.to_non_empty().unwrap_or_default();
             dispenser.inv[index] = stack;
 
-            self.push_event(Event::BlockEntity { 
-                pos, 
-                inner: BlockEntityEvent::Storage { 
-                    storage: BlockEntityStorage::Standard(index as u8),
-                    stack,
-                },
-            });
+            // TODO: Another event that we don't care about in the SpacetimeDB module
+            // self.push_event(Event::BlockEntity {
+            //     pos,
+            //     inner: BlockEntityEvent::Storage {
+            //         storage: BlockEntityStorage::Standard(index as u8),
+            //         stack,
+            //     },
+            // });
 
             let origin_pos = pos.as_dvec3() + face.delta().as_dvec3() * 0.6 + 0.5;
 
@@ -275,9 +277,10 @@ impl World {
         let below_opaque = block::material::is_opaque_cube(below_block);  // PARITY: Notchian impl use "normal cube"
         
         // Test if the fire can stay...
+        let weather = StdbWeather::filter_by_id(&0).unwrap();
         let can_stay = 
-            /* below_opaque || */ 
-            self.weather == Weather::Clear ||
+            /* below_opaque || */
+            weather.weather == Weather::Clear ||
             false;  // TODO: Other can rain tests
             
         if can_stay {
@@ -349,7 +352,7 @@ impl World {
                                     let catch = (flammability as i32 + 40) / (metadata as i32 + 30);
                                     if catch > 0 
                                     && self.rand.next_int_bounded(bound) <= catch
-                                    && self.weather == Weather::Clear {
+                                    && weather.weather == Weather::Clear {
 
                                         let new_metadata = (metadata + self.rand.next_int_bounded(5) as u8 / 4).min(15);
                                         self.set_block_notify(check_pos, block::FIRE, new_metadata);

@@ -5,7 +5,7 @@ use std::ops::Add;
 use glam::DVec3;
 
 use crate::entity::{Hurt, LivingKind, ProjectileKind};
-use crate::world::{World, Event, EntityEvent};
+use crate::world::World;
 use crate::block::material::Material;
 use crate::item::{self, ItemStack};
 use crate::block;
@@ -99,14 +99,15 @@ fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
                 }
             }
 
-            for entity_id in picked_up_entities.drain(..) {
-                world.push_event(Event::Entity { 
-                    id, 
-                    inner: EntityEvent::Pickup { 
-                        target_id: entity_id,
-                    },
-                });
-            }
+            // TODO: This something that we'll have to add in the client
+            // for entity_id in picked_up_entities.drain(..) {
+            //     world.push_event(Event::Entity {
+            //         id,
+            //         inner: EntityEvent::Pickup {
+            //             target_id: entity_id,
+            //         },
+            //     });
+            // }
 
         });
 
@@ -201,7 +202,8 @@ fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
             living.hurt_time = HURT_INITIAL_TIME;
             living.hurt_last_damage = hurt.damage;
             actual_damage = hurt.damage;
-            world.push_event(Event::Entity { id, inner: EntityEvent::Damage });
+            // TODO: another world event that we don't care about in SpacetimeDB module
+            // world.push_event(Event::Entity { id, inner: EntityEvent::Damage });
 
             if let Some(origin_id) = hurt.origin_id {
                 if let Some(Entity(origin_base, _)) = world.get_entity(origin_id) {
@@ -243,8 +245,9 @@ fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
 
         // If this is the first death tick, push event and drop loots.
         if living.death_time == 0 {
-            
-            world.push_event(Event::Entity { id, inner: EntityEvent::Dead });
+
+            // TODO: Another event that we don't care about in the SpacetimeDB module
+            // world.push_event(Event::Entity { id, inner: EntityEvent::Dead });
             spawn_living_loot(world, base, living, living_kind);
 
             // If we know the killer id and we are a creeper, check if this the killer

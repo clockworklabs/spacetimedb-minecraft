@@ -28,6 +28,8 @@ use crate::geom::{BoundingBox, Face};
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
+use crate::stdb::chunk::StdbChunk;
+use crate::stdb::weather::StdbWeather;
 
 
 // Following modules are order by order of importance, last modules depends on first ones.
@@ -124,7 +126,7 @@ pub struct World {
     /// it was last swapped. This swap behavior is really useful in order to avoid 
     /// borrowing issues, by temporarily taking ownership of events, the caller can get
     /// a mutable reference to that world at the same time.
-    events: Option<Vec<Event>>,
+    // events: Option<Vec<Event>>,
     /// The dimension
     dimension: Dimension,
     /// The world time, increasing on each tick. This is used for day/night cycle but 
@@ -136,20 +138,20 @@ pub struct World {
     /// The mapping of world chunks, with optional world components linked to them, such
     /// as chunk data, entities and block entities. Every world component must be linked
     /// to a world chunk.
-    chunks: HashMap<(i32, i32), ChunkComponent>,
+    // chunks: HashMap<(i32, i32), ChunkComponent>,
     /// Total entities count spawned since the world is running. Also used to give 
     /// entities a unique id.
     entities_count: u32,
     /// The internal list of all loaded entities.
-    entities: TickVec<EntityComponent>,
-    /// Entities' index mapping from their unique id.
-    entities_id_map: HashMap<u32, usize>,
-    /// This index map contains a mapping for every player entity.
-    entities_player_map: IndexMap<u32, usize>,
+    // entities: TickVec<EntityComponent>,
+    //// Entities' index mapping from their unique id.
+    // entities_id_map: HashMap<u32, usize>,
+    //// This index map contains a mapping for every player entity.
+    // entities_player_map: IndexMap<u32, usize>,
     /// Same as entities but for block entities.
     block_entities: TickVec<BlockEntityComponent>,
-    /// Mapping of block entities to they block position.
-    block_entities_pos_map: HashMap<IVec3, usize>,
+    //// Mapping of block entities to they block position.
+    // block_entities_pos_map: HashMap<IVec3, usize>,
     /// Total scheduled ticks count since the world is running.
     block_ticks_count: u64,
     /// Mapping of scheduled ticks in the future.
@@ -164,9 +166,9 @@ pub struct World {
     /// The current weather in that world, note that the Notchian server do not work like
     /// this, but rather store two independent state for rain and thunder, but we simplify
     /// the logic in this implementation since it is not strictly needed to be on parity.
-    weather: Weather,
+    // weather: Weather,
     /// Next time when the weather should be recomputed.
-    weather_next_time: u64,
+    // weather_next_time: u64,
     /// The current sky light level, depending on the current time. This value is used
     /// when subtracted from a chunk sky light level.
     sky_light_subtracted: u8,
@@ -179,55 +181,55 @@ impl World {
     /// events are disabled.
     pub fn new(dimension: Dimension, nano_time: u128) -> Self {
         Self {
-            events: None,
+            // events: None,
             dimension,
             time: 0,
             rand: JavaRandom::new_seeded(nano_time),
-            chunks: HashMap::new(),
+            // chunks: HashMap::new(),
             entities_count: 0,
             entities: TickVec::new(),
-            entities_id_map: HashMap::new(),
-            entities_player_map: IndexMap::new(),
+            // entities_id_map: HashMap::new(),
+            // entities_player_map: IndexMap::new(),
             block_entities: TickVec::new(),
-            block_entities_pos_map: HashMap::new(),
+            // block_entities_pos_map: HashMap::new(),
             block_ticks_count: 0,
             block_ticks: BTreeSet::new(),
             block_ticks_states: HashSet::new(),
             light_updates: VecDeque::new(),
             random_ticks_seed: JavaRandom::new_seeded(nano_time).next_int(),
-            weather: Weather::Clear,
-            weather_next_time: 0,
+            // weather: Weather::Clear,
+            // weather_next_time: 0,
             sky_light_subtracted: 0,
         }
     }
 
-    /// This function can be used to swap in a new events queue and return the previous
-    /// one if relevant. Giving *None* events queue disable events registration using
-    /// the [`push_event`] method. Swapping out the events is the only way of reading 
-    /// them afterward without borrowing the world.
-    /// 
-    /// [`push_event`]: Self::push_event
-    pub fn swap_events(&mut self, events: Option<Vec<Event>>) -> Option<Vec<Event>> {
-        mem::replace(&mut self.events, events)
-    }
+    //// This function can be used to swap in a new events queue and return the previous
+    //// one if relevant. Giving *None* events queue disable events registration using
+    //// the [`push_event`] method. Swapping out the events is the only way of reading
+    //// them afterward without borrowing the world.
+    ////
+    //// [`push_event`]: Self::push_event
+    // pub fn swap_events(&mut self, events: Option<Vec<Event>>) -> Option<Vec<Event>> {
+    //     mem::replace(&mut self.events, events)
+    // }
 
-    /// Return true if this world has an internal events queue that enables usage of the
-    /// [`push_event`] method.
-    /// 
-    /// [`push_event`]: Self::push_event
-    pub fn has_events(&self) -> bool {
-        self.events.is_some()
-    }
+    //// Return true if this world has an internal events queue that enables usage of the
+    //// [`push_event`] method.
+    ////
+    //// [`push_event`]: Self::push_event
+    // pub fn has_events(&self) -> bool {
+    //     self.events.is_some()
+    // }
 
-    /// Push an event in this world. This only actually push the event if events are 
-    /// enabled. Events queue can be swapped using [`swap_events`](Self::swap_events) 
-    /// method.
-    #[inline]
-    pub fn push_event(&mut self, event: Event) {
-        if let Some(events) = &mut self.events {
-            events.push(event);
-        }
-    }
+    //// Push an event in this world. This only actually push the event if events are
+    //// enabled. Events queue can be swapped using [`swap_events`](Self::swap_events)
+    //// method.
+    // #[inline]
+    // pub fn push_event(&mut self, event: Event) {
+    //     if let Some(events) = &mut self.events {
+    //         events.push(event);
+    //     }
+    // }
 
     /// Get the dimension of this world, this is basically only for sky color on client
     /// and also for celestial angle on the server side for sky light calculation. This
@@ -249,16 +251,18 @@ impl World {
 
     /// Get the current weather in the world.
     pub fn get_weather(&self) -> Weather {
-        self.weather
+        StdbWeather::filter_by_id(&0).unwrap().weather
     }
 
     /// Set the current weather in this world. If the weather has changed an event will
     /// be pushed into the events queue.
-    pub fn set_weather(&mut self, weather: Weather) {
-        if self.weather != weather {
-            self.push_event(Event::Weather { prev: self.weather, new: weather });
-            self.weather = weather;
+    pub fn set_weather(&mut self, new_weather: Weather) {
+        let mut current_weather = StdbWeather::filter_by_id(&0).unwrap();
+        if current_weather.weather == new_weather {
+            return;
         }
+        current_weather.weather = new_weather;
+        StdbWeather::update_by_id(&0, current_weather);
     }
 
     // =================== //
@@ -267,77 +271,77 @@ impl World {
 
     /// Insert a chunk snapshot into this world at its position with all entities and 
     /// block entities attached to it.
-    pub fn insert_chunk_snapshot(&mut self, snapshot: ChunkSnapshot) {
-        
-        self.set_chunk(snapshot.cx, snapshot.cz, snapshot.chunk);
-        
-        for entity in snapshot.entities {
-            debug_assert_eq!(calc_entity_chunk_pos(entity.0.pos), (snapshot.cx, snapshot.cz), "incoherent entity in chunk snapshot");
-            self.spawn_entity_inner(entity);
-        }
+    // pub fn insert_chunk_snapshot(&mut self, snapshot: ChunkSnapshot) {
+    //
+    //     self.set_chunk(snapshot.cx, snapshot.cz, snapshot.chunk);
+    //
+    //     for entity in snapshot.entities {
+    //         debug_assert_eq!(calc_entity_chunk_pos(entity.0.pos), (snapshot.cx, snapshot.cz), "incoherent entity in chunk snapshot");
+    //         self.spawn_entity_inner(entity);
+    //     }
+    //
+    //     for (pos, block_entity) in snapshot.block_entities {
+    //         debug_assert_eq!(calc_chunk_pos_unchecked(pos), (snapshot.cx, snapshot.cz), "incoherent block entity in chunk snapshot");
+    //         self.set_block_entity_inner(pos, block_entity);
+    //     }
+    //
+    // }
 
-        for (pos, block_entity) in snapshot.block_entities {
-            debug_assert_eq!(calc_chunk_pos_unchecked(pos), (snapshot.cx, snapshot.cz), "incoherent block entity in chunk snapshot");
-            self.set_block_entity_inner(pos, block_entity);
-        }
+    //// Create a snapshot of a chunk's content, this only works if chunk data is existing.
+    //// This operation can be costly depending on the number of entities in the chunk, but
+    //// is free regarding the block and light data because it use shared reference.
+    // pub fn take_chunk_snapshot(&self, cx: i32, cz: i32) -> Option<ChunkSnapshot> {
+    //     let chunk_comp = self.chunks.get(&(cx, cz))?;
+    //     let chunk = chunk_comp.data.as_ref()?;
+    //     Some(ChunkSnapshot {
+    //         cx,
+    //         cz,
+    //         chunk: Arc::clone(&chunk),
+    //         entities: chunk_comp.entities.values()
+    //             // Ignoring entities being updated, silently for now.
+    //             .filter_map(|&index| self.entities.get(index).unwrap().inner.clone())
+    //             .collect(),
+    //         block_entities: chunk_comp.block_entities.iter()
+    //             .filter_map(|(&pos, &index)| self.block_entities.get(index).unwrap().inner.clone()
+    //                 .map(|e| (pos, e)))
+    //             .collect(),
+    //     })
+    // }
 
-    }
-
-    /// Create a snapshot of a chunk's content, this only works if chunk data is existing.
-    /// This operation can be costly depending on the number of entities in the chunk, but
-    /// is free regarding the block and light data because it use shared reference.
-    pub fn take_chunk_snapshot(&self, cx: i32, cz: i32) -> Option<ChunkSnapshot> {
-        let chunk_comp = self.chunks.get(&(cx, cz))?;
-        let chunk = chunk_comp.data.as_ref()?;
-        Some(ChunkSnapshot {
-            cx, 
-            cz,
-            chunk: Arc::clone(&chunk),
-            entities: chunk_comp.entities.values()
-                // Ignoring entities being updated, silently for now.
-                .filter_map(|&index| self.entities.get(index).unwrap().inner.clone())
-                .collect(),
-            block_entities: chunk_comp.block_entities.iter()
-                .filter_map(|(&pos, &index)| self.block_entities.get(index).unwrap().inner.clone()
-                    .map(|e| (pos, e)))
-                .collect(),
-        })
-    }
-
-    /// Remove a chunk at given chunk coordinates and return a snapshot of it. If there
-    /// is no chunk at the coordinates but entities or block entities are present, None
-    /// is returned but entities and block entities are removed from the world.
-    pub fn remove_chunk_snapshot(&mut self, cx: i32, cz: i32) -> Option<ChunkSnapshot> {
-        
-        let chunk_comp = self.chunks.remove(&(cx, cz))?;
-        let mut ret = None;
-
-        let entities = chunk_comp.entities.keys()
-            .filter_map(|&id| self.remove_entity_inner(id, false, "remove chunk snapshot").unwrap().inner)
-            .collect();
-        
-        let block_entities = chunk_comp.block_entities.keys()
-            .filter_map(|&pos| self.remove_block_entity_inner(pos, false).unwrap().inner
-                .map(|e| (pos, e)))
-            .collect();
-        
-        if let Some(chunk) = chunk_comp.data {
-
-            ret = Some(ChunkSnapshot { 
-                cx, 
-                cz,
-                chunk,
-                entities,
-                block_entities,
-            });
-
-            self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
-
-        }
-
-        ret
-
-    }
+    //// Remove a chunk at given chunk coordinates and return a snapshot of it. If there
+    //// is no chunk at the coordinates but entities or block entities are present, None
+    //// is returned but entities and block entities are removed from the world.
+    // pub fn remove_chunk_snapshot(&mut self, cx: i32, cz: i32) -> Option<ChunkSnapshot> {
+    //
+    //     let chunk_comp = self.chunks.remove(&(cx, cz))?;
+    //     let mut ret = None;
+    //
+    //     let entities = chunk_comp.entities.keys()
+    //         .filter_map(|&id| self.remove_entity_inner(id, false, "remove chunk snapshot").unwrap().inner)
+    //         .collect();
+    //
+    //     let block_entities = chunk_comp.block_entities.keys()
+    //         .filter_map(|&pos| self.remove_block_entity_inner(pos, false).unwrap().inner
+    //             .map(|e| (pos, e)))
+    //         .collect();
+    //
+    //     if let Some(chunk) = chunk_comp.data {
+    //
+    //         ret = Some(ChunkSnapshot {
+    //             cx,
+    //             cz,
+    //             chunk,
+    //             entities,
+    //             block_entities,
+    //         });
+    //
+    //         self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
+    //
+    //     }
+    //
+    //     ret
+    //
+    // }
 
     // =================== //
     //        CHUNKS       //
@@ -351,63 +355,86 @@ impl World {
     /// and block entities are not touched.
     /// 
     /// Only entities and block entities that are in a chunk will be ticked.
-    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Arc<Chunk>) {
-       
-        let chunk_comp = self.chunks.entry((cx, cz)).or_default();
-        let was_unloaded = chunk_comp.data.replace(chunk).is_none();
-        
-        if was_unloaded {
-            for &index in chunk_comp.entities.values() {
-                self.entities.get_mut(index).unwrap().loaded = true;
+    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) {
+
+        match StdbChunk::filter_by_x(&cx).find(|c| c.z == cz) {
+            None => {
+                // This chunk doesn't exist, let's just insert it!
+                StdbChunk::insert(StdbChunk {
+                    chunk_id: 0,
+                    x: cx,
+                    z: cz,
+                    chunk,
+                }).unwrap();
             }
-            for &index in chunk_comp.block_entities.values() {
-                self.block_entities.get_mut(index).unwrap().loaded = true;
+            Some(existing_chunk) => {
+                StdbChunk::update_by_chunk_id(&existing_chunk.chunk_id, StdbChunk {
+                    chunk_id: existing_chunk.chunk_id,
+                    x: cx,
+                    z: cz,
+                    chunk,
+                });
             }
         }
+
+        // let chunk_comp = self.chunks.entry((cx, cz)).or_default();
+        // let was_unloaded = chunk_comp.data.replace(chunk).is_none();
         
-        self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
+        // if was_unloaded {
+        //     for &index in chunk_comp.entities.values() {
+        //         self.entities.get_mut(index).unwrap().loaded = true;
+        //     }
+        //     for &index in chunk_comp.block_entities.values() {
+        //         self.block_entities.get_mut(index).unwrap().loaded = true;
+        //     }
+        // }
+        
+        // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
 
     }
 
     /// Return true if a given chunk is present in the world.
     pub fn contains_chunk(&self, cx: i32, cz: i32) -> bool {
-        self.chunks.get(&(cx, cz)).is_some_and(|c| c.data.is_some())
+        StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).is_some()
+        // self.chunks.get(&(cx, cz)).is_some_and(|c| c.data.is_some())
     }
 
     /// Get a reference to a chunk, if existing.
-    pub fn get_chunk(&self, cx: i32, cz: i32) -> Option<&Chunk> {
-        self.chunks.get(&(cx, cz)).and_then(|c| c.data.as_deref())
+    pub fn get_chunk(&self, cx: i32, cz: i32) -> Option<StdbChunk> {
+        StdbChunk::filter_by_x(&cx).find(|c| c.z == cz)
+        // self.chunks.get(&(cx, cz)).and_then(|c| c.data.as_deref())
     }
 
-    /// Get a mutable reference to a chunk, if existing.
-    pub fn get_chunk_mut(&mut self, cx: i32, cz: i32) -> Option<&mut Chunk> {
-        self.chunks.get_mut(&(cx, cz)).and_then(|c| c.data.as_mut().map(Arc::make_mut))
-    }
+    //// Get a mutable reference to a chunk, if existing.
+    // pub fn get_chunk_mut(&mut self, cx: i32, cz: i32) -> Option<&mut Chunk> {
+    //     StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).map(|c|c.chunk)
+    //     // self.chunks.get_mut(&(cx, cz)).and_then(|c| c.data.as_mut().map(Arc::make_mut))
+    // }
 
-    /// Remove a chunk that may not exists. Note that this only removed the chunk data,
-    /// not its entities and block entities.
-    pub fn remove_chunk(&mut self, cx: i32, cz: i32) -> Option<Arc<Chunk>> {
-        
-        let chunk_comp = self.chunks.get_mut(&(cx, cz))?;
-        let ret = chunk_comp.data.take();
-        
-        if ret.is_some() {
-
-            for &index in chunk_comp.entities.values() {
-                self.entities.get_mut(index).unwrap().loaded = false;
-            }
-
-            for &index in chunk_comp.block_entities.values() {
-                self.block_entities.get_mut(index).unwrap().loaded = false;
-            }
-
-            self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
-
-        }
-
-        ret
-        
-    }
+    //// Remove a chunk that may not exists. Note that this only removed the chunk data,
+    //// not its entities and block entities.
+    // pub fn remove_chunk(&mut self, cx: i32, cz: i32) -> Option<Arc<Chunk>> {
+    //
+    //     let chunk_comp = self.chunks.get_mut(&(cx, cz))?;
+    //     let ret = chunk_comp.data.take();
+    //
+    //     if ret.is_some() {
+    //
+    //         for &index in chunk_comp.entities.values() {
+    //             self.entities.get_mut(index).unwrap().loaded = false;
+    //         }
+    //
+    //         for &index in chunk_comp.block_entities.values() {
+    //             self.block_entities.get_mut(index).unwrap().loaded = false;
+    //         }
+    //
+    //         self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
+    //
+    //     }
+    //
+    //     ret
+    //
+    // }
 
     // =================== //
     //        BLOCKS       //
@@ -420,13 +447,13 @@ impl World {
     pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
 
         let (cx, cz) = calc_chunk_pos(pos)?;
-        let chunk = self.get_chunk_mut(cx, cz)?;
-        let (prev_id, prev_metadata) = chunk.get_block(pos);
+        let mut chunk = self.get_chunk(cx, cz)?;
+        let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
         
         if id != prev_id || metadata != prev_metadata {
 
-            chunk.set_block(pos, id, metadata);
-            chunk.recompute_height(pos);
+            chunk.chunk.set_block(pos, id, metadata);
+            chunk.chunk.recompute_height(pos);
 
             // Schedule light updates if the block light properties have changed.
             if block::material::get_light_opacity(id) != block::material::get_light_opacity(prev_id)
@@ -435,19 +462,27 @@ impl World {
                 self.schedule_light_update(pos, LightKind::Sky);
             }
 
-            self.push_event(Event::Block { 
-                pos, 
-                inner: BlockEvent::Set {
-                    id, 
-                    metadata,
-                    prev_id, 
-                    prev_metadata, 
-                } 
-            });
-
-            self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+            // TODO: Another event that we don't care about in the SpacetimeDB module
+            // self.push_event(Event::Block {
+            //     pos,
+            //     inner: BlockEvent::Set {
+            //         id,
+            //         metadata,
+            //         prev_id,
+            //         prev_metadata,
+            //     }
+            // });
+            //
+            // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
 
         }
+
+        StdbChunk::update_by_chunk_id(&chunk.chunk_id, StdbChunk {
+            chunk_id: chunk.chunk_id,
+            x: chunk.x,
+            z: chunk.z,
+            chunk: chunk.chunk
+        });
 
         Some((prev_id, prev_metadata))
 
@@ -478,7 +513,7 @@ impl World {
     pub fn get_block(&self, pos: IVec3) -> Option<(u8, u8)> {
         let (cx, cz) = calc_chunk_pos(pos)?;
         let chunk = self.get_chunk(cx, cz)?;
-        Some(chunk.get_block(pos))
+        Some(chunk.chunk.get_block(pos))
     }
 
     // =================== //
@@ -489,7 +524,7 @@ impl World {
     pub fn get_height(&self, pos: IVec3) -> Option<u8> {
         let (cx, cz) = calc_chunk_pos_unchecked(pos);
         let chunk = self.get_chunk(cx, cz)?;
-        Some(chunk.get_height(pos))
+        Some(chunk.chunk.get_height(pos))
     }
 
     // =================== //
@@ -511,8 +546,8 @@ impl World {
 
         if let Some((cx, cz)) = calc_chunk_pos(pos) {
             if let Some(chunk) = self.get_chunk(cx, cz) {
-                light.block = chunk.get_block_light(pos);
-                light.sky = chunk.get_sky_light(pos);
+                light.block = chunk.chunk.get_block_light(pos);
+                light.sky = chunk.chunk.get_sky_light(pos);
             }
         }
 
@@ -546,7 +581,7 @@ impl World {
     pub fn get_biome(&self, pos: IVec3) -> Option<Biome> {
         let (cx, cz) = calc_chunk_pos_unchecked(pos);
         let chunk = self.get_chunk(cx, cz)?;
-        Some(chunk.get_biome(pos))
+        Some(chunk.chunk.get_biome(pos))
     }
 
     // =================== //
@@ -567,21 +602,23 @@ impl World {
         trace!("spawn entity #{id} ({:?})", kind);
 
         let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
-        let chunk_comp = self.chunks.entry((cx, cz)).or_default();
+        let chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
         let entity_index = self.entities.push(EntityComponent {
             inner: Some(entity),
             id,
             cx,
             cz,
-            loaded: chunk_comp.data.is_some(),
+            // loaded: chunk_comp.data.is_some(),
             kind,
         });
 
-        chunk_comp.entities.insert(id, entity_index);
-        self.entities_id_map.insert(id, entity_index);
-        
-        self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
-        self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+        // TODO(jdetter): We're getting rid of the concept of all of these lookup maps
+        // chunk.chunk.entities.insert(id, entity_index);
+        // self.entities_id_map.insert(id, entity_index);
+
+        // This makes no sense in SpacetimeDB, we'll have to remember to do this in the client
+        // self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
+        // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
 
         id
 
@@ -599,9 +636,9 @@ impl World {
     }
 
     /// Return true if an entity is present from its id.
-    pub fn contains_entity(&self, id: u32) -> bool {
-        self.entities_id_map.contains_key(&id)
-    }
+    // pub fn contains_entity(&self, id: u32) -> bool {
+    //     self.entities_id_map.contains_key(&id)
+    // }
 
     /// Return the number of entities in the world, loaded or not.
     #[inline]
@@ -1855,7 +1892,7 @@ struct EntityComponent {
     /// The chunk Z coordinate where this component is cached.
     cz: i32,
     /// True when the chunk this entity is in is loaded with data.
-    loaded: bool,
+    // loaded: bool,
     /// This field describes the initial entity kind of the entity when spawned, it should
     /// not be changed afterward by ticking functions.
     kind: EntityKind,
@@ -1867,7 +1904,7 @@ struct BlockEntityComponent {
     /// The block entity storage.
     inner: Option<Box<BlockEntity>>,
     /// True when the chunk this block entity is in is loaded with data.
-    loaded: bool,
+    // loaded: bool,
     /// Position of that block entity.
     pos: IVec3,
 }

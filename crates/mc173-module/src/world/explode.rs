@@ -9,7 +9,6 @@ use crate::rand::JavaRandom;
 
 use crate::world::bound::RayTraceKind;
 use crate::entity::{Entity, Hurt};
-use crate::world::Event;
 use crate::block;
 
 use super::World;
@@ -158,7 +157,8 @@ impl World {
             }
         }
 
-        self.push_event(Event::Explode { center, radius });
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // self.push_event(Event::Explode { center, radius });
 
     }
 

@@ -6,7 +6,7 @@ use glam::{Vec2, DVec3, IVec3};
 use tracing::trace;
 
 use crate::entity::{Fireball, Path, LookTarget};
-use crate::world::{World, Event, EntityEvent};
+use crate::world::World;
 use crate::path::PathFinder;
 
 use super::{Entity, BaseKind, LivingKind, EntityCategory};
@@ -506,10 +506,11 @@ fn tick_ghast_ai(world: &mut World, id: u32, entity: &mut Entity) {
     let was_charged = living.attack_time > 50;
     let charged = next_attack_time > 50;
     if was_charged != charged {
-        world.push_event(Event::Entity { 
-            id, 
-            inner: EntityEvent::Metadata
-        });
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // world.push_event(Event::Entity {
+        //     id,
+        //     inner: EntityEvent::Metadata
+        // });
     }
 
     living.attack_time = next_attack_time;

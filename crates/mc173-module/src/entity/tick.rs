@@ -14,7 +14,7 @@ use tracing::trace;
 
 use crate::block::material::Material;
 use crate::world::bound::RayTraceKind;
-use crate::world::{World, Event, EntityEvent};
+use crate::world::World;
 use crate::entity::Chicken;
 use crate::item::ItemStack;
 use crate::geom::{Face, BoundingBox};
@@ -60,18 +60,18 @@ pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity, nano_time: u
     // Finally check all major changes and push events if needed.
     let Entity(base, _) = entity;
 
-    if prev_pos != base.pos {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
-    }
-
-    if prev_vel != base.vel {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
-    }
-
-    if prev_look != base.look {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
-    }
-
+    // NOTE(jdetter): This is a client only thing and we don't care about it in the module
+    // if prev_pos != base.pos {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
+    // }
+    //
+    // if prev_vel != base.vel {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
+    // }
+    //
+    // if prev_look != base.look {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
+    // }
 }
 
 

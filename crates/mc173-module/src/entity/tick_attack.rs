@@ -3,7 +3,7 @@
 use glam::{Vec3Swizzles, DVec3};
 
 use crate::entity::{Hurt, Arrow};
-use crate::world::{World, Event, EntityEvent};
+use crate::world::World;
 
 use super::{Entity, BaseKind, LivingKind};
 use super::common::{self, let_expect};
@@ -112,9 +112,10 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
 
     if ignited {
 
-        if creeper.ignited_time.is_none() {
-            world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
-        }
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // if creeper.ignited_time.is_none() {
+        //     world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
+        // }
 
         let ignited_time = creeper.ignited_time.unwrap_or(0) + 1;
         creeper.ignited_time = Some(ignited_time);
@@ -134,10 +135,11 @@ fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_
 
     } else {
 
-        if creeper.ignited_time.is_some() {
-            world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
-            creeper.ignited_time = None;
-        }
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // if creeper.ignited_time.is_some() {
+        //     world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
+        //     creeper.ignited_time = None;
+        // }
 
     }
 

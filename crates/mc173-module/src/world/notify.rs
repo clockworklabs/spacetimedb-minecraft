@@ -8,7 +8,7 @@ use glam::IVec3;
 use crate::geom::{Face, FaceSet};
 use crate::block;
 
-use super::{World, Event, BlockEvent};
+use super::World;
 
 
 /// Methods related to block self and neighbor notifications.
@@ -217,10 +217,11 @@ impl World {
                 if open != powered {
                     block::trapdoor::set_open(&mut metadata, powered);
                     self.set_block_notify(pos, block::TRAPDOOR, metadata);
-                    self.push_event(Event::Block { 
-                        pos, 
-                        inner: BlockEvent::Sound { id: block::TRAPDOOR, metadata },
-                    });
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // self.push_event(Event::Block {
+                    //     pos,
+                    //     inner: BlockEvent::Sound { id: block::TRAPDOOR, metadata },
+                    // });
                 }
             }
         }
@@ -295,10 +296,11 @@ impl World {
                         self.notify_block(pos + face.delta() + IVec3::Y, id);
                     }
 
-                    self.push_event(Event::Block { 
-                        pos, 
-                        inner: BlockEvent::Sound { id, metadata },
-                    });
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // self.push_event(Event::Block {
+                    //     pos,
+                    //     inner: BlockEvent::Sound { id, metadata },
+                    // });
 
                 }
                 

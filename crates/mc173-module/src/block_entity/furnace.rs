@@ -3,8 +3,8 @@
 use glam::IVec3;
 
 use crate::item::{self, ItemStack};
-use crate::world::{World, Event, BlockEntityEvent, BlockEntityStorage, BlockEntityProgress};
-use crate::{smelt, block};
+use crate::world::World;
+use crate::smelt;
 
 
 #[derive(Debug, Clone, Default)]
@@ -90,22 +90,24 @@ impl FurnaceBlockEntity {
 
                     self.fuel_stack.size -= 1;
                     fuel_modified = true;
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceFuel,
-                            stack: self.fuel_stack,
-                        },
-                    });
 
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Progress { 
-                            progress: BlockEntityProgress::FurnaceBurnMaxTime, 
-                            value: self.burn_max_ticks,
-                        }, 
-                    });
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // world.push_event(Event::BlockEntity {
+                    //     pos,
+                    //     inner: BlockEntityEvent::Storage {
+                    //         storage: BlockEntityStorage::FurnaceFuel,
+                    //         stack: self.fuel_stack,
+                    //     },
+                    // });
+
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // world.push_event(Event::BlockEntity {
+                    //     pos,
+                    //     inner: BlockEntityEvent::Progress {
+                    //         progress: BlockEntityProgress::FurnaceBurnMaxTime,
+                    //         value: self.burn_max_ticks,
+                    //     },
+                    // });
 
                 }
 
@@ -128,22 +130,24 @@ impl FurnaceBlockEntity {
                     // output stack on the next tick.
                     self.input_stack.size -= 1;
                     self.output_stack = *active_output_stack;
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceInput,
-                            stack: self.input_stack,
-                        },
-                    });
-                    
-                    world.push_event(Event::BlockEntity { 
-                        pos, 
-                        inner: BlockEntityEvent::Storage { 
-                            storage: BlockEntityStorage::FurnaceOutput,
-                            stack: self.output_stack,
-                        },
-                    });
+
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // world.push_event(Event::BlockEntity {
+                    //     pos,
+                    //     inner: BlockEntityEvent::Storage {
+                    //         storage: BlockEntityStorage::FurnaceInput,
+                    //         stack: self.input_stack,
+                    //     },
+                    // });
+
+                    // TODO: Another event that we don't care about in the SpacetimeDB module
+                    // world.push_event(Event::BlockEntity {
+                    //     pos,
+                    //     inner: BlockEntityEvent::Storage {
+                    //         storage: BlockEntityStorage::FurnaceOutput,
+                    //         stack: self.output_stack,
+                    //     },
+                    // });
 
                 }
 
@@ -156,36 +160,39 @@ impl FurnaceBlockEntity {
             smelt_modified = true;
         }
 
-        if smelt_modified {
-            world.push_event(Event::BlockEntity { 
-                pos, 
-                inner: BlockEntityEvent::Progress { 
-                    progress: BlockEntityProgress::FurnaceSmeltTime, 
-                    value: self.smelt_ticks,
-                }, 
-            });
-        }
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // if smelt_modified {
+        //     world.push_event(Event::BlockEntity {
+        //         pos,
+        //         inner: BlockEntityEvent::Progress {
+        //             progress: BlockEntityProgress::FurnaceSmeltTime,
+        //             value: self.smelt_ticks,
+        //         },
+        //     });
+        // }
 
-        if fuel_modified {
-            world.push_event(Event::BlockEntity { 
-                pos, 
-                inner: BlockEntityEvent::Progress { 
-                    progress: BlockEntityProgress::FurnaceBurnRemainingTime, 
-                    value: self.burn_remaining_ticks,
-                }, 
-            });
-        }
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // if fuel_modified {
+        //     world.push_event(Event::BlockEntity {
+        //         pos,
+        //         inner: BlockEntityEvent::Progress {
+        //             progress: BlockEntityProgress::FurnaceBurnRemainingTime,
+        //             value: self.burn_remaining_ticks,
+        //         },
+        //     });
+        // }
 
-        if initial_burning != (self.burn_remaining_ticks != 0) {
-            let (_id, metadata) = world.get_block(pos).expect("should not be ticking if not loaded");
-            if initial_burning {
-                // No longer burning.
-                world.set_block_notify(pos, block::FURNACE, metadata);
-            } else {
-                // Now burning.
-                world.set_block_notify(pos, block::FURNACE_LIT, metadata);
-            }
-        }
+        // TODO: Another event that we don't care about in the SpacetimeDB module
+        // if initial_burning != (self.burn_remaining_ticks != 0) {
+        //     let (_id, metadata) = world.get_block(pos).expect("should not be ticking if not loaded");
+        //     if initial_burning {
+        //         // No longer burning.
+        //         world.set_block_notify(pos, block::FURNACE, metadata);
+        //     } else {
+        //         // Now burning.
+        //         world.set_block_notify(pos, block::FURNACE_LIT, metadata);
+        //     }
+        // }
 
     }
 
