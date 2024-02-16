@@ -4,13 +4,14 @@ use std::ops::{Add, AddAssign, Sub, SubAssign, BitOr, BitOrAssign};
 use std::fmt;
 
 use glam::{DVec3, IVec3};
+use crate::entity::StdbDVec3;
 
 
 /// An axis-aligned bounding box.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct BoundingBox {
-    pub min: Vec<f64>,
-    pub max: Vec<f64>,
+    pub min: StdbDVec3,
+    pub max: StdbDVec3,
 }
 
 impl BoundingBox {

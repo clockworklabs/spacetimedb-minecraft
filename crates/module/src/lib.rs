@@ -15,68 +15,20 @@
 mod weather;
 mod rand;
 mod entitiy;
-mod tick;
-mod tick_state;
-mod world;
 mod loot;
 mod inventory;
 
 use std::time::{Duration, UNIX_EPOCH};
 use glam::IVec3;
-use mc173_module::{block, item};
+use mc173_module::{block, item, StdbTime};
 use mc173_module::chunk::{calc_chunk_pos, Chunk};
 use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
-use mc173_module::world::{BlockEvent, ChunkEvent, Event, LightKind};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
 use spacetimedb::rt::ReducerInfo;
 use mc173_module::block::material::Material;
 use mc173_module::geom::Face;
+use mc173_module::world::StdbChunk;
 
-#[spacetimedb(table)]
-pub struct StdbChunk {
-    #[primarykey]
-    #[autoinc]
-    chunk_id: i32,
-    x: i32,
-    z: i32,
-    chunk: Chunk,
-}
-
-#[spacetimedb(table)]
-pub struct StdbTime {
-    #[unique]
-    id: i32,
-    time: u64,
-}
-
-#[derive(Debug, Clone, SpacetimeType)]
-pub struct BreakBlockPacket {
-    pub x: i32,
-    pub y: i8,
-    pub z: i32,
-    pub face: u8,
-    pub status: u8,
-}
-
-/// State of a player breaking a block.
-#[derive(SpacetimeType)]
-pub struct BreakingBlock {
-    /// The start time of this block breaking.
-    pub start_time: u64,
-    /// The position of the block.
-    pub pos_x: i32,
-    pub pos_y: i32,
-    pub pos_z: i32,
-    /// The block id.
-    pub id: u8,
-}
-
-#[spacetimedb(table)]
-pub struct StdbBreakingBlock {
-    #[unique]
-    entity_id: u32,
-    state: BreakingBlock,
-}
 
 /// Server world seed is currently hardcoded.
 pub const SEED: i64 = 9999;

@@ -77,8 +77,8 @@ use super::tick_ai;
 
 //// REF: Entity::onUpdate
 // fn tick_base(world: &mut World, id: u32, entity: &mut Entity) {
-    tick_state(world, id, entity);
-}
+    // tick_state(world, id, entity);
+// }
 
 //// REF: EntityItem::onUpdate
 // fn tick_item(world: &mut World, id: u32, entity: &mut Entity) {

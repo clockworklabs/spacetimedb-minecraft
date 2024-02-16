@@ -4,27 +4,27 @@ use std::ops::Add;
 
 use glam::DVec3;
 
-use crate::entity::{Hurt, LivingKind, ProjectileKind};
+use crate::entity::{BaseKind, Hurt, LivingKind, ProjectileKind, StdbEntity};
 use crate::world::{World, Event, EntityEvent};
 use crate::block::material::Material;
 use crate::item::{self, ItemStack};
 use crate::block;
 
-use super::{Entity, EntityKind, EntityBase, Living};
+use super::{EntityKind, EntityBase, Living};
 use super::common::{self, let_expect};
 
 
 /// Tick base method that is common to every entity kind, this is split in Notchian impl
 /// so we split it here.
-pub(super) fn tick_state(world: &mut World, id: u32, entity: &mut Entity) {
-    match entity {
-        Entity(_, EntityKind::Living(_, _)) => tick_state_living(world, id, entity),
-        Entity(_, _) => tick_state_base(world, id, entity),
+pub(super) fn tick_state(id: u32, entity: &mut StdbEntity) {
+    match entity.kind {
+        BaseKind::Living => tick_state_living(id, entity),
+        _ => tick_state_base(world, id, entity),
     }
 }
 
 /// REF: Entity::onEntityUpdate
-fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_state_base(id: u32, entity: &mut StdbEntity) {
         
     let Entity(base, base_kind) = entity;
 
@@ -115,10 +115,10 @@ fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
 }
 
 /// REF: EntityLiving::onEntityUpdate
-fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_state_living(id: u32, entity: &mut StdbEntity) {
 
     // Super call.
-    tick_state_base(world, id, entity);
+    tick_state_base(id, entity);
 
     let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
     

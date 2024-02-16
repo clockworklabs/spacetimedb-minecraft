@@ -5,23 +5,31 @@ use std::ops::Add;
 use glam::{Vec2, DVec3, IVec3};
 use tracing::trace;
 
-use crate::entity::{Fireball, Path, LookTarget};
+use crate::entity::{Fireball, Path, LookTarget, StdbEntity, BaseKind, StdbLiving, StdbWolf};
 use crate::world::{World, Event, EntityEvent};
 use crate::path::PathFinder;
 
-use super::{Entity, EntityKind, LivingKind, EntityCategory};
+use super::{EntityKind, LivingKind, EntityCategory};
 use super::common::{self, let_expect};
 use super::tick_attack;
 
 
 /// Tick entity "artificial intelligence", like attacking players.
-pub(super) fn tick_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
-    match entity {
-        Entity(_, EntityKind::Living(_, LivingKind::Human(_))) => (),
-        Entity(_, EntityKind::Living(_, LivingKind::Ghast(_))) => tick_ghast_ai(world, id, entity),
-        Entity(_, EntityKind::Living(_, LivingKind::Squid(_))) => tick_squid_ai(world, id, entity),
-        Entity(_, EntityKind::Living(_, LivingKind::Slime(_))) => tick_slime_ai(world, id, entity),
-        Entity(_, EntityKind::Living(_, _)) => tick_ground_ai(world, id, entity, nano_time),
+pub(super) fn tick_ai(id: u32, nano_time: u128) {
+    let entity = StdbEntity::filter_by_entity_id(&id).unwrap();
+
+    match entity.kind {
+
+        BaseKind::Living => {
+            let living = StdbLiving::filter_by_entity_id(&id).unwrap();
+            match living.living_kind {
+                LivingKind::Human => {}
+                LivingKind::Ghast => tick_ghast_ai(id),
+                LivingKind::Squid => tick_squid_ai(id),
+                LivingKind::Slime => tick_slime_ai(id),
+                _ => tick_ground_ai(id, nano_time),
+            }
+        }
         _ => unreachable!("invalid argument for this function")
     }
 }
@@ -107,7 +115,7 @@ fn tick_living_ai(world: &mut World, _id: u32, entity: &mut Entity) {
 /// Tick an ground creature (animal/mob) entity AI.
 /// 
 /// REF: EntityCreature::updatePlayerActionState
-fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
+fn tick_ground_ai(id: u32, nano_time: u128) {
 
     /// Maximum distance for the path finder.
     const PATH_FINDER_MAX_DIST: f32 = 16.0;
@@ -123,9 +131,9 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u1
         overwrite: bool,
     }
 
-    if tick_natural_despawn(world, id, entity) {
-        return;
-    }
+    // if tick_natural_despawn(world, id, entity) {
+    //     return;
+    // }
 
     let_expect!(Entity(base, EntityKind::Living(living, living_kind)) = entity);
     
@@ -330,14 +338,14 @@ fn tick_ground_ai(world: &mut World, id: u32, entity: &mut Entity, nano_time: u1
 /// Tick a slime entity AI.
 /// 
 /// REF: EntitySlime::updatePlayerActionState
-fn tick_slime_ai(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_slime_ai(id: u32) {
 
     /// Look step for slime: 10/20 deg
     const LOOK_STEP: Vec2 = Vec2::new(0.17453292519943295, 0.3490658503988659);
     
-    if tick_natural_despawn(world, id, entity) {
-        return;
-    }
+    // if tick_natural_despawn(world, id, entity) {
+    //     return;
+    // }
 
     let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Slime(slime))) = entity);
 
@@ -380,14 +388,14 @@ fn tick_slime_ai(world: &mut World, id: u32, entity: &mut Entity) {
 /// Tick a ghast entity AI.
 /// 
 /// REF: EntityGhast::updatePlayerActionState
-fn tick_ghast_ai(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_ghast_ai(id: u32) {
 
     // Maximum distance to shoot a player, beyond this the ghast just follow its vel.
     const SHOT_MAX_DIST_SQUARED: f64 = 64.0 * 64.0;
 
-    if tick_natural_despawn(world, id, entity) {
-        return;
-    }
+    // if tick_natural_despawn(id) {
+    //     return;
+    // }
 
     let_expect!(Entity(base, EntityKind::Living(living, LivingKind::Ghast(ghast))) = entity);
 
@@ -442,14 +450,14 @@ fn tick_ghast_ai(world: &mut World, id: u32, entity: &mut Entity) {
 
     // Only then we search for the closest player if required.
     if target_entity.is_none() || ghast.attack_target_time == 0 {
-        if let Some((closest_id, closest_entity, _)) = common::find_closest_player_entity(world, base.pos, 100.0) {
-            living.attack_target = Some(closest_id);
-            target_entity = Some(closest_entity);
-            ghast.attack_target_time = 20;
-        } else {
-            living.attack_target = None;
-            target_entity = None;
-        }
+        // if let Some((closest_id, closest_entity, _)) = common::find_closest_player_entity(world, base.pos, 100.0) {
+        //     living.attack_target = Some(closest_id);
+        //     target_entity = Some(closest_entity);
+        //     ghast.attack_target_time = 20;
+        // } else {
+        //     living.attack_target = None;
+        //     target_entity = None;
+        // }
     }
 
     // These two booleans are used to choose or not to look toward velocity and to
@@ -519,11 +527,11 @@ fn tick_ghast_ai(world: &mut World, id: u32, entity: &mut Entity) {
 /// Tick a squid entity AI.
 /// 
 /// REF: EntitySquid::updatePlayerActionState
-fn tick_squid_ai(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_squid_ai(id: u32) {
 
-    if tick_natural_despawn(world, id, entity) {
-        return;
-    }
+    // if tick_natural_despawn(world, id, entity) {
+    //     return;
+    // }
 
     let_expect!(Entity(base, EntityKind::Living(_living, LivingKind::Squid(_squid))) = entity);
 
@@ -540,57 +548,67 @@ fn tick_squid_ai(world: &mut World, id: u32, entity: &mut Entity) {
 
 }
 
-/// Internal function to handle the entity despawning range of entities, which is 128 
-/// blocks away from the closest player. This functions return true if the entity is
-/// has been removed for being too far or too old.
-fn tick_natural_despawn(world: &mut World, id: u32, entity: &mut Entity) -> bool {
-
-    // Only living entities can naturally despawned.
-    let Entity(base, EntityKind::Living(living, living_kind)) = entity else {
-        return false;
-    };
-
-    // Can't despawn persistent entities.
-    if living.artificial {
-        return false;
-    }
-
-    // We don't despawn natural wolf that are tamed.
-    if let LivingKind::Wolf(wolf) = living_kind {
-        if wolf.owner.is_some() {
-            return false;
-        }
-    }
-
-    // Increment the interaction time, mobs that are in high brightness locations have
-    // faster increment.
-    living.wander_time = living.wander_time.saturating_add(1);
-    if living_kind.entity_kind().category() == EntityCategory::Mob {
-        if common::get_entity_light(world, base).brightness() > 0.5 {
-            living.wander_time = living.wander_time.saturating_add(2);
-        }
-    }
-
-    // We only despawn if there are player in the server, but the entity is not in range.
-    if world.get_entity_player_count() == 0 {
-        return false;
-    }
-
-    if let Some((_, _, dist)) = common::find_closest_player_entity(world, base.pos, 128.0) {
-        if dist < 32.0 {
-            living.wander_time = 0;
-            false
-        } else if living.wander_time > 600 && base.rand.next_int_bounded(800) == 0 {
-            // The entity has not interacted with player in long time, randomly despawn.
-            world.remove_entity(id, "random wandering despawn");
-            true
-        } else {
-            false
-        }
-    } else {
-        // No player in 128 range, despawn this natural entity entity.
-        world.remove_entity(id, "no close player despawn");
-        true
-    }
-
-}
+// Internal function to handle the entity despawning range of entities, which is 128
+// blocks away from the closest player. This functions return true if the entity is
+// has been removed for being too far or too old.
+// TODO: We're missing logged in players and we're missing skylight
+// fn tick_natural_despawn(id: u32) -> bool {
+//
+//     // Only living entities can naturally despawned.
+//     // let Entity(base, EntityKind::Living(living, living_kind)) = entity else {
+//     //     return false;
+//     // };
+//     let Some(entity) = StdbEntity::filter_by_id(&id) else {
+//         return false;
+//     };
+//
+//
+//     // Can't despawn persistent entities.
+//     let Some(mut living) = StdbLiving::filter_by_id(&id) else {
+//         return false;
+//     };
+//     if living.living.artificial {
+//         return false;
+//     }
+//
+//     // We don't despawn natural wolf that are tamed.
+//     if let Some(wolf) = StdbWolf::filter_by_id(&id) {
+//         if wolf.wolf.owner.is_some() {
+//             return false;
+//         }
+//     }
+//
+//     // Increment the interaction time, mobs that are in high brightness locations have
+//     // faster increment.
+//     living.living.wander_time = living.living.wander_time.saturating_add(1);
+//     // TODO: We need to add skylight into our SpacetimeDB module so that we can do this
+//     // if living.living_kind.entity_kind().category() == EntityCategory::Mob {
+//     //     if common::get_entity_light(world, base).brightness() > 0.5 {
+//     //         living.wander_time = living.wander_time.saturating_add(2);
+//     //     }
+//     // }
+//
+//     // We only despawn if there are player in the server, but the entity is not in range.
+//     // TODO: Track logged in players in SpacetimeDB module
+//     // if world.get_entity_player_count() == 0 {
+//     //     return false;
+//     // }
+//
+//     if let Some((_, _, dist)) = common::find_closest_player_entity(world, base.pos, 128.0) {
+//         if dist < 32.0 {
+//             living.wander_time = 0;
+//             false
+//         } else if living.wander_time > 600 && base.rand.next_int_bounded(800) == 0 {
+//             // The entity has not interacted with player in long time, randomly despawn.
+//             world.remove_entity(id, "random wandering despawn");
+//             true
+//         } else {
+//             false
+//         }
+//     } else {
+//         // No player in 128 range, despawn this natural entity entity.
+//         world.remove_entity(id, "no close player despawn");
+//         true
+//     }
+//
+// }

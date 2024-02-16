@@ -4,7 +4,7 @@ use glam::{IVec3, DVec3};
 
 use tracing::trace;
 
-use crate::entity::{EntityKind, Entity};
+use crate::entity::{EntityKind};
 use crate::geom::BoundingBox;
 use crate::world::World;
 

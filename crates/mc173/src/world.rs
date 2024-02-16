@@ -1044,6 +1044,7 @@ impl World {
         
         self.tick_natural_spawn();
 
+        // TODO: Move this to SpacetimeDB
         self.tick_sky_light();
 
         // self.time += 1;

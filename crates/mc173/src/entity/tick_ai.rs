@@ -543,6 +543,7 @@ fn tick_squid_ai(world: &mut World, id: u32, entity: &mut Entity) {
 /// Internal function to handle the entity despawning range of entities, which is 128 
 /// blocks away from the closest player. This functions return true if the entity is
 /// has been removed for being too far or too old.
+/// TODO: We're missing logged in players and we're missing skylight
 fn tick_natural_despawn(world: &mut World, id: u32, entity: &mut Entity) -> bool {
 
     // Only living entities can naturally despawned.

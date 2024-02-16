@@ -1,7 +1,7 @@
 //! Entities structures and logic implementation.
 
 use glam::{DVec3, Vec2, IVec3};
-use spacetimedb::SpacetimeType;
+use spacetimedb::{spacetimedb, SpacetimeType};
 
 use crate::block::material::Material;
 use crate::util::default as def;
@@ -82,7 +82,7 @@ pub struct Entity {
 
 /// Kind of base entity.
 #[derive(Debug, Clone)]
-pub enum EntityKind {
+pub enum BaseKind {
     Item,
     Painting,
     Boat,
@@ -127,6 +127,13 @@ pub enum LivingKind {
     Zombie,
 }
 
+#[derive(SpacetimeType, Clone, Copy, Debug)]
+pub struct StdbDVec3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
 /// The base data common to all entities.
 #[derive(Debug, Clone, Default)]
 pub struct EntityBase {
@@ -146,10 +153,10 @@ pub struct EntityBase {
     pub bb: BoundingBox,
     /// The current entity position, it is derived from the bounding box and size, it can
     /// be forced by setting it and then calling `resize` on entity.
-    pub pos: Vec<f64>,
+    pub pos: StdbDVec3,
     /// True if an entity pos event should be sent after update.
     /// The current entity velocity.
-    pub vel: Vec<f64>,
+    pub vel: StdbDVec3,
     /// Yaw a pitch angles of this entity's look. These are in radians with no range 
     /// guarantee, although this will often be normalized in 2pi range. The yaw angle
     /// in Minecraft is set to zero when pointing toward PosZ, and then rotate clockwise
@@ -519,6 +526,173 @@ impl Path {
     
 }
 
+#[spacetimedb(table)]
+pub struct StdbEntity {
+    #[primarykey]
+    #[autoinc]
+    pub id: u32,
+    pub base: EntityBase,
+    pub kind: BaseKind,
+}
+
+#[spacetimedb(table)]
+pub struct StdbItem {
+    #[primarykey]
+    pub id: u32,
+    pub item: Item,
+}
+
+#[spacetimedb(table)]
+pub struct StdbPainting {
+    #[primarykey]
+    pub id: u32,
+    pub painting: Painting,
+}
+
+#[spacetimedb(table)]
+pub struct StdbMinecart {
+    #[primarykey]
+    pub id: u32,
+    pub minecart: Minecart,
+}
+
+#[spacetimedb(table)]
+pub struct StdbChestMinecart {
+    #[primarykey]
+    id: u32,
+    inventory_id: u32,
+}
+
+#[spacetimedb(table)]
+pub struct StdbFurnaceMinecart {
+    #[primarykey]
+    id: u32,
+    push_x: f64,
+    push_z: f64,
+    /// Remaining fuel amount.
+    fuel: u32,
+}
+
+#[spacetimedb(table)]
+pub struct StdbFallingBlock {
+    #[primarykey]
+    pub id: u32,
+    pub falling_block: FallingBlock,
+}
+
+#[spacetimedb(table)]
+pub struct StdbTnt {
+    #[primarykey]
+    pub id: u32,
+    pub tnt: Tnt,
+}
+
+#[spacetimedb(table)]
+pub struct StdbProjectile {
+    #[primarykey]
+    pub id: u32,
+    pub kind: ProjectileKind,
+    pub projectile: Projectile,
+}
+
+#[spacetimedb(table)]
+pub struct StdbArrow {
+    #[primarykey]
+    pub id: u32,
+    pub arrow: Arrow,
+}
+
+#[spacetimedb(table)]
+pub struct StdbFireball {
+    #[primarykey]
+    pub id: u32,
+    pub fireball: Fireball
+}
+
+#[spacetimedb(table)]
+pub struct StdbBobber {
+    #[primarykey]
+    pub id: u32,
+    pub bobber: Bobber,
+}
+
+#[spacetimedb(table)]
+pub struct StdbLiving {
+    #[primarykey]
+    pub id: u32,
+    pub living_kind: LivingKind,
+    pub living: Living,
+}
+
+#[spacetimedb(table)]
+pub struct StdbHuman {
+    #[primarykey]
+    pub id: u32,
+    pub human: Human,
+}
+
+#[spacetimedb(table)]
+pub struct StdbGhast {
+    #[primarykey]
+    pub id: u32,
+    pub ghast: Ghast,
+}
+
+#[spacetimedb(table)]
+pub struct StdbSlime {
+    #[primarykey]
+    pub id: u32,
+    pub slime: Slime,
+}
+
+#[spacetimedb(table)]
+pub struct StdbPig {
+    #[primarykey]
+    pub id: u32,
+    pub pig: Pig,
+}
+
+#[spacetimedb(table)]
+pub struct StdbChicken {
+    #[primarykey]
+    pub id: u32,
+    pub chicken: Chicken,
+}
+
+#[spacetimedb(table)]
+pub struct StdbSheep {
+    #[primarykey]
+    pub living_id: u32,
+    pub sheep: Sheep,
+}
+
+#[spacetimedb(table)]
+pub struct StdbSquid {
+    #[primarykey]
+    pub id: u32,
+    pub squid: Squid,
+}
+
+#[spacetimedb(table)]
+pub struct StdbWolf {
+    #[primarykey]
+    pub id: u32,
+    pub wolf: Wolf,
+}
+
+#[spacetimedb(table)]
+pub struct StdbCreeper {
+    #[primarykey]
+    pub id: u32,
+    pub creeper: Creeper,
+}
+
+#[spacetimedb(table)]
+pub struct StdbPigZombie {
+    #[primarykey]
+    pub id: u32,
+    pub pig_zombie: PigZombie,
+}
 
 impl Entity {
 

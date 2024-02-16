@@ -15,13 +15,12 @@ use tracing::trace;
 use crate::block::material::Material;
 use crate::world::bound::RayTraceKind;
 use crate::world::{World, Event, EntityEvent};
-use crate::entity::Chicken;
+use crate::entity::{BaseKind, Chicken, StdbDVec3, StdbEntity, StdbItem, StdbPainting, StdbTnt};
 use crate::item::ItemStack;
 use crate::geom::{Face, BoundingBox};
 use crate::block;
 
-use super::{Entity,
-            EntityKind, ProjectileKind, LivingKind,
+use super::{EntityKind, ProjectileKind, LivingKind,
             EntityBase, Living, Hurt, ProjectileHit};
 
 use super::common::{self, let_expect};
@@ -30,158 +29,172 @@ use super::tick_ai;
 
 
 /// Entry point tick method for all entities.
-pub(super) fn tick(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
-    
-    let Entity(base, _) = entity;
+pub(super) fn tick(id: u32, nano_time: u128) {
+
+    let Some(mut entity) = StdbEntity::filter_by_id(&id) else {
+        return;
+    };
 
     // Just kill the entity if far in the void.
-    if base.pos.y < -64.0 {
-        world.remove_entity(id, "void");
-        return;
-    }
+    // TODO: Do we need this?
+    // if base.pos.y < -64.0 {
+    //     world.remove_entity(id, "void");
+    //     return;
+    // }
 
-    let prev_pos = base.pos;
-    let prev_vel = base.vel;
-    let prev_look = base.look;
+    let prev_pos = entity.base.pos;
+    let prev_vel = entity.base.vel;
+    let prev_look = entity.base.look;
 
     // Increase the entity lifetime, used by some entities and is interesting for debug.
-    base.lifetime += 1;
+    entity.base.lifetime += 1;
 
-    match entity {
-        Entity(_, EntityKind::Item(_)) => tick_item(world, id, entity),
-        Entity(_, EntityKind::Painting(_)) => tick_painting(world, id, entity),
-        Entity(_, EntityKind::FallingBlock(_)) => tick_falling_block(world, id, entity),
-        Entity(_, EntityKind::Tnt(_)) => tick_tnt(world, id, entity, nano_time),
-        Entity(_, EntityKind::Living(_, _)) => tick_living(world, id, entity, nano_time),
-        Entity(_, EntityKind::Projectile(_, _)) => tick_projectile(world, id, entity, nano_time),
-        Entity(_, _) => tick_base(world, id, entity),
+    match entity.kind {
+        BaseKind::Item => tick_item(id, &mut entity),
+        BaseKind::Painting => tick_painting(id, &mut entity),
+        BaseKind::FallingBlock => tick_falling_block(id, &mut entity),
+        BaseKind::Tnt => tick_tnt(id, &mut entity, nano_time),
+        BaseKind::Living => tick_living(id, &mut entity, nano_time),
+        BaseKind::Projectile => tick_projectile(id, &mut entity, nano_time),
+        _ => tick_base(id, &mut entity),
     }
 
     // Finally check all major changes and push events if needed.
-    let Entity(base, _) = entity;
+    // let Entity(base, _) = entity;
 
-    if prev_pos != base.pos {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
-    }
+    // TODO: These events are in mc173 and we should do this as part of the onEntityUpdate callback
+    // if prev_pos != base.pos {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Position { pos: base.pos } });
+    // }
+    //
+    // if prev_vel != base.vel {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
+    // }
+    //
+    // if prev_look != base.look {
+    //     world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
+    // }
 
-    if prev_vel != base.vel {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Velocity { vel: base.vel } });
-    }
-
-    if prev_look != base.look {
-        world.push_event(Event::Entity { id, inner: EntityEvent::Look { look: base.look } });
-    }
-
+    StdbEntity::update_by_id(&id, entity);
 }
 
 
 /// REF: Entity::onUpdate
-fn tick_base(world: &mut World, id: u32, entity: &mut Entity) {
-    tick_state(world, id, entity);
+fn tick_base(id: u32, entity: &mut StdbEntity) {
+    tick_state(id, entity);
 }
 
 /// REF: EntityItem::onUpdate
-fn tick_item(world: &mut World, id: u32, entity: &mut Entity) {
+fn tick_item(id: u32, entity: &mut StdbEntity) {
 
-    tick_base(world, id, entity);
-    let_expect!(Entity(base, EntityKind::Item(item)) = entity);
+    tick_base(id, entity);
+    let Some(mut item) = StdbItem::filter_by_id(&id) else {
+        return;
+    };
+    // let_expect!(Entity(base, BaseKind::Item(item)) = entity);
 
-    if item.frozen_time > 0 {
-        item.frozen_time -= 1;
+    if item.item.frozen_time > 0 {
+        item.item.frozen_time -= 1;
     }
 
+
     // Update item velocity.
-    base.vel.y -= 0.04;
+    entity.base.vel.y -= 0.04;
 
     // If the item is in lava, apply random motion like it's burning.
     // PARITY: The real client don't use 'in_lava', check if problematic.
-    if base.in_lava {
-        base.vel.y = 0.2;
-        base.vel.x = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
-        base.vel.z = ((base.rand.next_float() - base.rand.next_float()) * 0.2) as f64;
+    if entity.base.in_lava {
+        entity.base.vel.y = 0.2;
+        entity.base.vel.x = ((entity.base.rand.next_float() - entity.base.rand.next_float()) * 0.2) as f64;
+        entity.base.vel.z = ((entity.base.rand.next_float() - entity.base.rand.next_float()) * 0.2) as f64;
     }
 
     // If the item is in an opaque block.
-    let block_pos = base.pos.floor().as_ivec3();
-    if world.is_block_opaque_cube(block_pos) {
+    let block_pos = entity.base.pos.floor().as_ivec3();
 
-        let delta = base.pos - block_pos.as_dvec3();
-
-        // Find a block face where we can bump the item.
-        let bump_face = Face::ALL.into_iter()
-            .filter(|face| !world.is_block_opaque_cube(block_pos + face.delta()))
-            .map(|face| {
-                let mut delta = delta[face.axis_index()];
-                if face.is_pos() {
-                    delta = 1.0 - delta;
-                }
-                (face, delta)
-            })
-            .min_by(|&(_, delta1), &(_, delta2)| delta1.total_cmp(&delta2))
-            .map(|(face, _)| face);
-
-        // If we found a non opaque face then we bump the item to that face.
-        if let Some(bump_face) = bump_face {
-            let accel = (base.rand.next_float() * 0.2 + 0.1) as f64;
-            if bump_face.is_neg() {
-                base.vel[bump_face.axis_index()] = -accel;
-            } else {
-                base.vel[bump_face.axis_index()] = accel;
-            }
-        }
-        
-    }
+    // TODO: Add this back in when we support world
+    // if world.is_block_opaque_cube(block_pos) {
+    //
+    //     let delta = base.pos - block_pos.as_dvec3();
+    //
+    //     // Find a block face where we can bump the item.
+    //     let bump_face = Face::ALL.into_iter()
+    //         .filter(|face| !world.is_block_opaque_cube(block_pos + face.delta()))
+    //         .map(|face| {
+    //             let mut delta = delta[face.axis_index()];
+    //             if face.is_pos() {
+    //                 delta = 1.0 - delta;
+    //             }
+    //             (face, delta)
+    //         })
+    //         .min_by(|&(_, delta1), &(_, delta2)| delta1.total_cmp(&delta2))
+    //         .map(|(face, _)| face);
+    //
+    //     // If we found a non opaque face then we bump the item to that face.
+    //     if let Some(bump_face) = bump_face {
+    //         let accel = (base.rand.next_float() * 0.2 + 0.1) as f64;
+    //         if bump_face.is_neg() {
+    //             base.vel[bump_face.axis_index()] = -accel;
+    //         } else {
+    //             base.vel[bump_face.axis_index()] = accel;
+    //         }
+    //     }
+    //
+    // }
 
     // Move the item while checking collisions if needed.
-    apply_base_vel(world, id, base, base.vel, 0.0);
+    apply_base_vel(id, base, base.vel, 0.0);
 
     let mut slipperiness = 0.98;
 
-    if base.on_ground {
+    if entity.base.on_ground {
 
         slipperiness = 0.1 * 0.1 * 58.8;
 
         let ground_pos = IVec3 {
-            x: base.pos.x.floor() as i32,
-            y: base.bb.min.y.floor() as i32 - 1,
-            z: base.pos.z.floor() as i32,
+            x: entity.base.pos.x.floor() as i32,
+            y: entity.base.bb.min.y.floor() as i32 - 1,
+            z: entity.base.pos.z.floor() as i32,
         };
 
-        if let Some((ground_id, _)) = world.get_block(ground_pos) {
-            if ground_id != block::AIR {
-                slipperiness = block::material::get_slipperiness(ground_id);
-            }
-        }
+        // TODO: We can't get block position right now
+        // if let Some((ground_id, _)) = world.get_block(ground_pos) {
+        //     if ground_id != block::AIR {
+        //         slipperiness = block::material::get_slipperiness(ground_id);
+        //     }
+        // }
 
     }
 
     // Slow its velocity depending on ground slipperiness.
-    base.vel.x *= slipperiness as f64;
-    base.vel.y *= 0.98;
-    base.vel.z *= slipperiness as f64;
+    entity.base.vel.x *= slipperiness as f64;
+    entity.base.vel.y *= 0.98;
+    entity.base.vel.z *= slipperiness as f64;
     
-    if base.on_ground {
-        base.vel.y *= -0.5;
+    if entity.base.on_ground {
+        entity.base.vel.y *= -0.5;
     }
 
     // Kill the item self after 5 minutes (5 * 60 * 20).
-    if base.lifetime >= 6000 {
-        world.remove_entity(id, "item too old");
+    if entity.base.lifetime >= 6000 {
+        entity.world.remove_entity(id, "item too old");
     }
 
+    StdbItem::update_by_id(&id, item);
 }
 
 /// REF: EntityPainting::onUpdate
-fn tick_painting(_world: &mut World, _id: u32, entity: &mut Entity) {
+fn tick_painting(id: u32, entity: &mut StdbEntity) {
 
+    // TODO: This was a no-op so I just commented it out for now
     // NOTE: Not calling tick_base
-    let_expect!(Entity(_, EntityKind::Painting(painting)) = entity);
+    // let_expect!(Entity(_, EntityKind::Painting(painting)) = entity);
 
-    painting.check_valid_time += 1;
-    if painting.check_valid_time >= 100 {
-        painting.check_valid_time = 0;
-        // TODO: check painting validity and destroy it if not valid
-    }
+    // painting.check_valid_time += 1;
+    // if painting.check_valid_time >= 100 {
+    //     painting.check_valid_time = 0;
+    //     // TODO: check painting validity and destroy it if not valid
+    // }
 
 }
 
@@ -220,24 +233,30 @@ fn tick_falling_block(world: &mut World, id: u32, entity: &mut Entity) {
 }
 
 /// REF: EntityTNTPrimed::onUpdate
-fn tick_tnt(world: &mut World, id: u32, entity: &mut Entity, nano_time: u128) {
+fn tick_tnt(world: &mut World, id: u32, entity: &mut StdbEntity, nano_time: u128) {
 
     // NOTE: Not calling tick_base
-    let_expect!(Entity(base, EntityKind::Tnt(tnt)) = entity);
+    let Some(mut tnt) = StdbTnt::filter_by_id(&id) else {
+        return;
+    };
+    // let_expect!(Entity(base, EntityKind::Tnt(tnt)) = entity);
 
-    base.vel.y -= 0.04;
-    apply_base_vel(world, id, base, base.vel, 0.0);
-    base.vel.y *= 0.98;
+    entity.base.vel.y -= 0.04;
+    let vel = entity.base.vel.clone();
+    apply_base_vel(world, id, &mut entity.base, vel, 0.0);
+    entity.base.vel.y *= 0.98;
 
-    if base.on_ground {
-        base.vel *= DVec3::new(0.7, -0.5, 0.7);
+    if entity.base.on_ground {
+        entity.base.vel *= DVec3::new(0.7, -0.5, 0.7);
     }
 
-    tnt.fuse_time = tnt.fuse_time.saturating_sub(1);
-    if tnt.fuse_time == 0 {
+    tnt.tnt.fuse_time = tnt.tnt.fuse_time.saturating_sub(1);
+    if tnt.tnt.fuse_time == 0 {
         world.remove_entity(id, "tnt explode");
-        world.explode(base.pos, 4.0, false, None, nano_time);
+        world.explode(entity.base.pos, 4.0, false, None, nano_time);
     }
+
+    StdbTnt::update_by_id(&id, tnt);
 }
 
 /// REF: EntityLiving::onUpdate
@@ -773,7 +792,7 @@ pub fn apply_living_accel(base: &mut EntityBase, living: &mut Living, factor: f3
 pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut EntityBase, delta: DVec3, step_height: f32) {
 
     if base.no_clip {
-        base.bb += delta;
+        base.bb += delta.into();
         base.on_ground = false;
     } else {
 
@@ -785,7 +804,7 @@ pub fn apply_base_vel(world: &mut World, _id: u32, base: &mut EntityBase, delta:
 
         // TODO: Sneaking on ground
 
-        let colliding_bb = base.bb.expand(delta);
+        let colliding_bb = base.bb.expand(delta.into());
 
         // Compute a new delta that doesn't collide with above boxes.
         let mut new_delta = delta;

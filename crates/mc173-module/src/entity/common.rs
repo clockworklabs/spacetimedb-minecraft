@@ -11,7 +11,7 @@ use crate::geom::{Face, BoundingBox};
 use crate::world::{World, Light};
 use crate::block;
 
-use super::{Entity, LivingKind, EntityBase};
+use super::{LivingKind, EntityBase};
 
 
 /// Internal macro to make a refutable pattern assignment that just panic if refuted.
@@ -96,21 +96,22 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
 }
 
 /// Calculate the light levels for an entity given its base component.
-pub fn get_entity_light(world: &World, base: &EntityBase) -> Light {
-    let mut check_pos = base.pos;
-    check_pos.y += (base.size.height * 0.66 - base.size.center) as f64;
-    world.get_light(check_pos.floor().as_ivec3())
-}
+// pub fn get_entity_light(world: &World, base: &EntityBase) -> Light {
+//     let mut check_pos = base.pos;
+//     check_pos.y += (base.size.height * 0.66 - base.size.center) as f64;
+//     world.get_light(check_pos.floor().as_ivec3())
+// }
 
-/// Find a the closest player entity (as defined in [`World`]) within the given radius.
-pub fn find_closest_player_entity(world: &World, center: DVec3, max_dist: f64) -> Option<(u32, &Entity, f64)> {
-    let max_dist_sq = max_dist.powi(2);
-    world.iter_player_entities()
-        .map(|(entity_id, entity)| (entity_id, entity, entity.0.pos.distance_squared(center)))
-        .filter(|&(_, _, dist_sq)| dist_sq <= max_dist_sq)
-        .min_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
-        .map(|(entity_id, entity, dist_sq)| (entity_id, entity, dist_sq.sqrt()))
-}
+// Find a the closest player entity (as defined in [`World`]) within the given radius.
+// TODO: In order to do this we need to track players in the world
+// pub fn find_closest_player_entity(world: &World, center: DVec3, max_dist: f64) -> Option<(u32, &Entity, f64)> {
+//     let max_dist_sq = max_dist.powi(2);
+//     world.iter_player_entities()
+//         .map(|(entity_id, entity)| (entity_id, entity, entity.0.pos.distance_squared(center)))
+//         .filter(|&(_, _, dist_sq)| dist_sq <= max_dist_sq)
+//         .min_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
+//         .map(|(entity_id, entity, dist_sq)| (entity_id, entity, dist_sq.sqrt()))
+// }
 
 /// This function recompute the current bounding box from the position and the last
 /// size that was used to create it.
@@ -187,17 +188,17 @@ pub fn can_eye_track(world: &World, base: &EntityBase, target_base: &EntityBase)
 /// Get the path weight function for the given living entity kind.
 pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3) -> f32 {
     match living_kind {
-        LivingKind::Pig(_) |
-        LivingKind::Chicken(_) |
-        LivingKind::Cow(_) |
-        LivingKind::Sheep(_) |
-        LivingKind::Wolf(_) => path_weight_animal,
-        LivingKind::Creeper(_) |
-        LivingKind::PigZombie(_) |
-        LivingKind::Skeleton(_) |
-        LivingKind::Spider(_) |
-        LivingKind::Zombie(_) => path_weight_mob,
-        LivingKind::Giant(_) => path_weight_giant,
+        LivingKind::Pig |
+        LivingKind::Chicken |
+        LivingKind::Cow |
+        LivingKind::Sheep |
+        LivingKind::Wolf => path_weight_animal,
+        LivingKind::Creeper |
+        LivingKind::PigZombie |
+        LivingKind::Skeleton |
+        LivingKind::Spider |
+        LivingKind::Zombie => path_weight_mob,
+        LivingKind::Giant => path_weight_giant,
         // We should not match other entities but we never known...
         _ => path_weight_default,
     }

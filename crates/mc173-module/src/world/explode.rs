@@ -8,7 +8,7 @@ use crate::geom::BoundingBox;
 use crate::rand::JavaRandom;
 
 use crate::world::bound::RayTraceKind;
-use crate::entity::{Entity, Hurt};
+use crate::entity::Hurt;
 use crate::world::Event;
 use crate::block;
 
@@ -16,11 +16,11 @@ use super::World;
 
 
 /// Methods related to explosions.
-impl World {
+// impl World {
 
     /// Make an explosion in the world at the given position and size. The explosion can
     /// optionally propagate flames around.
-    pub fn explode(&mut self, center: DVec3, radius: f32, set_fire: bool, origin_id: Option<u32>, nano_time: u128) {
+    pub fn explode(center: DVec3, radius: f32, set_fire: bool, origin_id: Option<u32>, nano_time: u128) {
         
         /// This is the step to advance each explosion ray.
         const STEP: f32 = 0.3;
@@ -42,12 +42,14 @@ impl World {
                         let dir = dir.as_dvec3();
 
                         // The initial intensity of this ray of explosion.
-                        let mut intensity = radius * (0.7 + self.rand.next_float() * 0.6);
+                        // let mut intensity = radius * (0.7 + self.rand.next_float() * 0.6);
+                        let mut intensity = radius * (0.7 + rand.next_float() * 0.6);
                         let mut check_pos = center;
 
                         while intensity > 0.0 {
 
                             let block_pos = check_pos.floor().as_ivec3();
+                            // TODO: we rewrote this get_block function, reuse it here
                             let Some((block, _)) = self.get_block(block_pos) else {
                                 break // Just abort this ray if we enter unloaded chunk.
                             };
@@ -162,4 +164,4 @@ impl World {
 
     }
 
-}
+// }

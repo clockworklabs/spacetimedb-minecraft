@@ -13,11 +13,11 @@ use std::mem;
 
 use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
-use spacetimedb::SpacetimeType;
+use spacetimedb::{spacetimedb, SpacetimeType};
 
 use tracing::trace;
 
-use crate::entity::{Entity, EntityCategory, EntityKind};
+use crate::entity::{EntityCategory, EntityKind};
 use crate::block_entity::BlockEntity;
 use crate::biome::Biome;
 use crate::chunk::{Chunk,
@@ -53,6 +53,16 @@ thread_local! {
     static RANDOM_TICKS_PENDING: Cell<Vec<(IVec3, u8, u8)>> = const { Cell::new(Vec::new()) };
     /// A temporary list of loaded chunks positions.
     static LOADED_CHUNKS: Cell<Vec<(i32, i32)>> = const { Cell::new(Vec::new()) };
+}
+
+#[spacetimedb(table)]
+pub struct StdbChunk {
+    #[primarykey]
+    #[autoinc]
+    chunk_id: i32,
+    x: i32,
+    z: i32,
+    chunk: Chunk,
 }
 
 

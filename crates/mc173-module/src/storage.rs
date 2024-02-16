@@ -17,9 +17,6 @@ use crossbeam_channel::TryRecvError;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{select, bounded, Sender, Receiver, RecvError};
 
-use crate::serde::nbt::NbtError;
-use crate::serde::nbt::NbtParseError;
-use crate::serde::region::{RegionDir, RegionError};
 use crate::world::{ChunkSnapshot, World};
 use crate::gen::ChunkGenerator;
 use crate::world::Dimension;
@@ -286,33 +283,33 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// Try loading a chunk from region file.
     fn try_load(&mut self, cx: i32, cz: i32) -> Result<Option<ChunkSnapshot>, StorageError> {
 
-        // Get the region file but do not create it if not already existing, returning
-        // unsupported if not existing.
-        let region = match self.region_dir.ensure_region(cx, cz, false) {
-            Ok(region) => region,
-            Err(RegionError::Io(err)) if err.kind() == io::ErrorKind::NotFound => {
-                return Ok(None);
-            }
-            Err(err) => return Err(StorageError::Region(err))
-        };
-        
-        // Read the chunk, if it is empty then we return unsupported because we don't
-        // have the chunk but it's not really an error.
-        let reader = match region.read_chunk(cx, cz) {
-            Ok(chunk) => chunk,
-            Err(RegionError::EmptyChunk) => return Ok(None),
-            Err(err) => return Err(StorageError::Region(err))
-        };
+        // // Get the region file but do not create it if not already existing, returning
+        // // unsupported if not existing.
+        // let region = match self.region_dir.ensure_region(cx, cz, false) {
+        //     Ok(region) => region,
+        //     Err(RegionError::Io(err)) if err.kind() == io::ErrorKind::NotFound => {
+        //         return Ok(None);
+        //     }
+        //     Err(err) => return Err(StorageError::Region(err))
+        // };
+        //
+        // // Read the chunk, if it is empty then we return unsupported because we don't
+        // // have the chunk but it's not really an error.
+        // let reader = match region.read_chunk(cx, cz) {
+        //     Ok(chunk) => chunk,
+        //     Err(RegionError::EmptyChunk) => return Ok(None),
+        //     Err(err) => return Err(StorageError::Region(err))
+        // };
+        //
+        // let root_tag = crate::serde::nbt::from_reader(reader)?;
+        // let mut snapshot = crate::serde::chunk::from_nbt(&root_tag)?;
+        // let chunk = Arc::get_mut(&mut snapshot.chunk).unwrap();
+        //
+        // // Biomes are not serialized in the chunk NBT, so we need to generate it on each
+        // // chunk load because it may be used for natural entity spawn.
+        // self.generator.gen_biomes(cx, cz, chunk, &mut self.state);
 
-        let root_tag = crate::serde::nbt::from_reader(reader)?;
-        let mut snapshot = crate::serde::chunk::from_nbt(&root_tag)?;
-        let chunk = Arc::get_mut(&mut snapshot.chunk).unwrap();
-        
-        // Biomes are not serialized in the chunk NBT, so we need to generate it on each
-        // chunk load because it may be used for natural entity spawn.
-        self.generator.gen_biomes(cx, cz, chunk, &mut self.state);
-
-        Ok(Some(snapshot))
+        Ok(None)
 
     }
 
@@ -522,14 +519,13 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
     /// Save a chunk snapshot and return result about success.
     fn try_save(&mut self, snapshot: &ChunkSnapshot) -> Result<(), StorageError> {
-
-        let (cx, cz) = (snapshot.cx, snapshot.cz);
-        let region = self.region_dir.ensure_region(cx, cz, true)?;
-
-        let mut writer = region.write_chunk(cx, cz);
-        let root_tag = crate::serde::chunk::to_nbt(snapshot);
-        crate::serde::nbt::to_writer(&mut writer, &root_tag)?;
-        writer.flush_chunk()?;
+        // let (cx, cz) = (snapshot.cx, snapshot.cz);
+        // let region = self.region_dir.ensure_region(cx, cz, true)?;
+        //
+        // let mut writer = region.write_chunk(cx, cz);
+        // let root_tag = crate::serde::chunk::to_nbt(snapshot);
+        // crate::serde::nbt::to_writer(&mut writer, &root_tag)?;
+        // writer.flush_chunk()?;
 
         Ok(())
 
