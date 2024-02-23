@@ -45,8 +45,8 @@ pub struct BreakingBlock {
 #[spacetimedb(table)]
 pub struct StdbBreakingBlock {
     #[unique]
-    entity_id: u32,
-    state: BreakingBlock,
+    pub entity_id: u32,
+    pub state: BreakingBlock,
 }
 
 // impl StdbChunk {

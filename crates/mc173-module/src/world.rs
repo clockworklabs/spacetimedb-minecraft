@@ -309,22 +309,22 @@ impl World {
     //     })
     // }
 
-    //// Remove a chunk at given chunk coordinates and return a snapshot of it. If there
-    //// is no chunk at the coordinates but entities or block entities are present, None
-    //// is returned but entities and block entities are removed from the world.
+    // /// Remove a chunk at given chunk coordinates and return a snapshot of it. If there
+    // /// is no chunk at the coordinates but entities or block entities are present, None
+    // /// is returned but entities and block entities are removed from the world.
     // pub fn remove_chunk_snapshot(&mut self, cx: i32, cz: i32) -> Option<ChunkSnapshot> {
     //
     //     let chunk_comp = self.chunks.remove(&(cx, cz))?;
     //     let mut ret = None;
     //
-    //     let entities = chunk_comp.entities.keys()
-    //         .filter_map(|&id| self.remove_entity_inner(id, false, "remove chunk snapshot").unwrap().inner)
-    //         .collect();
-    //
-    //     let block_entities = chunk_comp.block_entities.keys()
-    //         .filter_map(|&pos| self.remove_block_entity_inner(pos, false).unwrap().inner
-    //             .map(|e| (pos, e)))
-    //         .collect();
+    //     // let entities = chunk_comp.entities.keys()
+    //     //     .filter_map(|&id| self.remove_entity_inner(id, false, "remove chunk snapshot").unwrap().inner)
+    //     //     .collect();
+    //     //
+    //     // let block_entities = chunk_comp.block_entities.keys()
+    //     //     .filter_map(|&pos| self.remove_block_entity_inner(pos, false).unwrap().inner
+    //     //         .map(|e| (pos, e)))
+    //     //     .collect();
     //
     //     if let Some(chunk) = chunk_comp.data {
     //
@@ -332,11 +332,11 @@ impl World {
     //             cx,
     //             cz,
     //             chunk,
-    //             entities,
-    //             block_entities,
+    //             // entities,
+    //             // block_entities,
     //         });
     //
-    //         self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
+    //         // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Remove });
     //
     //     }
     //
@@ -356,17 +356,19 @@ impl World {
     /// and block entities are not touched.
     /// 
     /// Only entities and block entities that are in a chunk will be ticked.
-    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) {
-
+    ///
+    /// STDB Note: Returns the chunk ID that was inserted into the StdbChunk table
+    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) -> i32 {
         match StdbChunk::filter_by_x(&cx).find(|c| c.z == cz) {
             None => {
                 // This chunk doesn't exist, let's just insert it!
-                StdbChunk::insert(StdbChunk {
+                let a = StdbChunk::insert(StdbChunk {
                     chunk_id: 0,
                     x: cx,
                     z: cz,
                     chunk,
                 }).unwrap();
+                a.chunk_id
             }
             Some(existing_chunk) => {
                 StdbChunk::update_by_chunk_id(&existing_chunk.chunk_id, StdbChunk {
@@ -375,6 +377,7 @@ impl World {
                     z: cz,
                     chunk,
                 });
+                existing_chunk.chunk_id
             }
         }
 
@@ -396,6 +399,7 @@ impl World {
 
     /// Return true if a given chunk is present in the world.
     pub fn contains_chunk(&self, cx: i32, cz: i32) -> bool {
+        // query!(|c: StdbChunk|c.x == cx && c.z == cz);
         StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).is_some()
         // self.chunks.get(&(cx, cz)).is_some_and(|c| c.data.is_some())
     }
@@ -453,7 +457,8 @@ impl World {
         let result = self.set_block_inner(pos, id, metadata, &mut chunk);
 
         if result.0 {
-            StdbChunk::update_by_chunk_id(&chunk.chunk_id, chunk);
+            let id = chunk.chunk_id;
+            StdbChunk::update_by_chunk_id(&id, chunk);
         }
 
         Some((result.1, result.2))
@@ -1561,7 +1566,8 @@ impl World {
 
             if changed {
                 // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
-                StdbChunk::update_by_chunk_id(&chunk.chunk_id, chunk);
+                let id = chunk.chunk_id;
+                StdbChunk::update_by_chunk_id(&id, chunk);
             }
 
             if changed && update.credit >= 1 {
@@ -1821,41 +1827,41 @@ pub enum ChunkEvent {
     Dirty,
 }
 
-/// A snapshot contains all of the content within a chunk, block, light, height map,
-/// entities and block entities are all included. This structure can be considered as
-/// a "view" because the chunk data (around 80 KB) is referenced to with a [`Arc`], that
-/// allows either uniquely owning it, or sharing it with a world, which is the case when
-/// saving a chunk.
-#[derive(Clone)]
-pub struct ChunkSnapshot {
-    /// The X chunk coordinate.
-    pub cx: i32,
-    /// The Z chunk coordinate.
-    pub cz: i32,
-    /// The block, light and height map data of the chunk.
-    pub chunk: Arc<Chunk>,
-    /// The entities in that chunk, note that entities are not guaranteed to have a 
-    /// position that is within chunk boundaries.
-    pub entities: Vec<Box<Entity>>,
-    // /// Block entities in that chunk, all block entities are mapped to their absolute
-    // /// coordinates in the world.
-    // pub block_entities: HashMap<IVec3, Box<BlockEntity>>,
-}
+//// A snapshot contains all of the content within a chunk, block, light, height map,
+//// entities and block entities are all included. This structure can be considered as
+//// a "view" because the chunk data (around 80 KB) is referenced to with a [`Arc`], that
+//// allows either uniquely owning it, or sharing it with a world, which is the case when
+//// saving a chunk.
+// #[derive(Clone)]
+// pub struct ChunkSnapshot {
+//     /// The X chunk coordinate.
+//     pub cx: i32,
+//     /// The Z chunk coordinate.
+//     pub cz: i32,
+//     /// The block, light and height map data of the chunk.
+//     pub chunk: Arc<Chunk>,
+//     /// The entities in that chunk, note that entities are not guaranteed to have a
+//     /// position that is within chunk boundaries.
+//     pub entities: Vec<Box<Entity>>,
+//     // /// Block entities in that chunk, all block entities are mapped to their absolute
+//     // /// coordinates in the world.
+//     // pub block_entities: HashMap<IVec3, Box<BlockEntity>>,
+// }
 
-impl ChunkSnapshot {
-
-    /// Create a new empty chunk view of the given coordinates.
-    pub fn new(cx: i32, cz: i32) -> Self {
-        Self {
-            cx,
-            cz,
-            chunk: Chunk::new(),
-            entities: Vec::new(),
-            // block_entities: HashMap::new(),
-        }
-    }
-
-}
+// impl ChunkSnapshot {
+//
+//     /// Create a new empty chunk view of the given coordinates.
+//     pub fn new(cx: i32, cz: i32) -> Self {
+//         Self {
+//             cx,
+//             cz,
+//             chunk: Chunk::new(),
+//             entities: Vec::new(),
+//             // block_entities: HashMap::new(),
+//         }
+//     }
+//
+// }
 
 
 /// This internal structure is used to keep data associated to a chunk coordinate X/Z.
@@ -2332,7 +2338,7 @@ impl Iterator for BlocksInIter<'_> {
         if self.cursor.y == self.start.y {
             // NOTE: Unchecked because the Y value is clamped in the constructor.
             let (cx, cz) = calc_chunk_pos_unchecked(self.cursor);
-            if !matches!(self.chunk, Some(chunk) if (chunk.x, chunk.z) == (cx, cz)) {
+            if !matches!(&self.chunk, Some(chunk) if (chunk.x, chunk.z) == (cx, cz)) {
                 let chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
                 self.chunk = Some(chunk);
             }
@@ -2342,7 +2348,7 @@ impl Iterator for BlocksInIter<'_> {
         let mut ret = (self.cursor, 0, 0);
 
         // If a chunk exists for the current column.
-        if let Some(chunk) = self.chunk {
+        if let Some(chunk) = &self.chunk {
             let (block, metadata) = chunk.chunk.get_block(self.cursor);
             ret.1 = block;
             ret.2 = metadata;
@@ -2396,7 +2402,7 @@ impl Iterator for BlocksInChunkIter {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
 
-        let (block, metadata) = self.chunk?.chunk.get_block(self.cursor);
+        let (block, metadata) = self.chunk.as_ref()?.chunk.get_block(self.cursor);
         let ret = (self.cursor, block, metadata);
 
         // This component order is important because it matches the internal layout of

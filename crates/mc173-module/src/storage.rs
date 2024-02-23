@@ -17,7 +17,8 @@ use crossbeam_channel::TryRecvError;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{select, bounded, Sender, Receiver, RecvError};
 
-use crate::world::{ChunkSnapshot, World};
+// use crate::world::{ChunkSnapshot, World};
+use crate::world::World;
 use crate::gen::ChunkGenerator;
 use crate::world::Dimension;
 use crate::chunk::Chunk;
@@ -67,8 +68,8 @@ struct StorageWorker<G: ChunkGenerator> {
     terrain_request_sender: Sender<TerrainRequest>,
     /// Reply receiver from the handle.
     terrain_reply_receiver: Receiver<TerrainReply>,
-    /// Internal statistics tracker.
-    stats: Arc<Stats>,
+    //// Internal statistics tracker.
+    // stats: Arc<Stats>,
 }
 
 /// The chunk worker is responsible of generating the biomes and terrain.
@@ -167,7 +168,7 @@ impl ChunkStorage {
                 storage_reply_sender,
                 terrain_request_sender,
                 terrain_reply_receiver,
-                stats,
+                // stats,
             }.run())
             .unwrap();
 
@@ -187,12 +188,12 @@ impl ChunkStorage {
             .expect("worker should not disconnect while this handle exists");
     }
 
-    /// Request saving of the given chunk snapshot.
-    pub fn request_save(&mut self, snapshot: ChunkSnapshot) {
-        self.request_save.insert((snapshot.cx, snapshot.cz));
-        self.storage_request_sender.send(StorageRequest::Save { snapshot })
-            .expect("worker should not disconnect while this handle exists");
-    }
+    // /// Request saving of the given chunk snapshot.
+    // pub fn request_save(&mut self, snapshot: ChunkSnapshot) {
+    //     self.request_save.insert((snapshot.cx, snapshot.cz));
+    //     self.storage_request_sender.send(StorageRequest::Save { snapshot })
+    //         .expect("worker should not disconnect while this handle exists");
+    // }
 
     /// Poll without blocking this storage for new reply to requested load and save.
     /// This function returns none if there is not new reply to poll.
@@ -201,7 +202,7 @@ impl ChunkStorage {
             Ok(reply) => {
                 match reply {
                     ChunkStorageReply::Load { cx, cz, .. } => self.request_load.remove(&(cx, cz)),
-                    ChunkStorageReply::Save { cx, cz, .. } => self.request_save.remove(&(cx, cz)),
+                    // ChunkStorageReply::Save { cx, cz, .. } => self.request_save.remove(&(cx, cz)),
                 };
                 Some(reply)
             }
@@ -245,8 +246,8 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         match request {
             StorageRequest::Load { cx, cz } => 
                 self.load_or_gen(cx, cz),
-            StorageRequest::Save { snapshot } => 
-                self.save(&snapshot),
+            // StorageRequest::Save { snapshot } =>
+            //     self.save(&snapshot),
         }
     }
 
@@ -262,22 +263,25 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// is returned by the region file then an error is returned. This avoid overwriting
     /// the chunk later and ruining a possibly recoverable error.
     fn load_or_gen(&mut self, cx: i32, cz: i32) -> bool {
-        match self.try_load(cx, cz) {
-            Err(err) => {
-                // Immediately send error, we don't want to load the chunk if there is
-                // an error in the region file, in order to avoid overwriting the error.
-                self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Err(err) }).is_ok()
-            }
-            Ok(Some(snapshot)) => {
-                // Immediately send the loaded chunk.
-                self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Ok(snapshot) }).is_ok()
-            }
-            Ok(None) => {
-                // The chunk has not been found in region files, generate it.
-                self.request_full(cx, cz);
-                true
-            }
-        }
+        // match self.try_load(cx, cz) {
+        //     Err(err) => {
+        //         // Immediately send error, we don't want to load the chunk if there is
+        //         // an error in the region file, in order to avoid overwriting the error.
+        //         self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Err(err) }).is_ok()
+        //     }
+        //     Ok(Some(snapshot)) => {
+        //         // Immediately send the loaded chunk.
+        //         self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Ok(snapshot) }).is_ok()
+        //     }
+        //     Ok(None) => {
+        //         // The chunk has not been found in region files, generate it.
+        //         self.request_full(cx, cz);
+        //         true
+        //     }
+        // }
+
+        self.request_full(cx, cz);
+        true
     }
 
     // /// Try loading a chunk from region file.
@@ -371,7 +375,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         assert!(!self.world.contains_chunk(cx, cz), "requested terrain chunk is already present");
 
         // Set the chunk in the world.
-        self.world.set_chunk(cx, cz, chunk);
+        let chunk_id = self.world.set_chunk(cx, cz, chunk);
 
         // For each chunk around the current chunk, check if it exists. Component order 
         // is [X][Z]. Using this temporary array avoids too much calls to contains_chunk.
@@ -432,11 +436,11 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 let current_cx = cx + dcx as i32 - 1;
                 let current_cz = cz + dcz as i32 - 1;
 
-                let start = Instant::now();
+                // let start = Instant::now();
                 self.generator.gen_features(current_cx, current_cz, &mut self.world, &mut self.state);
-                let duration = start.elapsed();
-                self.stats.gen_features_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
-                self.stats.gen_features_count.fetch_add(1, Ordering::Relaxed);
+                // let duration = start.elapsed();
+                // self.stats.gen_features_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+                // self.stats.gen_features_count.fetch_add(1, Ordering::Relaxed);
 
                 new_populated[dcx    ][dcz    ] |= POPULATED_POS_POS;
                 new_populated[dcx + 1][dcz    ] |= POPULATED_NEG_POS;
@@ -467,16 +471,16 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                         // remove the chunk from the world.
                         self.chunks_populated.remove(&(current_cx, current_cz));
 
-                        let snapshot = self.world.remove_chunk_snapshot(current_cx, current_cz)
-                            .expect("chunk should be existing and snapshot possible");
+                        // let snapshot = self.world.remove_chunk_snapshot(current_cx, current_cz)
+                        //     .expect("chunk should be existing and snapshot possible");
 
-                        // Immediately save the chunk into its region file!
-                        if !self.save(&snapshot) {
-                            return false
-                        }
+                        // // Immediately save the chunk into its region file!
+                        // if !self.save(&snapshot) {
+                        //     return false
+                        // }
 
                         // Finally return the chunk snapshot!
-                        if self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Ok(snapshot) }).is_err() {
+                        if self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Some(chunk_id) }).is_err() {
                             // Directly abort to stop the thread because the handle is dropped.
                             return false;
                         }
@@ -500,22 +504,22 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
     }
 
-    /// Save a chunk snapshot. Returning false if the reply channel is broken.
-    fn save(&mut self, snapshot: &ChunkSnapshot) -> bool {
-
-        let (cx, cz) = (snapshot.cx, snapshot.cz);
-
-        match self.try_save(snapshot) {
-            Err(err) => {
-                // Immediately send the save error.
-                self.storage_reply_sender.send(ChunkStorageReply::Save { cx, cz, res: Err(err) }).is_ok()
-            }
-            Ok(()) => {
-                self.storage_reply_sender.send(ChunkStorageReply::Save { cx, cz, res: Ok(()) }).is_ok()
-            }
-        }
-
-    }
+    // /// Save a chunk snapshot. Returning false if the reply channel is broken.
+    // fn save(&mut self, snapshot: &ChunkSnapshot) -> bool {
+    //
+    //     let (cx, cz) = (snapshot.cx, snapshot.cz);
+    //
+    //     match self.try_save(snapshot) {
+    //         Err(err) => {
+    //             // Immediately send the save error.
+    //             self.storage_reply_sender.send(ChunkStorageReply::Save { cx, cz, res: Err(err) }).is_ok()
+    //         }
+    //         Ok(()) => {
+    //             self.storage_reply_sender.send(ChunkStorageReply::Save { cx, cz, res: Ok(()) }).is_ok()
+    //         }
+    //     }
+    //
+    // }
 
     // /// Save a chunk snapshot and return result about success.
     // fn try_save(&mut self, snapshot: &ChunkSnapshot) -> Result<(), StorageError> {
@@ -542,11 +546,9 @@ impl<G: ChunkGenerator> TerrainWorker<G> {
             match request {
                 TerrainRequest::Load { cx, cz } => {
 
-                    let mut chunk = Chunk::new();
-                    let chunk_access = Arc::get_mut(&mut chunk).unwrap();
-                    
+                    let mut chunk = Chunk::new_no_arc();
                     let start = Instant::now();
-                    self.generator.gen_terrain(cx, cz, chunk_access, &mut self.state);
+                    self.generator.gen_terrain(cx, cz, &mut chunk, &mut self.state);
                     let duration = start.elapsed();
                     self.stats.gen_terrain_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
                     self.stats.gen_terrain_count.fetch_add(1, Ordering::Relaxed);
@@ -566,13 +568,14 @@ impl<G: ChunkGenerator> TerrainWorker<G> {
 
 enum StorageRequest {
     Load { cx: i32, cz: i32 },
-    Save { snapshot: ChunkSnapshot },
+    // Save { snapshot: ChunkSnapshot },
 }
 
 /// A reply from the storage for a previously requested chunk loading or saving.
 pub enum ChunkStorageReply {
-    Load { cx: i32, cz: i32, res: Result<ChunkSnapshot, StorageError> },
-    Save { cx: i32, cz: i32, res: Result<(), StorageError> },
+    // Load { cx: i32, cz: i32, res: Result<ChunkSnapshot, StorageError> },
+    Load { cx: i32, cz: i32, res: Option<i32> },
+    // Save { cx: i32, cz: i32, res: Result<(), StorageError> },
 }
 
 enum TerrainRequest {
@@ -580,7 +583,7 @@ enum TerrainRequest {
 }
 
 enum TerrainReply {
-    Load { cx: i32, cz: i32, chunk: Arc<Chunk> }
+    Load { cx: i32, cz: i32, chunk: Chunk }
 }
 
 
