@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::time::{Duration, UNIX_EPOCH};
-use glam::IVec3;
-use mc173_module::{block, item};
+mod world;
+
+use std::collections::HashMap;
+use std::time::{Duration, Instant, UNIX_EPOCH};
+use glam::{DVec3, IVec3};
+use mc173_module::{block, chunk, item};
 use mc173_module::chunk::{calc_chunk_pos, Chunk};
 use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
-use mc173_module::world::{BlockEvent, ChunkEvent, Event, LightKind};
+use mc173_module::world::{BlockEvent, ChunkEvent, Dimension, Event, LightKind, StdbWorld, World};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
 use spacetimedb::rt::ReducerInfo;
 use mc173_module::block::material::Material;
@@ -30,29 +33,286 @@ use mc173_module::stdb::chunk::StdbChunk;
 /// Server world seed is currently hardcoded.
 pub const SEED: i64 = 9999;
 
+/// Represent the whole state of a world.
+#[spacetimedb(table)]
+pub struct StdbServerWorldState {
+    #[primarykey]
+    pub world_id: i32,
+    /// World name.
+    pub name: String,
+    /// The seed of this world, this is sent to the client in order to
+    pub seed: i64,
+    /// The server-side time, that is not necessarily in-sync with the world time in case
+    /// of tick freeze or stepping. This avoids running in socket timeout issues.
+    pub time: u64,
+    /// True when world ticking is frozen, events are still processed by the world no
+    /// longer runs.
+    pub tick_mode: TickMode,
+    pub tick_mode_manual: u32,
+    /// The chunk source used to load and save the world's chunk.
+    // storage: ChunkStorage,
+    /// Chunks trackers used to send proper block changes packets.
+    // chunk_trackers: ChunkTrackers,
+    /// Entity tracker, each is associated to the entity id.
+    // entity_trackers: HashMap<u32, EntityTracker>,
+    /// Instant of the last tick.
+    // tick_last: Instant,
+    /// Fading average tick duration, in seconds.
+    // pub tick_duration: FadingAverage,
+    /// Fading average interval between two ticks.
+    // pub tick_interval: FadingAverage,
+    /// Fading average of events count on each tick.
+    // pub events_count: FadingAverage,
+}
+
+/// Indicate the current mode for ticking the world.
+#[derive(SpacetimeType)]
+pub enum TickMode {
+    /// The world is ticked on each server tick (20 TPS).
+    Auto,
+    /// The world if ticked on each server tick (20 TPS), but the counter decrease and
+    /// it is no longer ticked when reaching 0.
+    // Manual(u32),
+    Manual
+}
+
 #[spacetimedb(init)]
 pub fn init(context: ReducerContext) {
+    let nano_time = context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos();
     // log::info!("Starting Generation");
     // generate_chunks(-5, -5, 5, 5);
     // log::info!("Generation complete");
 
+    let new_world = StdbWorld::insert(StdbWorld {
+        id: 0,
+        world: World::new(Dimension::Overworld, nano_time),
+    }).unwrap();
+
+    StdbServerWorldState::insert(StdbServerWorldState {
+        world_id: new_world.id,
+        name: "Boppy's World".to_string(),
+        seed: 9999,
+        time: 0,
+        tick_mode: TickMode::Auto,
+    }).unwrap();
+
     StdbTime::insert(StdbTime { id: 0, time: 0 }).unwrap();
     mc173_module::stdb::weather::init();
-    mc173_module::stdb::rand::init(context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos());
+    mc173_module::stdb::rand::init(nano_time);
 
     // This has to be here because this is how we schedule tick
-    // tick();
+    // Do the very fist tick
+    tick(context);
+}
+
+
+#[spacetimedb(reducer)]
+pub fn tick(context: ReducerContext) {
+    // Do stuff...
+    // Lastly, tick time
+    let nano_time = context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos();
+    for world in StdbWorld::iter() {
+        tick_world(world.id, nano_time);
+        let world_id = world.id;
+        StdbWorld::update_by_id(&world_id, world);
+    }
+
+    // reschedule self
+    schedule!(Duration::from_millis(50), tick());
+}
+
+/// Tick this world.
+pub fn tick_world(world_id: i32, nano_time: u128) {
+    let state = StdbServerWorldState::filter_by_world_id(&world_id).unwrap();
+    let world = StdbWorld::filter_by_id(&world_id).unwrap();
+
+    // Get server-side time.
+    let time = state.time;
+    if time == 0 {
+        init_world(world_id: i32, nano_time: u128);
+    }
+
+    // Poll all chunks to load in the world.
+    // while let Some(reply) = self.state.storage.poll() {
+    //     match reply {
+    //         ChunkStorageReply::Load { cx, cz, res: Ok(snapshot) } => {
+    //             debug!("loaded chunk from storage: {cx}/{cz}");
+    //             self.world.insert_chunk_snapshot(snapshot);
+    //         }
+    //         ChunkStorageReply::Load { cx, cz, res: Err(err) } => {
+    //             debug!("failed to load chunk from storage: {cx}/{cz}: {err}");
+    //         }
+    //         ChunkStorageReply::Save { cx, cz, res: Ok(()) } => {
+    //             debug!("saved chunk in storage: {cx}/{cz}");
+    //         }
+    //         ChunkStorageReply::Save { cx, cz, res: Err(err) } => {
+    //             debug!("failed to save chunk in storage: {cx}/{cz}: {err}");
+    //         }
+    //     }
+    // }
+
+    // Only run if no tick freeze.
+    match state.tick_mode {
+        TickMode::Auto => {
+            world.tick()
+        }
+        TickMode::Manual => {
+            let mut n = state.tick_mode_manual;
+            if n != 0 {
+                world.tick();
+            }
+            *n -= 1;
+        }
+    }
+
+    // Swap events out in order to proceed them.
+    // let mut events = self.world.swap_events(None).expect("events should be enabled");
+    // self.state.events_count.push(events.len() as f32, 0.001);
+    //
+    // for event in events.drain(..) {
+    //     match event {
+    //         Event::Block { pos, inner } => match inner {
+    //             BlockEvent::Set { id, metadata, prev_id, prev_metadata } =>
+    //                 self.handle_block_set(pos, id, metadata, prev_id, prev_metadata),
+    //             BlockEvent::Sound { id, metadata } =>
+    //                 self.handle_block_sound(pos, id, metadata),
+    //         }
+    //         Event::Entity { id, inner } => match inner {
+    //             EntityEvent::Spawn =>
+    //                 self.handle_entity_spawn(id),
+    //             EntityEvent::Remove =>
+    //                 self.handle_entity_remove(id),
+    //             EntityEvent::Position { pos } =>
+    //                 self.handle_entity_position(id, pos),
+    //             EntityEvent::Look { look } =>
+    //                 self.handle_entity_look(id, look),
+    //             EntityEvent::Velocity { vel } =>
+    //                 self.handle_entity_velocity(id, vel),
+    //             EntityEvent::Pickup { target_id } =>
+    //                 self.handle_entity_pickup(id, target_id),
+    //             EntityEvent::Damage =>
+    //                 self.handle_entity_damage(id),
+    //             EntityEvent::Dead =>
+    //                 self.handle_entity_dead(id),
+    //             EntityEvent::Metadata =>
+    //                 self.handle_entity_metadata(id),
+    //         }
+    //         Event::BlockEntity { pos, inner } => match inner {
+    //             BlockEntityEvent::Set =>
+    //                 self.handle_block_entity_set(pos),
+    //             BlockEntityEvent::Remove =>
+    //                 self.handle_block_entity_remove(pos),
+    //             BlockEntityEvent::Storage { storage, stack } =>
+    //                 self.handle_block_entity_storage(pos, storage, stack),
+    //             BlockEntityEvent::Progress { progress, value } =>
+    //                 self.handle_block_entity_progress(pos, progress, value),
+    //         }
+    //         Event::Chunk { cx, cz, inner } => match inner {
+    //             ChunkEvent::Set => {}
+    //             ChunkEvent::Remove => {}
+    //             ChunkEvent::Dirty => self.state.chunk_trackers.set_dirty(cx, cz),
+    //         }
+    //         Event::Weather { new, .. } =>
+    //             self.handle_weather_change(new),
+    //         Event::Explode { center, radius } =>
+    //             self.handle_explode(center, radius),
+    //         Event::DebugParticle { pos, block } =>
+    //             self.handle_debug_particle(pos, block),
+    //     }
+    // }
+
+    // Reinsert events after processing.
+    // self.world.swap_events(Some(events));
+
+    // Send time to every playing clients every second.
+    // if time % 20 == 0 {
+    //     let world_time = self.world.get_time();
+    //     for player in &self.players {
+    //         player.send(OutPacket::UpdateTime(proto::UpdateTimePacket {
+    //             time: world_time,
+    //         }));
+    //     }
+    // }
+
+    // After we collected every block change, update all players accordingly.
+    // self.state.chunk_trackers.update_players(&self.players, &self.world);
+
+    // After world events are processed, tick entity trackers.
+    // for tracker in self.state.entity_trackers.values_mut() {
+    //     if time % 60 == 0 {
+    //         tracker.update_tracking_players(&mut self.players, &self.world);
+    //     }
+    //     tracker.tick_and_update_players(&self.players);
+    // }
+
+    // Drain dirty chunks coordinates and save them.
+    // while let Some((cx, cz)) = self.state.chunk_trackers.next_save() {
+    //     if let Some(snapshot) = self.world.take_chunk_snapshot(cx, cz) {
+    //         self.state.storage.request_save(snapshot);
+    //     }
+    // }
+
+    // Update tick duration metric.
+    // let tick_duration = start.elapsed();
+    // self.state.tick_duration.push(tick_duration.as_secs_f32(), 0.02);
+
+    // Finally increase server-side tick time.
+    state.time += 1;
+
+}
+
+/// Initialize the world by ensuring that every entity is currently tracked. This
+/// method can be called multiple time and should be idempotent.
+fn init_world(world_id: i32, nano_time: u128) {
+
+    // // Ensure that every entity has a tracker.
+    // for (id, entity) in self.world.iter_entities() {
+    //     self.state.entity_trackers.entry(id).or_insert_with(|| {
+    //         let tracker = EntityTracker::new(id, entity);
+    //         tracker.update_tracking_players(&mut self.players, &self.world);
+    //         tracker
+    //     });
+    // }
+
+    // NOTE: Temporary code.
+    let (center_cx, center_cz) = chunk::calc_entity_chunk_pos(DVec3::new(0.0, 100.0, 0.0));
+    for cx in center_cx - 10..=center_cx + 10 {
+        for cz in center_cz - 10..=center_cz + 10 {
+            state.storage.request_load(cx, cz);
+        }
+    }
 }
 
 // #[spacetimedb(reducer)]
-// pub fn tick() {
-//     // Do stuff...
-//     // Lastly, tick time
-//     // mc173_module::stdb::weather::tick_weather();
-//     tick_time();
-//     // reschedule self
-//     schedule!(Duration::from_millis(50), tick());
+// pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
+//     let handle = spacetimedb::time_span::Span::start("spacetimedb chunk generation func");
+//     let generator = OverworldGenerator::new(SEED);
+//     let mut state = <OverworldGenerator as ChunkGenerator>::State::default();
+//     for x in from_x..to_x {
+//         for z in from_z..to_z {
+//             let handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
+//             if StdbChunk::filter_by_x(&x).find(|mz| mz.z == z).is_some() {
+//                 log::info!("Chunk Skipped: {}, {}", x, z);
+//                 continue;
+//             }
+//
+//             let mut chunk = Chunk::new_no_arc();
+//             generator.gen_terrain(x, z, &mut chunk, &mut state);
+//             log::info!("Chunk Generated: {}, {}", x, z);
+//
+//             if let Err(_) = StdbChunk::insert(StdbChunk {
+//                 chunk_id: 0,
+//                 x,
+//                 z,
+//                 chunk,
+//             }) {
+//                 log::error!("Failed to insert unique chunk");
+//             };
+//         }
+//     }
 // }
+
+
 
 // #[spacetimedb(reducer)]
 // pub fn set_time(time: u64) {
@@ -85,34 +345,7 @@ pub fn init(context: ReducerContext) {
 //     log::info!("Chunk Generated: {}, {}", x, z);
 // }
 
-// #[spacetimedb(reducer)]
-// pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
-//     let handle = spacetimedb::time_span::Span::start("spacetimedb chunk generation func");
-//     let generator = OverworldGenerator::new(SEED);
-//     let mut state = <OverworldGenerator as ChunkGenerator>::State::default();
-//     for x in from_x..to_x {
-//         for z in from_z..to_z {
-//             let handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
-//             if StdbChunk::filter_by_x(&x).find(|mz| mz.z == z).is_some() {
-//                 log::info!("Chunk Skipped: {}, {}", x, z);
-//                 continue;
-//             }
-//
-//             let mut chunk = Chunk::new_no_arc();
-//             generator.gen_terrain(x, z, &mut chunk, &mut state);
-//             log::info!("Chunk Generated: {}, {}", x, z);
-//
-//             if let Err(_) = StdbChunk::insert(StdbChunk {
-//                 chunk_id: 0,
-//                 x,
-//                 z,
-//                 chunk,
-//             }) {
-//                 log::error!("Failed to insert unique chunk");
-//             };
-//         }
-//     }
-// }
+
 
 /*pub fn break_block(pos_x: i32, pos_y: i32, pos_z: i32) -> Option<(u8, u8)> {
     let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;

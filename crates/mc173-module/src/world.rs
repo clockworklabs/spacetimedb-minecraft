@@ -13,7 +13,7 @@ use std::mem;
 
 use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
-use spacetimedb::SpacetimeType;
+use spacetimedb::{spacetimedb, SpacetimeType};
 
 use tracing::trace;
 
@@ -120,7 +120,7 @@ thread_local! {
 /// # Roadmap
 /// 
 /// - Make a diagram to better explain the world structure with entity caching.
-#[derive(Clone)]
+#[derive(Clone, SpacetimeType)]
 pub struct World {
     /// When enabled, this contains the list of events that happened in the world since
     /// it was last swapped. This swap behavior is really useful in order to avoid 
@@ -160,7 +160,8 @@ pub struct World {
     /// and block id. 
     // block_ticks_states: HashSet<BlockTickState>,
     /// Queue of pending light updates to be processed.
-    light_updates: VecDeque<LightUpdate>,
+    // light_updates: VecDeque<LightUpdate>,
+    light_updates: StdbVecDequeueLightUpdate,
     /// This is the wrapping seed used by random ticks to compute random block positions.
     random_ticks_seed: i32,
     /// The current weather in that world, note that the Notchian server do not work like
@@ -173,6 +174,32 @@ pub struct World {
     /// when subtracted from a chunk sky light level.
     // TODO: Move this into its own table
     sky_light_subtracted: u8,
+}
+
+#[derive(SpacetimeType, Clone)]
+pub struct StdbVecDequeueLightUpdate {
+    pub vec: Vec<LightUpdate>,
+}
+
+impl StdbVecDequeueLightUpdate {
+    pub fn push_back(&mut self, t: LightUpdate) {
+        self.vec.push(t);
+    }
+
+    pub fn pop_front(&mut self) -> Option<LightUpdate> {
+        if self.vec.len() == 0 {
+            return None;
+        }
+        Some(self.vec.remove(0))
+    }
+}
+
+#[spacetimedb(table)]
+pub struct StdbWorld {
+    #[primarykey]
+    #[autoinc]
+    pub id: i32,
+    pub world: World
 }
 
 /// Core methods for worlds.
@@ -196,7 +223,8 @@ impl World {
             // block_ticks_count: 0,
             // block_ticks: BTreeSet::new(),
             // block_ticks_states: HashSet::new(),
-            light_updates: VecDeque::new(),
+            // light_updates: VecDeque::new(),
+            light_updates: Vec::new(),
             random_ticks_seed: JavaRandom::new_seeded(nano_time).next_int(),
             // weather: Weather::Clear,
             // weather_next_time: 0,
@@ -572,9 +600,9 @@ impl World {
     ///  
     /// See [`tick_light`](Self::tick_light).
     pub fn schedule_light_update(&mut self, pos: IVec3, kind: LightKind) {
-        self.light_updates.push_back(LightUpdate { 
+        self.light_updates.push(LightUpdate {
             kind,
-            pos,
+            pos: vec![pos.x, pos.y, pos.z],
             credit: 15,
         });
     }
@@ -1594,7 +1622,7 @@ impl World {
 
 
 /// Types of dimensions, used for ambient effects in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SpacetimeType)]
 pub enum Dimension {
     /// The overworld dimension with a blue sky and day cycles.
     Overworld,
@@ -1650,7 +1678,7 @@ impl Light {
 }
 
 /// Different kind of lights in the word.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, SpacetimeType)]
 pub enum LightKind {
     /// Block light level, the light spread in all directions and blocks have a minimum 
     /// opacity of 1 in all directions, each block has its own light emission.
@@ -1972,12 +2000,13 @@ struct EntityComponent {
 // }
 
 /// A light update to apply to the world.
-#[derive(Clone)]
+#[derive(Clone, SpacetimeType)]
 struct LightUpdate {
     /// Light kind targeted by this update, the update only applies to one of the kind.
     kind: LightKind,
     /// The position of the light update.
-    pos: IVec3,
+    // pos: IVec3,
+    pos: Vec<i32>,
     /// Credit remaining to update light, this is used to limit the number of updates
     /// produced by a block chance initial update. Initial value is something like 15
     /// and decrease for each propagation, when it reaches 0 the light update stops 
