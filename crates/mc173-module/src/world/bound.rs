@@ -5,7 +5,7 @@ use std::ops::Add;
 
 use glam::{IVec3, DVec3};
 
-use crate::block_entity::BlockEntity;
+// use crate::block_entity::BlockEntity;
 use crate::geom::{BoundingBox, Face};
 use crate::block;
 
@@ -20,37 +20,37 @@ const PIXEL_3: f64 = 3.0 / 16.0;
 /// Methods related to block collisions and overlay bounds and also for ray tracing.
 impl World {
 
-    /// Get the colliding boxes for a block, the colliding box will be offset to the 
+    /// Get the colliding boxes for a block, the colliding box will be offset to the
     /// block's position as needed. Not to confuse with overlay boxes, which are just used
-    /// to client side placement rendering, and used server-side to compute ray tracing 
+    /// to client side placement rendering, and used server-side to compute ray tracing
     /// when using items such as bucket.
     pub fn iter_block_colliding_boxes(&self, pos: IVec3, id: u8, metadata: u8) -> BlockCollidingBoxesIter {
-        
+
         // Moving piston is a special case because we inherit the block collisions.
-        if id == block::PISTON_MOVING {
-            if let Some(BlockEntity::Piston(piston)) = self.get_block_entity(pos) {
-                    
-                let progress = if piston.extending {
-                    1.0 - piston.progress
-                } else {
-                    piston.progress
-                };
+        // if id == block::PISTON_MOVING {
+        //     if let Some(BlockEntity::Piston(piston)) = self.get_block_entity(pos) {
+        //
+        //         let progress = if piston.extending {
+        //             1.0 - piston.progress
+        //         } else {
+        //             piston.progress
+        //         };
+        //
+        //         return BlockCollidingBoxesIter {
+        //             offset: pos.as_dvec3() - piston.face.delta().as_dvec3() * progress as f64,
+        //             id,
+        //             metadata,
+        //             index: 0
+        //         };
+        //
+        //     }
+        // }
 
-                return BlockCollidingBoxesIter { 
-                    offset: pos.as_dvec3() - piston.face.delta().as_dvec3() * progress as f64, 
-                    id, 
-                    metadata, 
-                    index: 0
-                };
-                
-            }
-        }
-
-        BlockCollidingBoxesIter { 
-            offset: pos.as_dvec3(), 
-            id, 
-            metadata, 
-            index: 0 
+        BlockCollidingBoxesIter {
+            offset: pos.as_dvec3(),
+            id,
+            metadata,
+            index: 0
         }
 
     }

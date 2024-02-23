@@ -2,7 +2,7 @@
 
 use glam::IVec3;
 
-use crate::block_entity::BlockEntity;
+// use crate::block_entity::BlockEntity;
 use crate::block::material::Material;
 use crate::util::default as def;
 use crate::geom::Face;
@@ -65,11 +65,11 @@ impl World {
 
         // If the block we are placing has an exclusion box and any hard entity is inside,
         // we cancel the prevent the placing.
-        if let Some(bb) = self.get_block_exclusion_box(pos, id) {
-            if self.has_entity_colliding(bb, true) {
-                return false;
-            }
-        }
+        // if let Some(bb) = self.get_block_exclusion_box(pos, id) {
+        //     if self.has_entity_colliding(bb, true) {
+        //         return false;
+        //     }
+        // }
 
         base && self.is_block_replaceable(pos)
 
@@ -169,15 +169,15 @@ impl World {
             }
         }
 
-        match id {
-            block::CHEST => self.set_block_entity(pos, BlockEntity::Chest(def())),
-            block::FURNACE => self.set_block_entity(pos, BlockEntity::Furnace(def())),
-            block::DISPENSER => self.set_block_entity(pos, BlockEntity::Dispenser(def())),
-            block::SPAWNER => self.set_block_entity(pos, BlockEntity::Spawner(def())),
-            block::NOTE_BLOCK => self.set_block_entity(pos, BlockEntity::NoteBlock(def())),
-            block::JUKEBOX => self.set_block_entity(pos, BlockEntity::Jukebox(def())),
-            _ => {}
-        }
+        // match id {
+        //     block::CHEST => self.set_block_entity(pos, BlockEntity::Chest(def())),
+        //     block::FURNACE => self.set_block_entity(pos, BlockEntity::Furnace(def())),
+        //     block::DISPENSER => self.set_block_entity(pos, BlockEntity::Dispenser(def())),
+        //     block::SPAWNER => self.set_block_entity(pos, BlockEntity::Spawner(def())),
+        //     block::NOTE_BLOCK => self.set_block_entity(pos, BlockEntity::NoteBlock(def())),
+        //     block::JUKEBOX => self.set_block_entity(pos, BlockEntity::Jukebox(def())),
+        //     _ => {}
+        // }
 
     }
 

@@ -102,15 +102,15 @@ pub fn get_entity_light(world: &World, base: &Base) -> Light {
     world.get_light(check_pos.floor().as_ivec3())
 }
 
-/// Find a the closest player entity (as defined in [`World`]) within the given radius.
-pub fn find_closest_player_entity(world: &World, center: DVec3, max_dist: f64) -> Option<(u32, &Entity, f64)> {
-    let max_dist_sq = max_dist.powi(2);
-    world.iter_player_entities()
-        .map(|(entity_id, entity)| (entity_id, entity, entity.0.pos.distance_squared(center)))
-        .filter(|&(_, _, dist_sq)| dist_sq <= max_dist_sq)
-        .min_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
-        .map(|(entity_id, entity, dist_sq)| (entity_id, entity, dist_sq.sqrt()))
-}
+// /// Find a the closest player entity (as defined in [`World`]) within the given radius.
+// pub fn find_closest_player_entity(world: &World, center: DVec3, max_dist: f64) -> Option<(u32, &Entity, f64)> {
+//     let max_dist_sq = max_dist.powi(2);
+//     world.iter_player_entities()
+//         .map(|(entity_id, entity)| (entity_id, entity, entity.0.pos.distance_squared(center)))
+//         .filter(|&(_, _, dist_sq)| dist_sq <= max_dist_sq)
+//         .min_by(|(_, _, a), (_, _, b)| a.total_cmp(b))
+//         .map(|(entity_id, entity, dist_sq)| (entity_id, entity, dist_sq.sqrt()))
+// }
 
 /// This function recompute the current bounding box from the position and the last
 /// size that was used to create it.

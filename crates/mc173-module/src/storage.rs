@@ -17,9 +17,6 @@ use crossbeam_channel::TryRecvError;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::{select, bounded, Sender, Receiver, RecvError};
 
-use crate::serde::nbt::NbtError;
-use crate::serde::nbt::NbtParseError;
-use crate::serde::region::{RegionDir, RegionError};
 use crate::world::{ChunkSnapshot, World};
 use crate::gen::ChunkGenerator;
 use crate::world::Dimension;
@@ -61,7 +58,7 @@ struct StorageWorker<G: ChunkGenerator> {
     /// Populated status of chunks.
     chunks_populated: HashMap<(i32, i32), u8>,
     /// The region directory to try loading required chunks.
-    region_dir: RegionDir,
+    // region_dir: RegionDir,
     /// Request receiver from the handle.
     storage_request_receiver: Receiver<StorageRequest>,
     /// Reply sender to the handle.
@@ -165,7 +162,7 @@ impl ChunkStorage {
                 state: G::State::default(),
                 world: World::new(Dimension::Overworld, 0), // Not relevant in worker.
                 chunks_populated: HashMap::new(),
-                region_dir: RegionDir::new(region_dir),
+                // region_dir: RegionDir::new(region_dir),
                 storage_request_receiver,
                 storage_reply_sender,
                 terrain_request_sender,
@@ -283,38 +280,38 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         }
     }
 
-    /// Try loading a chunk from region file.
-    fn try_load(&mut self, cx: i32, cz: i32) -> Result<Option<ChunkSnapshot>, StorageError> {
-
-        // Get the region file but do not create it if not already existing, returning
-        // unsupported if not existing.
-        let region = match self.region_dir.ensure_region(cx, cz, false) {
-            Ok(region) => region,
-            Err(RegionError::Io(err)) if err.kind() == io::ErrorKind::NotFound => {
-                return Ok(None);
-            }
-            Err(err) => return Err(StorageError::Region(err))
-        };
-        
-        // Read the chunk, if it is empty then we return unsupported because we don't
-        // have the chunk but it's not really an error.
-        let reader = match region.read_chunk(cx, cz) {
-            Ok(chunk) => chunk,
-            Err(RegionError::EmptyChunk) => return Ok(None),
-            Err(err) => return Err(StorageError::Region(err))
-        };
-
-        let root_tag = crate::serde::nbt::from_reader(reader)?;
-        let mut snapshot = crate::serde::chunk::from_nbt(&root_tag)?;
-        let chunk = Arc::get_mut(&mut snapshot.chunk).unwrap();
-        
-        // Biomes are not serialized in the chunk NBT, so we need to generate it on each
-        // chunk load because it may be used for natural entity spawn.
-        self.generator.gen_biomes(cx, cz, chunk, &mut self.state);
-
-        Ok(Some(snapshot))
-
-    }
+    // /// Try loading a chunk from region file.
+    // fn try_load(&mut self, cx: i32, cz: i32) -> Result<Option<ChunkSnapshot>, StorageError> {
+    //
+    //     // Get the region file but do not create it if not already existing, returning
+    //     // unsupported if not existing.
+    //     let region = match self.region_dir.ensure_region(cx, cz, false) {
+    //         Ok(region) => region,
+    //         Err(RegionError::Io(err)) if err.kind() == io::ErrorKind::NotFound => {
+    //             return Ok(None);
+    //         }
+    //         Err(err) => return Err(StorageError::Region(err))
+    //     };
+    //
+    //     // Read the chunk, if it is empty then we return unsupported because we don't
+    //     // have the chunk but it's not really an error.
+    //     let reader = match region.read_chunk(cx, cz) {
+    //         Ok(chunk) => chunk,
+    //         Err(RegionError::EmptyChunk) => return Ok(None),
+    //         Err(err) => return Err(StorageError::Region(err))
+    //     };
+    //
+    //     let root_tag = crate::serde::nbt::from_reader(reader)?;
+    //     let mut snapshot = crate::serde::chunk::from_nbt(&root_tag)?;
+    //     let chunk = Arc::get_mut(&mut snapshot.chunk).unwrap();
+    //
+    //     // Biomes are not serialized in the chunk NBT, so we need to generate it on each
+    //     // chunk load because it may be used for natural entity spawn.
+    //     self.generator.gen_biomes(cx, cz, chunk, &mut self.state);
+    //
+    //     Ok(Some(snapshot))
+    //
+    // }
 
     /// Request full generation of a chunk to terrain workers, in order to fully generate
     /// a chunk, its terrain must be generated along with all of its corner being 
@@ -365,7 +362,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     }
 
     /// Insert a terrain chunk that have just been returned by a terrain worker.
-    fn insert_terrain(&mut self, cx: i32, cz: i32, chunk: Arc<Chunk>) -> bool {
+    fn insert_terrain(&mut self, cx: i32, cz: i32, chunk: Chunk) -> bool {
         
         // Get the current state and check its coherency.
         let populated = self.chunks_populated.get_mut(&(cx, cz))
@@ -520,20 +517,20 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
     }
 
-    /// Save a chunk snapshot and return result about success.
-    fn try_save(&mut self, snapshot: &ChunkSnapshot) -> Result<(), StorageError> {
-
-        let (cx, cz) = (snapshot.cx, snapshot.cz);
-        let region = self.region_dir.ensure_region(cx, cz, true)?;
-
-        let mut writer = region.write_chunk(cx, cz);
-        let root_tag = crate::serde::chunk::to_nbt(snapshot);
-        crate::serde::nbt::to_writer(&mut writer, &root_tag)?;
-        writer.flush_chunk()?;
-
-        Ok(())
-
-    }
+    // /// Save a chunk snapshot and return result about success.
+    // fn try_save(&mut self, snapshot: &ChunkSnapshot) -> Result<(), StorageError> {
+    //
+    //     let (cx, cz) = (snapshot.cx, snapshot.cz);
+    //     let region = self.region_dir.ensure_region(cx, cz, true)?;
+    //
+    //     let mut writer = region.write_chunk(cx, cz);
+    //     let root_tag = crate::serde::chunk::to_nbt(snapshot);
+    //     crate::serde::nbt::to_writer(&mut writer, &root_tag)?;
+    //     writer.flush_chunk()?;
+    //
+    //     Ok(())
+    //
+    // }
 
 }
 
@@ -587,13 +584,13 @@ enum TerrainReply {
 }
 
 
-/// Error type used together with `RegionResult` for every call on region file methods.
-#[derive(thiserror::Error, Debug)]
-pub enum StorageError {
-    #[error("region: {0}")]
-    Region(#[from] RegionError),
-    #[error("nbt: {0}")]
-    Nbt(#[from] NbtError),
-    #[error("nbt parse: {0}")]
-    NbtParse(#[from] NbtParseError),
-}
+// /// Error type used together with `RegionResult` for every call on region file methods.
+// #[derive(thiserror::Error, Debug)]
+// pub enum StorageError {
+//     #[error("region: {0}")]
+//     Region(#[from] RegionError),
+//     #[error("nbt: {0}")]
+//     Nbt(#[from] NbtError),
+//     #[error("nbt parse: {0}")]
+//     NbtParse(#[from] NbtParseError),
+// }

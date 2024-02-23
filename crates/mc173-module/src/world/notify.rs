@@ -28,15 +28,15 @@ impl World {
         }
     }
 
-    /// Notify a block a the position, the notification origin block id is given.
+    /// Notify a block at the position, the notification origin block id is given.
     pub(super) fn notify_block_unchecked(&mut self, pos: IVec3, id: u8, metadata: u8, origin_id: u8) {
         match id {
             block::REDSTONE if origin_id != block::REDSTONE => self.notify_redstone(pos),
-            block::REPEATER |
-            block::REPEATER_LIT => self.notify_repeater(pos, id, metadata),
-            block::REDSTONE_TORCH |
-            block::REDSTONE_TORCH_LIT => self.notify_redstone_torch(pos, id),
-            block::DISPENSER => self.notify_dispenser(pos, origin_id),
+            // block::REPEATER |
+            // block::REPEATER_LIT => self.notify_repeater(pos, id, metadata),
+            // block::REDSTONE_TORCH |
+            // block::REDSTONE_TORCH_LIT => self.notify_redstone_torch(pos, id),
+            // block::DISPENSER => self.notify_dispenser(pos, origin_id),
             block::WATER_MOVING |
             block::LAVA_MOVING => self.notify_fluid(pos, id, metadata),
             block::WATER_STILL |
@@ -54,67 +54,67 @@ impl World {
             block::BROWN_MUSHROOM => self.notify_mushroom(pos),
             block::CACTUS => self.notify_cactus(pos),
             block::SAND |
-            block::GRAVEL => self.schedule_block_tick(pos, id, 3),
+            // block::GRAVEL => self.schedule_block_tick(pos, id, 3),
             _ => {}
         }
     }
 
-    pub(super) fn notify_change_unchecked(&mut self, pos: IVec3, 
-        from_id: u8, from_metadata: u8,
-        to_id: u8, to_metadata: u8
-    ) {
-
-        match from_id {
-            block::BUTTON => {
-                if let Some(face) = block::button::get_face(to_metadata) {
-                    self.notify_blocks_around(pos + face.delta(), block::BUTTON);
-                }
-            }
-            block::LEVER => {
-                if let Some((face, _)) = block::lever::get_face(to_metadata) {
-                    self.notify_blocks_around(pos + face.delta(), block::LEVER);
-                }
-            }
-            // Remove the chest/dispenser block entity.
-            block::CHEST if to_id != block::CHEST => { 
-                self.remove_block_entity(pos); 
-            }
-            block::DISPENSER if to_id != block::DISPENSER => { 
-                self.remove_block_entity(pos);
-            }
-            // Remove the furnace block entity.
-            block::FURNACE |
-            block::FURNACE_LIT if to_id != block::FURNACE_LIT && to_id != block::FURNACE => {
-                self.remove_block_entity(pos);
-            }
-            block::SPAWNER if to_id != block::SPAWNER => {
-                self.remove_block_entity(pos);
-            }
-            block::NOTE_BLOCK if to_id != block::NOTE_BLOCK => {
-                self.remove_block_entity(pos);
-            }
-            block::JUKEBOX if to_id != block::JUKEBOX => {
-                self.remove_block_entity(pos);
-            }
-            _ => {}
-        }
-
-        match to_id {
-            block::WATER_MOVING => self.schedule_block_tick(pos, to_id, 5),
-            block::LAVA_MOVING => self.schedule_block_tick(pos, to_id, 30),
-            block::REDSTONE => self.notify_redstone(pos),
-            block::REPEATER |
-            block::REPEATER_LIT => self.notify_repeater(pos, to_id, from_metadata),
-            block::REDSTONE_TORCH |
-            block::REDSTONE_TORCH_LIT => self.notify_redstone_torch(pos, to_id),
-            block::SAND |
-            block::GRAVEL => self.schedule_block_tick(pos, to_id, 3),
-            block::CACTUS => self.notify_cactus(pos),
-            block::FIRE => self.schedule_block_tick(pos, to_id, 40),
-            _ => {}
-        }
-
-    }
+    // pub(super) fn notify_change_unchecked(&mut self, pos: IVec3,
+    //     from_id: u8, from_metadata: u8,
+    //     to_id: u8, to_metadata: u8
+    // ) {
+    //
+    //     match from_id {
+    //         block::BUTTON => {
+    //             if let Some(face) = block::button::get_face(to_metadata) {
+    //                 self.notify_blocks_around(pos + face.delta(), block::BUTTON);
+    //             }
+    //         }
+    //         block::LEVER => {
+    //             if let Some((face, _)) = block::lever::get_face(to_metadata) {
+    //                 self.notify_blocks_around(pos + face.delta(), block::LEVER);
+    //             }
+    //         }
+    //         // Remove the chest/dispenser block entity.
+    //         block::CHEST if to_id != block::CHEST => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         block::DISPENSER if to_id != block::DISPENSER => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         // Remove the furnace block entity.
+    //         block::FURNACE |
+    //         block::FURNACE_LIT if to_id != block::FURNACE_LIT && to_id != block::FURNACE => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         block::SPAWNER if to_id != block::SPAWNER => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         block::NOTE_BLOCK if to_id != block::NOTE_BLOCK => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         block::JUKEBOX if to_id != block::JUKEBOX => {
+    //             self.remove_block_entity(pos);
+    //         }
+    //         _ => {}
+    //     }
+    //
+    //     match to_id {
+    //         block::WATER_MOVING => self.schedule_block_tick(pos, to_id, 5),
+    //         block::LAVA_MOVING => self.schedule_block_tick(pos, to_id, 30),
+    //         block::REDSTONE => self.notify_redstone(pos),
+    //         block::REPEATER |
+    //         block::REPEATER_LIT => self.notify_repeater(pos, to_id, from_metadata),
+    //         block::REDSTONE_TORCH |
+    //         block::REDSTONE_TORCH_LIT => self.notify_redstone_torch(pos, to_id),
+    //         block::SAND |
+    //         block::GRAVEL => self.schedule_block_tick(pos, to_id, 3),
+    //         block::CACTUS => self.notify_cactus(pos),
+    //         block::FIRE => self.schedule_block_tick(pos, to_id, 40),
+    //         _ => {}
+    //     }
+    //
+    // }
 
     /// Notification of a moving fluid block.
     fn notify_fluid(&mut self, pos: IVec3, id: u8, metadata: u8) {
@@ -176,33 +176,33 @@ impl World {
         }
     }
 
-    /// Notification of a redstone repeater block.
-    fn notify_repeater(&mut self, pos: IVec3, id: u8, metadata: u8) {
+    // /// Notification of a redstone repeater block.
+    // fn notify_repeater(&mut self, pos: IVec3, id: u8, metadata: u8) {
+    //
+    //     let lit = id == block::REPEATER_LIT;
+    //     let face = block::repeater::get_face(metadata);
+    //     let delay = block::repeater::get_delay_ticks(metadata);
+    //     let back_powered = self.has_passive_power_from(pos - face.delta(), face);
+    //
+    //     if lit != back_powered {
+    //         self.schedule_block_tick(pos, id, delay);
+    //     }
+    //
+    // }
 
-        let lit = id == block::REPEATER_LIT;
-        let face = block::repeater::get_face(metadata);
-        let delay = block::repeater::get_delay_ticks(metadata);
-        let back_powered = self.has_passive_power_from(pos - face.delta(), face);
+    // /// Notification of a redstone repeater block.
+    // fn notify_redstone_torch(&mut self, pos: IVec3, id: u8) {
+    //     self.schedule_block_tick(pos, id, 2);
+    // }
 
-        if lit != back_powered {
-            self.schedule_block_tick(pos, id, delay);
-        }
-
-    }
-
-    /// Notification of a redstone repeater block.
-    fn notify_redstone_torch(&mut self, pos: IVec3, id: u8) {
-        self.schedule_block_tick(pos, id, 2);
-    }
-
-    fn notify_dispenser(&mut self, pos: IVec3, origin_id: u8) {
-        if is_redstone_block(origin_id) {
-            // TODO: Also check above? See associated tick function.
-            if self.has_passive_power(pos) {
-                self.schedule_block_tick(pos, block::DISPENSER, 4);
-            }
-        }
-    }
+    // fn notify_dispenser(&mut self, pos: IVec3, origin_id: u8) {
+    //     if is_redstone_block(origin_id) {
+    //         // TODO: Also check above? See associated tick function.
+    //         if self.has_passive_power(pos) {
+    //             self.schedule_block_tick(pos, block::DISPENSER, 4);
+    //         }
+    //     }
+    // }
 
     /// Notification of a trapdoor, breaking it if no longer on its wall, or updating its 
     /// state depending on redstone signal.

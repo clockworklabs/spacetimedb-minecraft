@@ -14,78 +14,78 @@ use super::World;
 /// Methods related to loot spawning in the world and block loot randomization.
 impl World {
 
-    /// Spawn item entity in the world containing the given stack. The velocity of the 
-    /// spawned item stack is random and the initial position depends on the given spread.
-    /// This item entity will be impossible to pickup for 10 ticks.
-    pub fn spawn_loot(&mut self, mut pos: DVec3, stack: ItemStack, spread: f32) {
-        
-        if spread != 0.0 {
-            pos += self.rand.next_float_vec()
-                .mul(spread)
-                .as_dvec3()
-                .sub(spread as f64 * 0.5);
-        }
+    // /// Spawn item entity in the world containing the given stack. The velocity of the
+    // /// spawned item stack is random and the initial position depends on the given spread.
+    // /// This item entity will be impossible to pickup for 10 ticks.
+    // pub fn spawn_loot(&mut self, mut pos: DVec3, stack: ItemStack, spread: f32) {
+    //
+    //     if spread != 0.0 {
+    //         pos += self.rand.next_float_vec()
+    //             .mul(spread)
+    //             .as_dvec3()
+    //             .sub(spread as f64 * 0.5);
+    //     }
+    //
+    //     let entity = Item::new_with(|base, item| {
+    //         base.persistent = true;
+    //         base.pos = pos;
+    //         base.vel.x = self.rand.next_double() * 0.2 - 0.1;
+    //         base.vel.y = 0.2;
+    //         base.vel.z = self.rand.next_double() * 0.2 - 0.1;
+    //         item.stack = stack;
+    //         item.frozen_time = 10;
+    //     });
+    //
+    //     self.spawn_entity(entity);
+    //
+    // }
 
-        let entity = Item::new_with(|base, item| {
-            base.persistent = true;
-            base.pos = pos;
-            base.vel.x = self.rand.next_double() * 0.2 - 0.1;
-            base.vel.y = 0.2;
-            base.vel.z = self.rand.next_double() * 0.2 - 0.1;
-            item.stack = stack;
-            item.frozen_time = 10;
-        });
+    // /// Spawn item entities in the world depending on the loot of the given block id and
+    // /// metadata. Each block has a different random try count and loots, the given chance
+    // /// if looting is checked on each try, typically used for explosions.
+    // pub fn spawn_block_loot(&mut self, pos: IVec3, id: u8, metadata: u8, chance: f32) {
+    //     let tries = self.get_block_loot_tries(id, metadata);
+    //     for try_num in 0..tries {
+    //         if self.rand.next_float() <= self.get_block_loot_chance(id, metadata, try_num, chance) {
+    //             let stack = self.get_block_loot_stack(id, metadata, try_num);
+    //             if !stack.is_empty() {
+    //                 self.spawn_loot(pos.as_dvec3() + 0.5, stack, 0.7);
+    //             }
+    //         }
+    //     }
+    // }
 
-        self.spawn_entity(entity);
-
-    }
-
-    /// Spawn item entities in the world depending on the loot of the given block id and
-    /// metadata. Each block has a different random try count and loots, the given chance
-    /// if looting is checked on each try, typically used for explosions.
-    pub fn spawn_block_loot(&mut self, pos: IVec3, id: u8, metadata: u8, chance: f32) {
-        let tries = self.get_block_loot_tries(id, metadata);
-        for try_num in 0..tries {
-            if self.rand.next_float() <= self.get_block_loot_chance(id, metadata, try_num, chance) {
-                let stack = self.get_block_loot_stack(id, metadata, try_num);
-                if !stack.is_empty() {
-                    self.spawn_loot(pos.as_dvec3() + 0.5, stack, 0.7);
-                }
-            }
-        }
-    }
-
-    /// Get the tries count from a block and metadata.
-    fn get_block_loot_tries(&mut self, id: u8, _metadata: u8) -> u8 {
-        match id {
-            block::AIR => 0,
-            block::BOOKSHELF => 0,
-            block::CAKE => 0,
-            block::CLAY => 4,
-            block::WHEAT => 4,  // 1 for wheat item + 3 for seeds
-            block::FIRE => 0,
-            block::WATER_MOVING |
-            block::WATER_STILL |
-            block::LAVA_MOVING |
-            block::LAVA_STILL => 0,
-            block::GLASS => 0,
-            block::GLOWSTONE => 2 + self.rand.next_int_bounded(3) as u8,
-            block::ICE => 0,
-            block::LEAVES if self.rand.next_int_bounded(20) != 0 => 0,
-            block::SPAWNER => 0,
-            block::LAPIS_ORE => 4 + self.rand.next_int_bounded(5) as u8,
-            block::PISTON_EXT |
-            block::PISTON_MOVING => 0,
-            block::PORTAL => 0,
-            block::REDSTONE_ORE |
-            block::REDSTONE_ORE_LIT => 4 + self.rand.next_int_bounded(2) as u8,
-            block::SNOW => 0,
-            block::SNOW_BLOCK => 4,
-            block::DOUBLE_SLAB => 2,
-            block::TNT => 0,
-            _ => 1
-        }
-    }
+    // /// Get the tries count from a block and metadata.
+    // fn get_block_loot_tries(&mut self, id: u8, _metadata: u8) -> u8 {
+    //     match id {
+    //         block::AIR => 0,
+    //         block::BOOKSHELF => 0,
+    //         block::CAKE => 0,
+    //         block::CLAY => 4,
+    //         block::WHEAT => 4,  // 1 for wheat item + 3 for seeds
+    //         block::FIRE => 0,
+    //         block::WATER_MOVING |
+    //         block::WATER_STILL |
+    //         block::LAVA_MOVING |
+    //         block::LAVA_STILL => 0,
+    //         block::GLASS => 0,
+    //         block::GLOWSTONE => 2 + self.rand.next_int_bounded(3) as u8,
+    //         block::ICE => 0,
+    //         block::LEAVES if self.rand.next_int_bounded(20) != 0 => 0,
+    //         block::SPAWNER => 0,
+    //         block::LAPIS_ORE => 4 + self.rand.next_int_bounded(5) as u8,
+    //         block::PISTON_EXT |
+    //         block::PISTON_MOVING => 0,
+    //         block::PORTAL => 0,
+    //         block::REDSTONE_ORE |
+    //         block::REDSTONE_ORE_LIT => 4 + self.rand.next_int_bounded(2) as u8,
+    //         block::SNOW => 0,
+    //         block::SNOW_BLOCK => 4,
+    //         block::DOUBLE_SLAB => 2,
+    //         block::TNT => 0,
+    //         _ => 1
+    //     }
+    // }
 
     fn get_block_loot_chance(&mut self, id: u8, metadata: u8, try_num: u8, default_chance: f32) -> f32 {
         match id {

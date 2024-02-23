@@ -17,7 +17,7 @@ impl World {
     /// a wrapper around [`set_block_notify`](Self::set_block_notify) method.
     pub fn break_block(&mut self, pos: IVec3) -> Option<(u8, u8)> {
         let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;
-        self.spawn_block_loot(pos, prev_id, prev_metadata, 1.0);
+        // self.spawn_block_loot(pos, prev_id, prev_metadata, 1.0);
         Some((prev_id, prev_metadata))
     }
 

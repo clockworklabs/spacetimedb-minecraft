@@ -49,13 +49,13 @@ pub struct StdbBreakingBlock {
     state: BreakingBlock,
 }
 
-impl StdbChunk {
-    pub fn is_block(&self, pos: IVec3, id: u8) -> bool {
-        let (pos_id, _) = self.chunk.get_block(pos);
-        return pos_id == id;
-    }
-
-    pub fn get_block(&self, pos: IVec3) -> Option<(u8, u8)> {
-        Some(self.chunk.get_block(pos))
-    }
-}
+// impl StdbChunk {
+//     pub fn is_block(&self, pos: IVec3, id: u8) -> bool {
+//         let (pos_id, _) = self.chunk.get_block(pos);
+//         return pos_id == id;
+//     }
+//
+//     pub fn get_block(&self, pos: IVec3) -> Option<(u8, u8)> {
+//         Some(self.chunk.get_block(pos))
+//     }
+// }

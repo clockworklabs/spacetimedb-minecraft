@@ -17,9 +17,9 @@ mod tick_state;
 mod tick_ai;
 mod tick_attack;
 
-use tick_state::tick_state;
-use tick_ai::tick_ai;
-use tick_attack::tick_attack;
+// use tick_state::tick_state;
+// use tick_ai::tick_ai;
+// use tick_attack::tick_attack;
 
 
 /// Kind of entity, without actual data. This enumeration can be used to construct a
@@ -561,13 +561,13 @@ impl Entity {
         self.kind().category()
     }
 
-    /// This this entity from its id in a world.
-    /// 
-    /// **This is really important to no change the entity kind when ticking the 
-    /// function.**
-    pub fn tick(&mut self, world: &mut World, id: u32, nano_time: u128) {
-        tick::tick(world, id, self, nano_time);
-    }
+    // /// This this entity from its id in a world.
+    // ///
+    // /// **This is really important to no change the entity kind when ticking the
+    // /// function.**
+    // pub fn tick(&mut self, world: &mut World, id: u32, nano_time: u128) {
+    //     tick::tick(world, id, self, nano_time);
+    // }
 
     /// Recompute this entity's size and recompute the bounding box from its position.
     pub fn resize(&mut self) {
@@ -635,82 +635,82 @@ impl Entity {
         common::update_bounding_box_from_pos(base);
     }
 
-    /// Return true if the entity can naturally spawn at its current position (with
-    /// synchronized bounding box) in the given world. The entity is mutated because its
-    /// RNG may be used.
-    pub fn can_natural_spawn(&mut self, world: &World) -> bool {
-
-        let Entity(base, BaseKind::Living(_, living_kind)) = self else {
-            // Non-living entities cannot naturally spawn.
-            return false;
-        };
-
-        let kind = living_kind.entity_kind();
-        let block_pos = IVec3 {
-            x: base.bb.center_x().floor() as i32,
-            y: base.bb.min.y.floor() as i32,
-            z: base.bb.center_z().floor() as i32,
-        };
-
-        let category = kind.category();
-
-        if category == EntityCategory::Animal {
-            
-            // Animals can only spawn on grass blocks.
-            if !world.is_block(block_pos - IVec3::Y, block::GRASS) {
-                return false;
-            }
-
-            // Animals requires a light level of at least 9.
-            if world.get_light(block_pos).max() <= 8 {
-                return false;
-            }
-
-        } else if category == EntityCategory::Mob {
-
-            let light = world.get_light(block_pos);
-
-            // Lower chance of spawn if there is sky light.
-            if light.sky as i32 > base.rand.next_int_bounded(32) {
-                return false;
-            }
-
-            // Random spawning chance when light is under 8.
-            if light.max_real() as i32 > base.rand.next_int_bounded(8) {
-                return false;
-            }
-
-        }
-
-        if category != EntityCategory::Other {
-            let weight_func = common::path_weight_func(living_kind);
-            if weight_func(world, block_pos) < 0.0 {
-                return false;
-            }
-        }
-
-        // Any hard entity colliding prevent spawning.
-        if world.has_entity_colliding(base.bb, true) {
-            return false;
-        }
-
-        if category != EntityCategory::WaterAnimal {
-            
-            // Any block colliding prevent spawning.
-            if world.iter_blocks_boxes_colliding(base.bb).next().is_some() {
-                return false;
-            }
-
-            // Any colliding fluid block prevent spawning.
-            if world.iter_blocks_in_box(base.bb).any(|(_pos, block, _)| block::material::is_fluid(block)) {
-                return false;
-            }
-
-        }
-
-        true
-
-    }
+    // /// Return true if the entity can naturally spawn at its current position (with
+    // /// synchronized bounding box) in the given world. The entity is mutated because its
+    // /// RNG may be used.
+    // pub fn can_natural_spawn(&mut self, world: &World) -> bool {
+    //
+    //     let Entity(base, BaseKind::Living(_, living_kind)) = self else {
+    //         // Non-living entities cannot naturally spawn.
+    //         return false;
+    //     };
+    //
+    //     let kind = living_kind.entity_kind();
+    //     let block_pos = IVec3 {
+    //         x: base.bb.center_x().floor() as i32,
+    //         y: base.bb.min.y.floor() as i32,
+    //         z: base.bb.center_z().floor() as i32,
+    //     };
+    //
+    //     let category = kind.category();
+    //
+    //     if category == EntityCategory::Animal {
+    //
+    //         // Animals can only spawn on grass blocks.
+    //         if !world.is_block(block_pos - IVec3::Y, block::GRASS) {
+    //             return false;
+    //         }
+    //
+    //         // Animals requires a light level of at least 9.
+    //         if world.get_light(block_pos).max() <= 8 {
+    //             return false;
+    //         }
+    //
+    //     } else if category == EntityCategory::Mob {
+    //
+    //         let light = world.get_light(block_pos);
+    //
+    //         // Lower chance of spawn if there is sky light.
+    //         if light.sky as i32 > base.rand.next_int_bounded(32) {
+    //             return false;
+    //         }
+    //
+    //         // Random spawning chance when light is under 8.
+    //         if light.max_real() as i32 > base.rand.next_int_bounded(8) {
+    //             return false;
+    //         }
+    //
+    //     }
+    //
+    //     if category != EntityCategory::Other {
+    //         let weight_func = common::path_weight_func(living_kind);
+    //         if weight_func(world, block_pos) < 0.0 {
+    //             return false;
+    //         }
+    //     }
+    //
+    //     // Any hard entity colliding prevent spawning.
+    //     if world.has_entity_colliding(base.bb, true) {
+    //         return false;
+    //     }
+    //
+    //     if category != EntityCategory::WaterAnimal {
+    //
+    //         // Any block colliding prevent spawning.
+    //         if world.iter_blocks_boxes_colliding(base.bb).next().is_some() {
+    //             return false;
+    //         }
+    //
+    //         // Any colliding fluid block prevent spawning.
+    //         if world.iter_blocks_in_box(base.bb).any(|(_pos, block, _)| block::material::is_fluid(block)) {
+    //             return false;
+    //         }
+    //
+    //     }
+    //
+    //     true
+    //
+    // }
 
     /// Initialize this entity for natural spawn, for example this randomize the slime
     /// size or sheep color or make a spider with jokey.

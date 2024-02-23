@@ -2,9 +2,9 @@
 
 use glam::IVec3;
 
-use crate::block_entity::spawner::SpawnerBlockEntity;
+// use crate::block_entity::spawner::SpawnerBlockEntity;
 use crate::block_entity::chest::ChestBlockEntity;
-use crate::block_entity::BlockEntity;
+// use crate::block_entity::BlockEntity;
 use crate::item::{ItemStack, self};
 use crate::entity::EntityKind;
 use crate::rand::JavaRandom;
@@ -160,8 +160,8 @@ impl FeatureGenerator for DungeonGenerator {
 
                     }
 
-                    world.set_block(chest_pos, block::CHEST, 0);
-                    world.set_block_entity(chest_pos, BlockEntity::Chest(chest));
+                    // world.set_block(chest_pos, block::CHEST, 0);
+                    // world.set_block_entity(chest_pos, BlockEntity::Chest(chest));
                     break;
 
                 }
@@ -170,10 +170,10 @@ impl FeatureGenerator for DungeonGenerator {
 
         }
 
-        let mut spawner = SpawnerBlockEntity::default();
-        spawner.entity_kind = self.gen_spawner_entity(rand);
-        world.set_block(pos, block::SPAWNER, 0);
-        world.set_block_entity(pos, BlockEntity::Spawner(spawner));
+        // let mut spawner = SpawnerBlockEntity::default();
+        // spawner.entity_kind = self.gen_spawner_entity(rand);
+        // world.set_block(pos, block::SPAWNER, 0);
+        // world.set_block_entity(pos, BlockEntity::Spawner(spawner));
 
         true
 
