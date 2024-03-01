@@ -14,6 +14,17 @@ pub struct StdbChunk {
 }
 
 #[spacetimedb(table)]
+pub struct StdbChunkPopulated {
+    #[primarykey]
+    #[autoinc]
+    // Note: This is not a chunk id, this ID is unique to this table
+    pub id: i32,
+    pub x: i32,
+    pub z: i32,
+    pub populated: u8,
+}
+
+#[spacetimedb(table)]
 pub struct StdbTime {
     #[unique]
     pub id: i32,

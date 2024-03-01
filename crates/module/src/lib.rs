@@ -12,23 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod world;
-
-use std::collections::HashMap;
-use std::time::{Duration, Instant, UNIX_EPOCH};
-use glam::{DVec3, IVec3};
-use mc173_module::{block, chunk, item};
-use mc173_module::chunk::{calc_chunk_pos, Chunk};
-use mc173_module::gen::{ChunkGenerator, OverworldGenerator};
-use mc173_module::world::{BlockEvent, ChunkEvent, Dimension, Event, LightKind, StdbWorld, World};
+use std::time::Duration;
+use glam::DVec3;
+use mc173_module::world::{Dimension, StdbWorld, World};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
-use spacetimedb::rt::ReducerInfo;
-use mc173_module::block::material::Material;
-use mc173_module::geom::Face;
-use mc173_module::stdb::chunk::BreakBlockPacket;
-use mc173_module::stdb::chunk::StdbBreakingBlock;
+use mc173_module::chunk::calc_entity_chunk_pos;
 use mc173_module::stdb::chunk::StdbTime;
-use mc173_module::stdb::chunk::StdbChunk;
+use mc173_module::storage::ChunkStorage;
 
 /// Server world seed is currently hardcoded.
 pub const SEED: i64 = 9999;
@@ -49,19 +39,19 @@ pub struct StdbServerWorldState {
     /// longer runs.
     pub tick_mode: TickMode,
     pub tick_mode_manual: u32,
-    /// The chunk source used to load and save the world's chunk.
-    // storage: ChunkStorage,
-    /// Chunks trackers used to send proper block changes packets.
+    //// The chunk source used to load and save the world's chunk.
+    // storage: mc173_module::storage::ChunkStorage,
+    //// Chunks trackers used to send proper block changes packets.
     // chunk_trackers: ChunkTrackers,
-    /// Entity tracker, each is associated to the entity id.
+    //// Entity tracker, each is associated to the entity id.
     // entity_trackers: HashMap<u32, EntityTracker>,
-    /// Instant of the last tick.
+    //// Instant of the last tick.
     // tick_last: Instant,
-    /// Fading average tick duration, in seconds.
+    //// Fading average tick duration, in seconds.
     // pub tick_duration: FadingAverage,
-    /// Fading average interval between two ticks.
+    //// Fading average interval between two ticks.
     // pub tick_interval: FadingAverage,
-    /// Fading average of events count on each tick.
+    //// Fading average of events count on each tick.
     // pub events_count: FadingAverage,
 }
 
@@ -94,6 +84,7 @@ pub fn init(context: ReducerContext) {
         seed: 9999,
         time: 0,
         tick_mode: TickMode::Auto,
+        tick_mode_manual: 0,
     }).unwrap();
 
     StdbTime::insert(StdbTime { id: 0, time: 0 }).unwrap();
@@ -102,19 +93,20 @@ pub fn init(context: ReducerContext) {
 
     // This has to be here because this is how we schedule tick
     // Do the very fist tick
-    tick(context);
+    tick();
 }
 
 
 #[spacetimedb(reducer)]
-pub fn tick(context: ReducerContext) {
+pub fn tick() {
     // Do stuff...
     // Lastly, tick time
-    let nano_time = context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos();
-    for world in StdbWorld::iter() {
-        tick_world(world.id, nano_time);
+    for mut world in StdbWorld::iter() {
+        let mut state = StdbServerWorldState::filter_by_world_id(&world.id).unwrap();
+        tick_world(&mut world, &mut state);
         let world_id = world.id;
         StdbWorld::update_by_id(&world_id, world);
+        StdbServerWorldState::update_by_world_id(&world_id, state);
     }
 
     // reschedule self
@@ -122,14 +114,12 @@ pub fn tick(context: ReducerContext) {
 }
 
 /// Tick this world.
-pub fn tick_world(world_id: i32, nano_time: u128) {
-    let state = StdbServerWorldState::filter_by_world_id(&world_id).unwrap();
-    let world = StdbWorld::filter_by_id(&world_id).unwrap();
+pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
 
     // Get server-side time.
     let time = state.time;
     if time == 0 {
-        init_world(world_id: i32, nano_time: u128);
+        init_world(world, state);
     }
 
     // Poll all chunks to load in the world.
@@ -154,14 +144,14 @@ pub fn tick_world(world_id: i32, nano_time: u128) {
     // Only run if no tick freeze.
     match state.tick_mode {
         TickMode::Auto => {
-            world.tick()
+            world.world.tick();
         }
         TickMode::Manual => {
             let mut n = state.tick_mode_manual;
             if n != 0 {
-                world.tick();
+                world.world.tick();
             }
-            *n -= 1;
+            state.tick_mode_manual -= 1;
         }
     }
 
@@ -258,12 +248,11 @@ pub fn tick_world(world_id: i32, nano_time: u128) {
 
     // Finally increase server-side tick time.
     state.time += 1;
-
 }
 
 /// Initialize the world by ensuring that every entity is currently tracked. This
 /// method can be called multiple time and should be idempotent.
-fn init_world(world_id: i32, nano_time: u128) {
+fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
 
     // // Ensure that every entity has a tracker.
     // for (id, entity) in self.world.iter_entities() {
@@ -275,10 +264,10 @@ fn init_world(world_id: i32, nano_time: u128) {
     // }
 
     // NOTE: Temporary code.
-    let (center_cx, center_cz) = chunk::calc_entity_chunk_pos(DVec3::new(0.0, 100.0, 0.0));
+    let (center_cx, center_cz) = calc_entity_chunk_pos(DVec3::new(0.0, 100.0, 0.0));
     for cx in center_cx - 10..=center_cx + 10 {
         for cz in center_cz - 10..=center_cz + 10 {
-            state.storage.request_load(cx, cz);
+            ChunkStorage::request_load(world, cx, cz);
         }
     }
 }

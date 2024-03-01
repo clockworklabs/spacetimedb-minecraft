@@ -27,7 +27,7 @@ pub mod tree;
 pub mod cave;
 
 // World generators.
-mod overworld;
+pub mod overworld;
 pub use overworld::OverworldGenerator;
 
 

@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, BTreeSet, HashSet, VecDeque};
 use std::collections::hash_map::Entry;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Add, Deref, DerefMut};
 use std::iter::FusedIterator;
 use std::cmp::Ordering;
 use std::hash::Hash;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::slice;
 use std::mem;
 
-use glam::{IVec3, Vec2, DVec3};
+use glam::{Vec2, DVec3, IVec3};
 use indexmap::IndexMap;
 use spacetimedb::{spacetimedb, SpacetimeType};
 
@@ -28,6 +28,7 @@ use crate::geom::{BoundingBox, Face};
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
+use crate::ivec3::StdbIVec3;
 use crate::stdb::chunk::StdbChunk;
 use crate::stdb::weather::StdbWeather;
 
@@ -161,7 +162,7 @@ pub struct World {
     // block_ticks_states: HashSet<BlockTickState>,
     /// Queue of pending light updates to be processed.
     // light_updates: VecDeque<LightUpdate>,
-    light_updates: StdbVecDequeueLightUpdate,
+    light_updates: Vec<LightUpdate>,
     /// This is the wrapping seed used by random ticks to compute random block positions.
     random_ticks_seed: i32,
     /// The current weather in that world, note that the Notchian server do not work like
@@ -174,24 +175,6 @@ pub struct World {
     /// when subtracted from a chunk sky light level.
     // TODO: Move this into its own table
     sky_light_subtracted: u8,
-}
-
-#[derive(SpacetimeType, Clone)]
-pub struct StdbVecDequeueLightUpdate {
-    pub vec: Vec<LightUpdate>,
-}
-
-impl StdbVecDequeueLightUpdate {
-    pub fn push_back(&mut self, t: LightUpdate) {
-        self.vec.push(t);
-    }
-
-    pub fn pop_front(&mut self) -> Option<LightUpdate> {
-        if self.vec.len() == 0 {
-            return None;
-        }
-        Some(self.vec.remove(0))
-    }
 }
 
 #[spacetimedb(table)]
@@ -230,6 +213,27 @@ impl World {
             // weather_next_time: 0,
             sky_light_subtracted: 0,
         }
+    }
+
+    /// Pops a light update and updates the StdbWorld row with the new value.
+    pub fn pop_light_update() -> Option<LightUpdate> {
+        let mut world = StdbWorld::filter_by_id(&0).unwrap();
+        let result = world.world.pop_light_update_inner();
+        StdbWorld::update_by_id(&0, world);
+        result
+    }
+
+    /// Pops a light update from a world without updating the StdbWorld row
+    pub fn pop_light_update_inner(&mut self) -> Option<LightUpdate> {
+        if self.light_updates.len() == 0 {
+            None
+        } else {
+            Some(self.light_updates.remove(0))
+        }
+    }
+
+    pub fn push_light_update_inner(&mut self, update: LightUpdate) {
+        self.light_updates.push(update);
     }
 
     //// This function can be used to swap in a new events queue and return the previous
@@ -602,7 +606,7 @@ impl World {
     pub fn schedule_light_update(&mut self, pos: IVec3, kind: LightKind) {
         self.light_updates.push(LightUpdate {
             kind,
-            pos: vec![pos.x, pos.y, pos.z],
+            pos: pos.into(),
             credit: 15,
         });
     }
@@ -1092,7 +1096,7 @@ impl World {
     
     /// Tick the world, this ticks all entities.
     /// TODO: Guard this from being called recursively from tick functions.
-    pub fn tick(&mut self, nano_time: u128) {
+    pub fn tick(&mut self) {
 
         if self.time % 20 == 0 {
             // println!("time: {}", self.time);
@@ -1531,15 +1535,14 @@ impl World {
 
         // IMPORTANT NOTE: This algorithm is terrible but works, I've been trying to come
         // with a better one but it has been too complicated so far.
-        
         for _ in 0..limit {
 
-            let Some(update) = self.light_updates.pop_front() else { break };
+            let Some(update) = self.pop_light_update_inner() else { break };
 
             let mut max_face_emission = 0;
             for face in Face::ALL {
 
-                let face_pos = update.pos + face.delta();
+                let face_pos = <StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta();
 
                 let Some((cx, cz)) = calc_chunk_pos(face_pos) else { continue };
                 let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
@@ -1556,17 +1559,17 @@ impl World {
 
             }
 
-            let Some((cx, cz)) = calc_chunk_pos(update.pos) else { continue };
+            let Some((cx, cz)) = calc_chunk_pos(update.pos.into()) else { continue };
             let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
 
-            let (id, _) = chunk.chunk.get_block(update.pos);
+            let (id, _) = chunk.chunk.get_block(update.pos.into());
             let opacity = block::material::get_light_opacity(id).max(1);
 
             let emission = match update.kind {
                 LightKind::Block => block::material::get_light_emission(id),
                 LightKind::Sky => {
                     // If the block is above ground, then it has
-                    let column_height = chunk.chunk.get_height(update.pos) as i32;
+                    let column_height = chunk.chunk.get_height(update.pos.into()) as i32;
                     if update.pos.y >= column_height { 15 } else { 0 }
                 }
             };
@@ -1577,14 +1580,14 @@ impl World {
 
             match update.kind {
                 LightKind::Block => {
-                    if chunk.chunk.get_block_light(update.pos) != new_light {
-                        chunk.chunk.set_block_light(update.pos, new_light);
+                    if chunk.chunk.get_block_light(update.pos.into()) != new_light {
+                        chunk.chunk.set_block_light(update.pos.into(), new_light);
                         changed = true;
                     }
                 }
                 LightKind::Sky => {
-                    if chunk.chunk.get_sky_light(update.pos) != new_light {
-                        chunk.chunk.set_sky_light(update.pos, new_light);
+                    if chunk.chunk.get_sky_light(update.pos.into()) != new_light {
+                        chunk.chunk.set_sky_light(update.pos.into(), new_light);
                         changed = true;
                         sky_exposed = emission == 15;
                     }
@@ -1606,9 +1609,10 @@ impl World {
                     if face == Face::PosY && sky_exposed {
                         continue;
                     }
-                    self.light_updates.push_back(LightUpdate {
+                    self.push_light_update_inner(LightUpdate {
                         kind: update.kind,
-                        pos: update.pos + face.delta(),
+                        // pos: update.pos.into() + face.delta(),
+                        pos: (<StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta()).into(),
                         credit: update.credit - 1,
                     });
                 }
@@ -2005,8 +2009,8 @@ struct LightUpdate {
     /// Light kind targeted by this update, the update only applies to one of the kind.
     kind: LightKind,
     /// The position of the light update.
-    // pos: IVec3,
-    pos: Vec<i32>,
+    pos: StdbIVec3,
+    // pos: Vec<i32>,
     /// Credit remaining to update light, this is used to limit the number of updates
     /// produced by a block chance initial update. Initial value is something like 15
     /// and decrease for each propagation, when it reaches 0 the light update stops 

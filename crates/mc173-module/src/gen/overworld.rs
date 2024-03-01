@@ -532,7 +532,7 @@ impl ChunkGenerator for OverworldGenerator {
 
     }
 
-    fn gen_features(&self, cx: i32, cz: i32, world: &mut World, state: &mut Self::State) {
+    fn gen_features(&self, cx: i32, cz: i32, world: &mut StdbWorld, state: &mut Self::State) {
 
         let pos = IVec3::new(cx * 16, 0, cz * 16);
         let biome = self.get_biome(pos.x + 16, pos.z + 16);

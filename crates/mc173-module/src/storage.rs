@@ -11,17 +11,14 @@ use std::path::PathBuf;
 use std::time::Instant;
 use std::sync::Arc;
 use std::thread;
-use std::io;
-
-use crossbeam_channel::TryRecvError;
-use crossbeam_channel::unbounded;
-use crossbeam_channel::{select, bounded, Sender, Receiver, RecvError};
 
 // use crate::world::{ChunkSnapshot, World};
-use crate::world::World;
-use crate::gen::ChunkGenerator;
+use crate::world::{StdbWorld, World};
+use crate::gen::{ChunkGenerator, OverworldGenerator};
 use crate::world::Dimension;
 use crate::chunk::Chunk;
+use crate::gen::overworld::OverworldState;
+use crate::stdb::chunk::{StdbChunk, StdbChunkPopulated};
 
 
 const POPULATED_NEG_NEG: u8 = 0b0001;
@@ -182,10 +179,11 @@ impl ChunkStorage {
     }
 
     /// Request loading of a chunk, that will later be returned by polling this storage.
-    pub fn request_load(&mut self, cx: i32, cz: i32) {
-        self.request_load.insert((cx, cz));
-        self.storage_request_sender.send(StorageRequest::Load { cx, cz })
-            .expect("worker should not disconnect while this handle exists");
+    pub fn request_load(world: &mut StdbWorld, cx: i32, cz: i32) {
+        // self.request_load.insert((cx, cz));
+        // self.storage_request_sender.send(StorageRequest::Load { cx, cz })
+        //     .expect("worker should not disconnect while this handle exists");
+        StorageWorker::load_or_gen(world, cx, cz);
     }
 
     // /// Request saving of the given chunk snapshot.
@@ -242,14 +240,16 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         })
     }
 
-    fn handle_storage_request(&mut self, request: StorageRequest) -> bool {
-        match request {
-            StorageRequest::Load { cx, cz } => 
-                self.load_or_gen(cx, cz),
-            // StorageRequest::Save { snapshot } =>
-            //     self.save(&snapshot),
-        }
-    }
+    // fn handle_storage_request(&mut self, request: StorageRequest) -> bool {
+    //     match request {
+    //         StorageRequest::Load { cx, cz } =>
+    //             self.load_or_gen(cx, cz),
+    //         // StorageRequest::Save { snapshot } =>
+    //         //     self.save(&snapshot),
+    //     }
+    // }
+
+
 
     fn receive_terrain_reply(&mut self, reply: TerrainReply) -> bool {
         match reply {
@@ -262,8 +262,8 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// found, its generation is requested to terrain workers. But if a critical error
     /// is returned by the region file then an error is returned. This avoid overwriting
     /// the chunk later and ruining a possibly recoverable error.
-    fn load_or_gen(&mut self, cx: i32, cz: i32) -> bool {
-        // match self.try_load(cx, cz) {
+    fn load_or_gen(world: &mut StdbWorld, cx: i32, cz: i32) -> bool {
+        // match try_load(cx, cz) {
         //     Err(err) => {
         //         // Immediately send error, we don't want to load the chunk if there is
         //         // an error in the region file, in order to avoid overwriting the error.
@@ -280,7 +280,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         //     }
         // }
 
-        self.request_full(cx, cz);
+        StorageWorker::request_full(world, cx, cz);
         true
     }
 
@@ -320,11 +320,13 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// Request full generation of a chunk to terrain workers, in order to fully generate
     /// a chunk, its terrain must be generated along with all of its corner being 
     /// populated by features.
-    fn request_full(&mut self, cx: i32, cz: i32) {
+    fn request_full(mut world: &mut StdbWorld, cx: i32, cz: i32) {
 
         // If the requested chunk already exists but is not fully populated, we only
         // request terrain chunks that are in the missing corners.
-        let populated = self.chunks_populated.get(&(cx, cz)).copied().unwrap_or(0);
+        // let populated = self.chunks_populated.get(&(cx, cz)).copied().unwrap_or(0);
+        let mut populated = StdbChunkPopulated::filter_by_x(&cx).find(|chunk|chunk.z == cz).map(
+            |chunk|chunk.populated).unwrap_or(0);
         assert_ne!(populated, POPULATED_ALL);
 
         let mut min_cx = cx;
@@ -351,14 +353,38 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         for terrain_cx in min_cx..=max_cx {
             for terrain_cz in min_cz..=max_cz {
                 // If the chunk has not terrain or is not fully populated...
-                if let Entry::Vacant(v) = self.chunks_populated.entry((terrain_cx, terrain_cz)) {
-                    // Send the request to one of the terrain worker.
-                    self.terrain_request_sender.send(TerrainRequest::Load { 
-                        cx: terrain_cx, 
-                        cz: terrain_cz,
-                    }).expect("terrain worker should not disconnect while this worker exists");
-                    // Insert 0 as populated, this marks the thread as already requested.
-                    v.insert(0);
+                match StdbChunkPopulated::filter_by_x(&terrain_cx).find(|chunk|chunk.z == terrain_cz) {
+                    None => {
+                        // Send the request to one of the terrain worker.
+                        // self.terrain_request_sender.send(TerrainRequest::Load {
+                        //     cx: terrain_cx,
+                        //     cz: terrain_cz,
+                        // }).expect("terrain worker should not disconnect while this worker exists");
+                        let mut chunk = Chunk::new_no_arc();
+                        // let start = Instant::now();
+                        //TODO(jdetter): What we should be doing here, is saving the generator in a table and looking it up instead
+                        // of creating a new world generator every time we need to generate a single chunk
+                        let generator = OverworldGenerator::new(9999);
+                        let mut state = crate::gen::overworld::OverworldState::new();
+                        generator.gen_terrain(cx, cz, &mut chunk, &mut state);
+                        // let duration = start.elapsed();
+                        // self.stats.gen_terrain_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+                        // self.stats.gen_terrain_count.fetch_add(1, Ordering::Relaxed);
+
+                        // If the channel is disconnected, abort to stop thread.
+                        // if self.terrain_reply_sender.send(TerrainReply::Load { cx, cz, chunk }).is_err() {
+                        //     break;
+                        // }
+                        StorageWorker::insert_terrain(&mut world, generator, cx, cz, chunk, &mut state);
+                        // Insert 0 as populated, this marks the thread as already requested.
+                        StdbChunkPopulated::insert(StdbChunkPopulated {
+                            id: 0,
+                            x: terrain_cx,
+                            z: terrain_cz,
+                            populated: 0
+                        }).unwrap();
+                    }
+                    Some(_) => {}
                 }
             }
         }
@@ -366,16 +392,20 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     }
 
     /// Insert a terrain chunk that have just been returned by a terrain worker.
-    fn insert_terrain(&mut self, cx: i32, cz: i32, chunk: Chunk) -> bool {
-        
+    fn insert_terrain(mut world: &mut StdbWorld, generator: OverworldGenerator, cx: i32, cz: i32, chunk: Chunk, mut state: &mut Self::State) -> u8 {
         // Get the current state and check its coherency.
-        let populated = self.chunks_populated.get_mut(&(cx, cz))
-            .expect("chunk state should be present if terrain has been requested");
-        assert_eq!(*populated, 0, "requested terrain chunk should have no populated corner");
-        assert!(!self.world.contains_chunk(cx, cz), "requested terrain chunk is already present");
+        let populated = 0;
+        // let populated = self.chunks_populated.get_mut(&(cx, cz))
+        //    .expect("chunk state should be present if terrain has been requested");
+        // assert_eq!(populated, 0, "requested terrain chunk should have no populated corner");
+        // Make sure that the chunk doesn't already exist
+        assert!(StdbChunk::filter_by_x(&cx).find(|chunk|chunk.z == cz).is_none(), "requested terrain chunk is already present");
+        // assert!(!self.world.contains_chunk(cx, cz), "requested terrain chunk is already present");
 
         // Set the chunk in the world.
-        let chunk_id = self.world.set_chunk(cx, cz, chunk);
+        // let chunk_id = self.world.set_chunk(cx, cz, chunk);
+        let chunk_id = world.world.set_chunk(cx, cz, chunk);
+
 
         // For each chunk around the current chunk, check if it exists. Component order 
         // is [X][Z]. Using this temporary array avoids too much calls to contains_chunk.
@@ -389,7 +419,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 // chunk is contained in the world, it also implies that it has a state
                 // in the local "chunks_state" map.
                 if (dcx, dcz) != (1, 1) {
-                    if self.world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1) {
+                    if world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1) {
                         // NOTE: Array access should be heavily optimized by compiler.
                         contains[dcx][dcz] = true;
                     }
@@ -437,7 +467,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 let current_cz = cz + dcz as i32 - 1;
 
                 // let start = Instant::now();
-                self.generator.gen_features(current_cx, current_cz, &mut self.world, &mut self.state);
+                generator.gen_features(current_cx, current_cz, &mut world, &mut state);
                 // let duration = start.elapsed();
                 // self.stats.gen_features_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
                 // self.stats.gen_features_count.fetch_add(1, Ordering::Relaxed);
@@ -458,14 +488,15 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                     
                     let current_cx = cx + dcx as i32 - 1;
                     let current_cz = cz + dcz as i32 - 1;
-                    let populated = self.chunks_populated.get_mut(&(current_cx, current_cz))
-                        .expect("chunk should be existing at this point");
+                    // let populated = self.chunks_populated.get_mut(&(current_cx, current_cz))
+                        // .expect("chunk should be existing at this point");
+                    let mut stdb_populated = StdbChunkPopulated::filter_by_x(&current_cx).find(|chunk|chunk.z == current_cz).unwrap();
 
-                    *populated |= populated_mask;
+                    let populated : u8 = stdb_populated.populated | populated_mask;
 
                     // After this, we check if the chunk has been fully populated, if so
                     // we can remove its snapshot and finally return it!
-                    if *populated & POPULATED_ALL == POPULATED_ALL {
+                    if populated & POPULATED_ALL == POPULATED_ALL {
 
                         // Remove the populated status to keep coherency because we'll 
                         // remove the chunk from the world.
@@ -485,6 +516,9 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                             return false;
                         }
 
+                        let id = stdb_populated.id;
+                        stdb_populated.populated = populated;
+                        StdbChunkPopulated::update_by_id(&stdb_populated.id, stdb_populated);
                     }
 
                 }
@@ -500,7 +534,8 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         // println!("gen_terrain_duration: {} ms (samples: {})", gen_terrain_duration * 1000.0, gen_terrain_count);
         // println!("gen_features_duration: {} ms (samples: {})", gen_features_duration * 1000.0, gen_features_count);
 
-        true
+        // true
+        populated
 
     }
 
