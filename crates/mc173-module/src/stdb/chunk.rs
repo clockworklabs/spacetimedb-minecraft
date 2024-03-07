@@ -1,6 +1,7 @@
 use glam::IVec3;
 use spacetimedb::{spacetimedb, SpacetimeType};
 use crate::chunk::Chunk;
+use crate::ivec3::StdbIVec3;
 
 #[spacetimedb(table)]
 pub struct StdbChunk {
@@ -32,7 +33,7 @@ pub struct StdbTime {
 }
 
 #[derive(Debug, Clone, SpacetimeType)]
-pub struct BreakBlockPacket {
+pub struct StdbBreakBlockPacket {
     pub x: i32,
     pub y: i8,
     pub z: i32,
@@ -46,9 +47,7 @@ pub struct BreakingBlock {
     /// The start time of this block breaking.
     pub start_time: u64,
     /// The position of the block.
-    pub pos_x: i32,
-    pub pos_y: i32,
-    pub pos_z: i32,
+    pub pos: StdbIVec3,
     /// The block id.
     pub id: u8,
 }

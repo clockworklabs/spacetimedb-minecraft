@@ -295,9 +295,9 @@ pub struct BreakBlockPacket {
     pub status: u8,
 }
 
-impl From<BreakBlockPacket> for autogen::autogen::BreakBlockPacket {
+impl From<BreakBlockPacket> for autogen::autogen::StdbBreakBlockPacket {
     fn from(value: BreakBlockPacket) -> Self {
-        autogen::autogen::BreakBlockPacket {
+        autogen::autogen::StdbBreakBlockPacket {
             x: value.x,
             y: value.y,
             z: value.z,

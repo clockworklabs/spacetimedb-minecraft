@@ -13,10 +13,8 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct BreakBlockPacket {
+pub struct StdbIVec3 {
     pub x: i32,
-    pub y: i8,
+    pub y: i32,
     pub z: i32,
-    pub face: u8,
-    pub status: u8,
 }

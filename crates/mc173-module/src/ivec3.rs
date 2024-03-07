@@ -2,7 +2,7 @@ use std::ops::Add;
 use glam::IVec3;
 use spacetimedb::SpacetimeType;
 
-#[derive(SpacetimeType, Clone, Copy)]
+#[derive(SpacetimeType, Clone, Copy, Debug)]
 pub struct StdbIVec3 {
     pub x: i32,
     pub y: i32,

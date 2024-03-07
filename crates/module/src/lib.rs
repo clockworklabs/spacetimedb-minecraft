@@ -13,11 +13,14 @@
 // limitations under the License.
 
 use std::time::Duration;
-use glam::DVec3;
+use glam::{DVec3, IVec3};
 use mc173_module::world::{Dimension, StdbWorld, World};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
+use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
-use mc173_module::stdb::chunk::StdbTime;
+use mc173_module::geom::Face;
+use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime};
+use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
 
 /// Server world seed is currently hardcoded.
@@ -264,9 +267,10 @@ fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
     // }
 
     // NOTE: Temporary code.
+    let size = 1;
     let (center_cx, center_cz) = calc_entity_chunk_pos(DVec3::new(0.0, 100.0, 0.0));
-    for cx in center_cx - 10..=center_cx + 10 {
-        for cz in center_cz - 10..=center_cz + 10 {
+    for cx in center_cx - size..=center_cx + size {
+        for cz in center_cz - size..=center_cz + size {
             ChunkStorage::request_load(world, cx, cz);
         }
     }
@@ -393,317 +397,132 @@ fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
 //     // Some((prev_id, prev_metadata))
 // }
 
-// #[spacetimedb(reducer)]
-// fn handle_break_block(entity_id: u32, packet: BreakBlockPacket) {
-    //
-    // let face = match packet.face {
-    //     0 => Face::NegY,
-    //     1 => Face::PosY,
-    //     2 => Face::NegZ,
-    //     3 => Face::PosZ,
-    //     4 => Face::NegX,
-    //     5 => Face::PosX,
-    //     _ => return,
-    // };
-    //
-    // // let Some(entity) = world.get_entity_mut(self.entity_id) else { return; };
-    // let pos = IVec3::new(packet.x, packet.y as i32, packet.z);
-    // let (cx, cz) = calc_chunk_pos(pos).unwrap();
-    // let chunk = StdbChunk::filter_by_x(&cx).find(|c|c.z == cz).unwrap();
-    // let breaking_block = StdbBreakingBlock::filter_by_entity_id(&entity_id);
-    // let time = StdbTime::filter_by_id(&0).unwrap().time;
-    //
-    // // tracing::trace!("packet: {packet:?}");
-    // // TODO: Use server time for breaking blocks.
-    //
-    // // let in_water = entity.0.in_water;
-    // // let on_ground = entity.0.on_ground;
-    // // let mut stack = self.main_inv[self.hand_slot as usize];
-    //
-    // if packet.status == 0 {
-    //
-    //     // Special case to extinguish fire.
-    //     // if chunk.is_block(pos + face.delta(), block::FIRE) {
-    //     //     world.set_block_notify(pos + face.delta(), block::AIR, 0);
-    //     // }
-    //
-    //     // We ignore any interaction result for the left click (break block) to
-    //     // avoid opening an inventory when breaking a container.
-    //     // NOTE: Interact before 'get_block': relevant for redstone_ore lit.
-    //     // world.interact_block(pos);
-    //
-    //     // Start breaking a block, ignore if the position is invalid.
-    //     if let Some((id, _)) = chunk.chunk.get_block(pos) {
-    //         let breaking_pos = IVec3 {
-    //             x: packet.x,
-    //             y: packet.y as i32,
-    //             z: packet.z,
-    //         };
-    //         // let break_duration = get_break_duration(stack.id, id, in_water, on_ground);
-    //         let break_duration = get_break_duration(0, id, false, true);
-    //         if break_duration.is_infinite() {
-    //             // Do nothing, the block is unbreakable.
-    //         } else if break_duration == 0.0 {
-    //             set_block(breaking_pos.x, breaking_pos.y, breaking_pos.z, 0, 0);
-    //         } else {
-    //             let new_breaking_block = mc173_module::stdb::chunk::BreakingBlock {
-    //                 start_time: time,
-    //                 pos_x: pos.x,
-    //                 pos_y: pos.y,
-    //                 pos_z: pos.z,
-    //                 id,
-    //             };
-    //
-    //             match breaking_block {
-    //                 None => {
-    //                     StdbBreakingBlock::insert(StdbBreakingBlock {
-    //                         entity_id,
-    //                         state: new_breaking_block,
-    //                     }).unwrap();
-    //                 },
-    //                 Some(_) => {
-    //                     StdbBreakingBlock::update_by_entity_id(&entity_id, StdbBreakingBlock {
-    //                         entity_id,
-    //                         state: new_breaking_block,
-    //                     });
-    //                 }
-    //             }
-    //         }
-    //     }
-    // } else if packet.status == 2 {
-    //     if let Some(breaking_block) = breaking_block {
-    //         StdbBreakingBlock::delete_by_entity_id(&entity_id);
-    //
-    //         // Block breaking should be finished.
-    //         let breaking_pos = IVec3 {
-    //             x: breaking_block.state.pos_x,
-    //             y: breaking_block.state.pos_y,
-    //             z: breaking_block.state.pos_z,
-    //         };
-    //
-    //         if breaking_pos == pos && chunk.is_block(pos, breaking_block.state.id) {
-    //             // let break_duration = get_break_duration(stack.id, state.id, in_water, on_ground);
-    //             let break_duration = get_break_duration(0, breaking_block.state.id, false, true);
-    //             let min_time = breaking_block.state.start_time + (break_duration * 0.7) as u64;
-    //             if time >= min_time {
-    //                 set_block(breaking_pos.x, breaking_pos.y, breaking_pos.z, 0, 0);
-    //                 // world.break_block(pos);
-    //             } else {
-    //                 // log::warn!("from {}, incoherent break time, expected {min_time} but got {}", self.username, world.get_time());
-    //                 log::warn!("from {entity_id}, incoherent break time, expected {min_time} but got {}", time);
-    //             }
-    //         } else {
-    //             // log::warn!("from {}, incoherent break position, expected  {}, got {}", self.username, pos, state.pos);
-    //             log::warn!("from {entity_id}, incoherent break position, expected  {pos}, got {breaking_pos}");
-    //         }
-    //     }
-    // } else if packet.status == 4 {
-    //     // TODO: find out what this is? Do we need it?
-    //     // Drop the selected item.
-    //     //
-    //     // if !stack.is_empty() {
-    //     //     stack.size -= 1;
-    //     //     self.main_inv[self.hand_slot as usize] = stack.to_non_empty().unwrap_or_default();
-    //     //
-    //     //     self.send(OutPacket::WindowSetItem(proto::WindowSetItemPacket {
-    //     //         window_id: 0,
-    //     //         slot: 36 + self.hand_slot as i16,
-    //     //         stack: stack.to_non_empty(),
-    //     //     }));
-    //     //
-    //     //     self.drop_stack(world, stack.with_size(1), false);
-    //     // }
-    // }
-// }
+#[spacetimedb(reducer)]
+fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
 
-// pub fn get_break_duration(item_id: u16, block_id: u8, in_water: bool, on_ground: bool) -> f32 {
-//
-//     // TODO: Maybe remove hardness from the block definition, because it's only used in
-//     // the game for break duration.
-//
-//     let hardness = block::material::get_break_hardness(block_id);
-//     if hardness.is_infinite() {
-//         f32::INFINITY
-//     } else {
-//
-//         // The hardness value in the game is registered as ticks, with a multiplier
-//         // depending on the player's conditions and tools.
-//
-//         if can_break(item_id, block_id) {
-//
-//             let mut env_modifier = get_break_speed(item_id, block_id);
-//
-//             if in_water {
-//                 env_modifier /= 5.0;
-//             }
-//
-//             if !on_ground {
-//                 env_modifier /= 5.0;
-//             }
-//
-//             hardness * 30.0 / env_modifier
-//
-//         } else {
-//             hardness * 100.0
-//         }
-//
-//     }
-//
-// }
+    // TODO(jdetter): replace this when we migrate entities
+    let username = "Boppy";
 
-// /// Check if an item (given its id) can break a block without speed penalties and
-// /// loose the items.
-// fn can_break(item_id: u16, block_id: u8) -> bool {
-//
-//     match block_id {
-//         block::OBSIDIAN => matches!(item_id,
-//                 item::DIAMOND_PICKAXE),
-//         block::DIAMOND_ORE |
-//         block::DIAMOND_BLOCK |
-//         block::GOLD_ORE |
-//         block::GOLD_BLOCK |
-//         block::REDSTONE_ORE |
-//         block::REDSTONE_ORE_LIT => matches!(item_id,
-//                 item::DIAMOND_PICKAXE |
-//                 item::IRON_PICKAXE),
-//         block::IRON_ORE |
-//         block::IRON_BLOCK |
-//         block::LAPIS_ORE |
-//         block::LAPIS_BLOCK => matches!(item_id,
-//                 item::DIAMOND_PICKAXE |
-//                 item::IRON_PICKAXE |
-//                 item::STONE_PICKAXE),
-//         block::COBWEB => matches!(item_id,
-//                 item::SHEARS |
-//                 item::DIAMOND_SWORD |
-//                 item::IRON_SWORD |
-//                 item::STONE_SWORD |
-//                 item::GOLD_SWORD |
-//                 item::WOOD_SWORD),
-//         block::SNOW |
-//         block::SNOW_BLOCK => matches!(item_id,
-//                 item::DIAMOND_SHOVEL |
-//                 item::IRON_SHOVEL |
-//                 item::STONE_SHOVEL |
-//                 item::GOLD_SHOVEL |
-//                 item::WOOD_SHOVEL),
-//         _ => {
-//
-//             let material = block::material::get_material(block_id);
-//             if material.is_breakable_by_default() {
-//                 return true;
-//             }
-//
-//             match item_id {
-//                 item::DIAMOND_PICKAXE |
-//                 item::IRON_PICKAXE |
-//                 item::STONE_PICKAXE |
-//                 item::GOLD_PICKAXE |
-//                 item::WOOD_PICKAXE => matches!(material, Material::Rock | Material::Iron),
-//                 _ => false
-//             }
-//
-//         }
-//     }
-//
-// }
+    // NOTE: Instead of just grabbing an arbirary world, we should use the world that the player is in
+    let mut world = StdbWorld::filter_by_id(&1).unwrap();
 
-// /// Get the speed multiplier for breaking a given block with a given item.
-// fn get_break_speed(item_id: u16, block_id: u8) -> f32 {
-//
-//     const DIAMOND_SPEED: f32 = 8.0;
-//     const IRON_SPEED: f32 = 6.0;
-//     const STONE_SPEED: f32 = 4.0;
-//     const WOOD_SPEED: f32 = 2.0;
-//     const GOLD_SPEED: f32 = 12.0;
-//
-//     match block_id {
-//         block::WOOD |
-//         block::BOOKSHELF |
-//         block::LOG |
-//         block::CHEST => {
-//             // Axe
-//             match item_id {
-//                 item::DIAMOND_AXE => DIAMOND_SPEED,
-//                 item::IRON_AXE => IRON_SPEED,
-//                 item::STONE_AXE => STONE_SPEED,
-//                 item::WOOD_AXE => WOOD_SPEED,
-//                 item::GOLD_AXE => GOLD_SPEED,
-//                 _ => 1.0,
-//             }
-//         }
-//         block::COBBLESTONE |
-//         block::SLAB |
-//         block::DOUBLE_SLAB |
-//         block::STONE |
-//         block::SANDSTONE |
-//         block::MOSSY_COBBLESTONE |
-//         block::IRON_ORE |
-//         block::IRON_BLOCK |
-//         block::GOLD_ORE |
-//         block::GOLD_BLOCK |
-//         block::COAL_ORE |
-//         block::DIAMOND_ORE |
-//         block::DIAMOND_BLOCK |
-//         block::ICE |
-//         block::NETHERRACK |
-//         block::LAPIS_ORE |
-//         block::LAPIS_BLOCK => {
-//             // Pickaxe
-//             match item_id {
-//                 item::DIAMOND_PICKAXE => DIAMOND_SPEED,
-//                 item::IRON_PICKAXE => IRON_SPEED,
-//                 item::STONE_PICKAXE => STONE_SPEED,
-//                 item::WOOD_PICKAXE => WOOD_SPEED,
-//                 item::GOLD_PICKAXE => GOLD_SPEED,
-//                 _ => 1.0,
-//             }
-//         }
-//         block::GRASS |
-//         block::DIRT |
-//         block::SAND |
-//         block::GRAVEL |
-//         block::SNOW |
-//         block::SNOW_BLOCK |
-//         block::CLAY |
-//         block::FARMLAND => {
-//             // Shovel
-//             match item_id {
-//                 item::DIAMOND_SHOVEL => DIAMOND_SPEED,
-//                 item::IRON_SHOVEL => IRON_SPEED,
-//                 item::STONE_SHOVEL => STONE_SPEED,
-//                 item::WOOD_SHOVEL => WOOD_SPEED,
-//                 item::GOLD_SHOVEL => GOLD_SPEED,
-//                 _ => 1.0,
-//             }
-//         }
-//         block::COBWEB => {
-//             match item_id {
-//                 item::SHEARS |
-//                 item::DIAMOND_SWORD |
-//                 item::IRON_SWORD |
-//                 item::STONE_SWORD |
-//                 item::GOLD_SWORD |
-//                 item::WOOD_SWORD => 15.0,
-//                 _ => 1.0,
-//             }
-//         }
-//         block::LEAVES => {
-//             match item_id {
-//                 item::SHEARS => 15.0,
-//                 _ => 1.0,
-//             }
-//         }
-//         _ => match item_id {
-//             item::DIAMOND_SWORD |
-//             item::IRON_SWORD |
-//             item::STONE_SWORD |
-//             item::GOLD_SWORD |
-//             item::WOOD_SWORD => 1.5,
-//             _ => 1.0,
-//         }
-//     }
-//
-// }
+    let face = match packet.face {
+        0 => Face::NegY,
+        1 => Face::PosY,
+        2 => Face::NegZ,
+        3 => Face::PosZ,
+        4 => Face::NegX,
+        5 => Face::PosX,
+        _ => return,
+    };
+
+    // let Some(entity) = world.get_entity_mut(self.entity_id) else { return };
+    let pos : IVec3 = IVec3 {
+        x: packet.x,
+        y: packet.y as i32,
+        z: packet.z,
+    };
+
+    // tracing::trace!("packet: {packet:?}");
+    log::info!("Breaking block: {} {} {}", packet.x, packet.y, packet.z);
+    // TODO: Use server time for breaking blocks.
+
+    // let in_water = entity.0.in_water;
+    // let on_ground = entity.0.on_ground;
+    let in_water = false;
+    let on_ground = true;
+    // let mut stack = self.main_inv[self.hand_slot as usize];
+    let mut hand_item = item::DIAMOND_PICKAXE;
+
+    let mut stdb_breaking_block = StdbBreakingBlock::filter_by_entity_id(&entity_id);
+
+    if packet.status == 0 {
+
+        // Special case to extinguish fire.
+        if world.world.is_block(pos + face.delta(), block::FIRE) {
+            world.world.set_block_notify(pos + face.delta(), block::AIR, 0);
+        }
+
+        // We ignore any interaction result for the left click (break block) to
+        // avoid opening an inventory when breaking a container.
+        // NOTE: Interact before 'get_block': relevant for redstone_ore lit.
+        // world.world.interact_block(pos);
+
+        // Start breaking a block, ignore if the position is invalid.
+        if let Some((id, _)) = world.world.get_block(pos) {
+
+            // let break_duration = world.get_break_duration(stack.id, id, in_water, on_ground);
+            let break_duration = world.world.get_break_duration(hand_item, id, in_water, on_ground);
+            if break_duration.is_infinite() {
+                // Do nothing, the block is unbreakable.
+            } else if break_duration == 0.0 {
+                world.world.break_block(pos);
+            } else {
+                // self.breaking_block = Some(BreakingBlock {
+                //     start_time: world.get_time(), // + (break_duration * 0.7) as u64,
+                //     pos,
+                //     id,
+                // });
+                let new_breaking_block = StdbBreakingBlock {
+                    entity_id: entity_id,
+                    state: BreakingBlock {
+                        start_time: world.world.get_time(), // + (break_duration * 0.7) as u64,
+                        pos: pos.into(),
+                        id,
+                    }
+                };
+
+                match stdb_breaking_block {
+                    None => {
+                        StdbBreakingBlock::insert(new_breaking_block).unwrap();
+                    }
+                    Some(_) => {
+                        StdbBreakingBlock::update_by_entity_id(&entity_id, new_breaking_block);
+                    }
+                }
+
+            }
+
+        }
+
+    } else if packet.status == 2 {
+        // Block breaking should be finished.
+        if let Some(some_breaking_block) = stdb_breaking_block.take() {
+            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.world.is_block(pos, some_breaking_block.state.id) {
+                // let break_duration = world.world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
+                let break_duration = world.world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
+                let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;
+                if world.world.get_time() >= min_time {
+                    world.world.break_block(pos);
+                } else {
+
+                    log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.world.get_time());
+
+                }
+            } else {
+                log::warn!("from {}, incoherent break position", username);
+            }
+        }
+    } else if packet.status == 4 {
+        // Drop the selected item.
+
+        // if !stack.is_empty() {
+        //
+        //     stack.size -= 1;
+        //     self.main_inv[self.hand_slot as usize] = stack.to_non_empty().unwrap_or_default();
+        //
+        //     self.send(OutPacket::WindowSetItem(proto::WindowSetItemPacket {
+        //         window_id: 0,
+        //         slot: 36 + self.hand_slot as i16,
+        //         stack: stack.to_non_empty(),
+        //     }));
+        //
+        //     self.drop_stack(world, stack.with_size(1), false);
+        //
+        // }
+
+    }
+}
+
 
 

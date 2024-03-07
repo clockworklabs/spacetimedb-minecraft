@@ -10,7 +10,7 @@ use glam::IVec3;
 
 use crate::rand::JavaRandom;
 use crate::chunk::Chunk;
-use crate::world::World;
+use crate::world::{StdbWorld, World};
 
 // World gen-specific mathematic functions.
 pub mod math;
@@ -52,7 +52,7 @@ pub trait ChunkGenerator {
     /// done. Populate usually applies with an offset of 8 blocks into the chunk with
     /// a 16x16 populate area, this means that neighbor chunks affected are also
     /// guaranteed to be loaded.
-    fn gen_features(&self, cx: i32, cz: i32, world: &mut World, state: &mut Self::State);
+    fn gen_features(&self, cx: i32, cz: i32, world: &mut StdbWorld, state: &mut Self::State);
 
 }
 

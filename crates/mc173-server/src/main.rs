@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_set_block, ReducerEvent, StdbChunk, StdbWeather};
+use autogen::autogen::{connect, on_handle_break_block, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbWeather};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -75,21 +75,24 @@ fn on_chunk_update(
     server.worlds[0].state.chunk_trackers.flush_chunk(chunk.x, chunk.z);
 }
 
-fn on_block_set(
+fn on_handle_break_block_callback(
     _sender_id: &Identity,
     _sender_address: Option<Address>,
-    status: &Status,
-    pos_x: &i32,
-    pos_y: &i32,
-    pos_z: &i32,
-    id: &u8,
-    metadata: &u8,
+    _status: &Status,
+    _entity_id: &u32,
+    packet: &StdbBreakBlockPacket,
 ) {
     let mut s = SERVER.lock().unwrap();
-    let pos = IVec3::new(*pos_x, *pos_y, *pos_z);
+    let mut server = s.as_mut().unwrap();
+    let pos = IVec3 {
+        x: packet.x,
+        y: packet.y as i32,
+        z: packet.z,
+    };
+    let block = server.worlds[0].world.get_block(pos).unwrap();
     s.as_mut().unwrap().worlds[0]
         .world
-        .notify_block_2(pos, *id, *metadata);
+        .notify_block_2(pos, block.0, block.1);
 }
 
 fn on_subscription_applied_callback() {
@@ -130,7 +133,7 @@ pub fn main() {
     StdbChunk::on_update(on_chunk_update);
     StdbWeather::on_update(on_weather_updated);
     on_subscription_applied(on_subscription_applied_callback);
-    on_set_block(on_block_set);
+    on_handle_break_block(on_handle_break_block_callback);
     connect(server, module, None).expect("Failed to connect");
     subscribe(&["SELECT * FROM StdbChunk; SELECT * FROM StdbTime; SELECT * FROM StdbWeather;"]).unwrap();
     println!("Connected to SpacetimeDB");

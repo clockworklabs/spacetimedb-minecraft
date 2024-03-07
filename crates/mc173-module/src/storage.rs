@@ -34,10 +34,10 @@ const POPULATED_POS_Z: u8   = POPULATED_POS_POS | POPULATED_NEG_POS;
 
 /// This structure is a handle around a chunk storage.
 pub struct ChunkStorage {
-    /// Request sender to storage worker.
-    storage_request_sender: Sender<StorageRequest>,
-    /// Reply receiver from storage worker.
-    storage_reply_receiver: Receiver<ChunkStorageReply>,
+    // /// Request sender to storage worker.
+    // storage_request_sender: Sender<StorageRequest>,
+    // /// Reply receiver from storage worker.
+    // storage_reply_receiver: Receiver<ChunkStorageReply>,
     /// Set of requested chunk loads.
     request_load: HashSet<(i32, i32)>,
     /// Set of requested chunk saves.
@@ -55,16 +55,16 @@ struct StorageWorker<G: ChunkGenerator> {
     world: World,
     /// Populated status of chunks.
     chunks_populated: HashMap<(i32, i32), u8>,
-    /// The region directory to try loading required chunks.
+    // /// The region directory to try loading required chunks.
     // region_dir: RegionDir,
-    /// Request receiver from the handle.
-    storage_request_receiver: Receiver<StorageRequest>,
-    /// Reply sender to the handle.
-    storage_reply_sender: Sender<ChunkStorageReply>,
-    /// Request sender to the terrain worker.
-    terrain_request_sender: Sender<TerrainRequest>,
-    /// Reply receiver from the handle.
-    terrain_reply_receiver: Receiver<TerrainReply>,
+    // /// Request receiver from the handle.
+    // storage_request_receiver: Receiver<StorageRequest>,
+    // /// Reply sender to the handle.
+    // storage_reply_sender: Sender<ChunkStorageReply>,
+    // /// Request sender to the terrain worker.
+    // terrain_request_sender: Sender<TerrainRequest>,
+    // /// Reply receiver from the handle.
+    // terrain_reply_receiver: Receiver<TerrainReply>,
     //// Internal statistics tracker.
     // stats: Arc<Stats>,
 }
@@ -75,10 +75,10 @@ struct TerrainWorker<G: ChunkGenerator> {
     generator: Arc<G>,
     /// The non-shared state of the generator.
     state: G::State,
-    /// Request receiver from storage worker.
-    terrain_request_receiver: Receiver<TerrainRequest>,
-    /// Reply sender to storage worker.
-    terrain_reply_sender: Sender<TerrainReply>,
+    // /// Request receiver from storage worker.
+    // terrain_request_receiver: Receiver<TerrainRequest>,
+    // /// Reply sender to storage worker.
+    // terrain_reply_sender: Sender<TerrainReply>,
     /// Internal statistics tracker.
     stats: Arc<Stats>,
 }
@@ -99,91 +99,90 @@ struct Stats {
 impl ChunkStorage {
 
     /// Create a new chunk storage backed by the given terrain workers count.
-    pub fn new<P, G>(region_dir: P, generator: G, terrain_workers: usize) -> Self
-    where
-        P: Into<PathBuf>,
-        G: ChunkGenerator + Sync + Send + 'static,
-    {
+    // pub fn new<P, G>(region_dir: P, generator: G, terrain_workers: usize) -> Self
+    // where
+    //     P: Into<PathBuf>,
+    //     G: ChunkGenerator + Sync + Send + 'static,
+    // {
 
         // This channel is unbounded because it may cause deadlock.
-        let (
-            storage_request_sender,
-            storage_request_receiver,
-        ) = unbounded();
+        // let (
+        //     storage_request_sender,
+        //     storage_request_receiver,
+        // ) = unbounded();
 
         // The bound on the reply channel is used to block the storage worker if 
         // the consumer cannot keep up, this has the downside of blocking the whole
         // storage worker and therefore preventing new requests to come.
-        let (
-            storage_reply_sender,
-            storage_reply_receiver,
-        ) = bounded(100);
+        // let (
+        //     storage_reply_sender,
+        //     storage_reply_receiver,
+        // ) = bounded(100);
+        //
+        // let (
+        //     terrain_request_sender,
+        //     terrain_request_receiver,
+        // ) = unbounded();
+        //
+        // let (
+        //     terrain_reply_sender,
+        //     terrain_reply_receiver,
+        // ) = bounded(100 * terrain_workers);
 
-        let (
-            terrain_request_sender,
-            terrain_request_receiver,
-        ) = unbounded();
-
-        let (
-            terrain_reply_sender,
-            terrain_reply_receiver,
-        ) = bounded(100 * terrain_workers);
-
-        let region_dir: PathBuf = region_dir.into();
-        let generator = Arc::new(generator);
-        let stats = Arc::new(Stats::default());
-        
-        for i in 0..terrain_workers {
-
-            let worker_generator = Arc::clone(&generator);
-            let terrain_request_receiver = terrain_request_receiver.clone();
-            let terrain_reply_sender = terrain_reply_sender.clone();
-            let worker_stats = Arc::clone(&stats);
-
-            thread::Builder::new()
-                .name(format!("Chunk Terrain Worker #{i}"))
-                .spawn(move || TerrainWorker {
-                    generator: worker_generator,
-                    state: G::State::default(),
-                    terrain_request_receiver,
-                    terrain_reply_sender,
-                    stats: worker_stats,
-                }.run())
-                .unwrap();
-
-        }
-
-        thread::Builder::new()
-            .name(format!("Chunk Storage Worker"))
-            .spawn(move || StorageWorker {
-                generator,
-                state: G::State::default(),
-                world: World::new(Dimension::Overworld, 0), // Not relevant in worker.
-                chunks_populated: HashMap::new(),
-                // region_dir: RegionDir::new(region_dir),
-                storage_request_receiver,
-                storage_reply_sender,
-                terrain_request_sender,
-                terrain_reply_receiver,
-                // stats,
-            }.run())
-            .unwrap();
-
-        Self {
-            storage_request_sender,
-            storage_reply_receiver,
-            request_load: HashSet::new(),
-            request_save: HashSet::new(),
-        }
-
-    }
+        // let region_dir: PathBuf = region_dir.into();
+        // let generator = Arc::new(generator);
+        // let stats = Arc::new(Stats::default());
+        //
+        // for i in 0..terrain_workers {
+        //
+        //     let worker_generator = Arc::clone(&generator);
+        //     let terrain_request_receiver = terrain_request_receiver.clone();
+        //     let terrain_reply_sender = terrain_reply_sender.clone();
+        //     let worker_stats = Arc::clone(&stats);
+        //
+        //     thread::Builder::new()
+        //         .name(format!("Chunk Terrain Worker #{i}"))
+        //         .spawn(move || TerrainWorker {
+        //             generator: worker_generator,
+        //             state: G::State::default(),
+        //             terrain_request_receiver,
+        //             terrain_reply_sender,
+        //             stats: worker_stats,
+        //         }.run())
+        //         .unwrap();
+        //
+        // }
+        //
+        // thread::Builder::new()
+        //     .name(format!("Chunk Storage Worker"))
+        //     .spawn(move || StorageWorker {
+        //         generator,
+        //         state: G::State::default(),
+        //         world: World::new(Dimension::Overworld, 0), // Not relevant in worker.
+        //         chunks_populated: HashMap::new(),
+        //         // region_dir: RegionDir::new(region_dir),
+        //         storage_request_receiver,
+        //         storage_reply_sender,
+        //         terrain_request_sender,
+        //         terrain_reply_receiver,
+        //         // stats,
+        //     }.run())
+        //     .unwrap();
+        //
+        // Self {
+        //     storage_request_sender,
+        //     storage_reply_receiver,
+        //     request_load: HashSet::new(),
+        //     request_save: HashSet::new(),
+        // }
+    // }
 
     /// Request loading of a chunk, that will later be returned by polling this storage.
     pub fn request_load(world: &mut StdbWorld, cx: i32, cz: i32) {
         // self.request_load.insert((cx, cz));
         // self.storage_request_sender.send(StorageRequest::Load { cx, cz })
         //     .expect("worker should not disconnect while this handle exists");
-        StorageWorker::load_or_gen(world, cx, cz);
+        StorageWorker::<OverworldGenerator>::load_or_gen(world, cx, cz);
     }
 
     // /// Request saving of the given chunk snapshot.
@@ -193,21 +192,21 @@ impl ChunkStorage {
     //         .expect("worker should not disconnect while this handle exists");
     // }
 
-    /// Poll without blocking this storage for new reply to requested load and save.
-    /// This function returns none if there is not new reply to poll.
-    pub fn poll(&mut self) -> Option<ChunkStorageReply> {
-        match self.storage_reply_receiver.try_recv() {
-            Ok(reply) => {
-                match reply {
-                    ChunkStorageReply::Load { cx, cz, .. } => self.request_load.remove(&(cx, cz)),
-                    // ChunkStorageReply::Save { cx, cz, .. } => self.request_save.remove(&(cx, cz)),
-                };
-                Some(reply)
-            }
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => panic!("worker should not disconnect while this handle exists"),
-        }
-    }
+    // /// Poll without blocking this storage for new reply to requested load and save.
+    // /// This function returns none if there is not new reply to poll.
+    // pub fn poll(&mut self) -> Option<ChunkStorageReply> {
+    //     match self.storage_reply_receiver.try_recv() {
+    //         Ok(reply) => {
+    //             match reply {
+    //                 ChunkStorageReply::Load { cx, cz, .. } => self.request_load.remove(&(cx, cz)),
+    //                 // ChunkStorageReply::Save { cx, cz, .. } => self.request_save.remove(&(cx, cz)),
+    //             };
+    //             Some(reply)
+    //         }
+    //         Err(TryRecvError::Empty) => None,
+    //         Err(TryRecvError::Disconnected) => panic!("worker should not disconnect while this handle exists"),
+    //     }
+    // }
 
     /// Number of requested chunk loads pending.
     #[inline]
@@ -225,20 +224,20 @@ impl ChunkStorage {
 
 impl<G: ChunkGenerator> StorageWorker<G> {
 
-    fn run(mut self) {
-        while let Ok(true) = self.handle() { }
-    }
+    // fn run(mut self) {
+    //     while let Ok(true) = self.handle() { }
+    // }
 
-    /// Handle a channel message, return Ok(true) to continue and Ok(false) to stop
-    /// thread, this is used to stop if any channel error happens.
-    fn handle(&mut self) -> Result<bool, RecvError> {
-        Ok(select! {
-            recv(self.storage_request_receiver) -> request => 
-                self.handle_storage_request(request?),
-            recv(self.terrain_reply_receiver) -> reply => 
-                self.receive_terrain_reply(reply?),
-        })
-    }
+    // /// Handle a channel message, return Ok(true) to continue and Ok(false) to stop
+    // /// thread, this is used to stop if any channel error happens.
+    // fn handle(&mut self) -> Result<bool, RecvError> {
+    //     Ok(select! {
+    //         recv(self.storage_request_receiver) -> request =>
+    //             self.handle_storage_request(request?),
+    //         recv(self.terrain_reply_receiver) -> reply =>
+    //             self.receive_terrain_reply(reply?),
+    //     })
+    // }
 
     // fn handle_storage_request(&mut self, request: StorageRequest) -> bool {
     //     match request {
@@ -251,12 +250,12 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
 
 
-    fn receive_terrain_reply(&mut self, reply: TerrainReply) -> bool {
-        match reply {
-            TerrainReply::Load { cx, cz, chunk } => 
-                self.insert_terrain(cx, cz, chunk),
-        }
-    }
+    // fn receive_terrain_reply(&mut self, reply: TerrainReply) -> bool {
+    //     match reply {
+    //         TerrainReply::Load { cx, cz, chunk } =>
+    //             self.insert_terrain(cx, cz, chunk),
+    //     }
+    // }
 
     /// Internal function to try loading a chunk from region file, if the chunk is not
     /// found, its generation is requested to terrain workers. But if a critical error
@@ -280,7 +279,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         //     }
         // }
 
-        StorageWorker::request_full(world, cx, cz);
+        StorageWorker::<OverworldGenerator>::request_full(world, cx, cz);
         true
     }
 
@@ -322,6 +321,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// populated by features.
     fn request_full(mut world: &mut StdbWorld, cx: i32, cz: i32) {
 
+        log::info!("Generating chunk: ({}, {})", cx, cz);
         // If the requested chunk already exists but is not fully populated, we only
         // request terrain chunks that are in the missing corners.
         // let populated = self.chunks_populated.get(&(cx, cz)).copied().unwrap_or(0);
@@ -353,7 +353,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
         for terrain_cx in min_cx..=max_cx {
             for terrain_cz in min_cz..=max_cz {
                 // If the chunk has not terrain or is not fully populated...
-                match StdbChunkPopulated::filter_by_x(&terrain_cx).find(|chunk|chunk.z == terrain_cz) {
+                match StdbChunk::filter_by_x(&terrain_cx).find(|chunk|chunk.z == terrain_cz) {
                     None => {
                         // Send the request to one of the terrain worker.
                         // self.terrain_request_sender.send(TerrainRequest::Load {
@@ -364,9 +364,10 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                         // let start = Instant::now();
                         //TODO(jdetter): What we should be doing here, is saving the generator in a table and looking it up instead
                         // of creating a new world generator every time we need to generate a single chunk
+
                         let generator = OverworldGenerator::new(9999);
-                        let mut state = crate::gen::overworld::OverworldState::new();
-                        generator.gen_terrain(cx, cz, &mut chunk, &mut state);
+                        let mut state = OverworldState::default();
+                        generator.gen_terrain(terrain_cx, terrain_cz, &mut chunk, &mut state);
                         // let duration = start.elapsed();
                         // self.stats.gen_terrain_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
                         // self.stats.gen_terrain_count.fetch_add(1, Ordering::Relaxed);
@@ -375,14 +376,17 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                         // if self.terrain_reply_sender.send(TerrainReply::Load { cx, cz, chunk }).is_err() {
                         //     break;
                         // }
-                        StorageWorker::insert_terrain(&mut world, generator, cx, cz, chunk, &mut state);
-                        // Insert 0 as populated, this marks the thread as already requested.
-                        StdbChunkPopulated::insert(StdbChunkPopulated {
+                        let stdb_populated = StdbChunkPopulated::insert(StdbChunkPopulated {
                             id: 0,
                             x: terrain_cx,
                             z: terrain_cz,
                             populated: 0
                         }).unwrap();
+                        populated = StorageWorker::<OverworldGenerator>::insert_terrain(
+                            &mut world, generator, terrain_cx, terrain_cz, chunk, &mut state);
+                        // Insert 0 as populated, this marks the thread as already requested.
+                        let id = stdb_populated.id;
+                        StdbChunkPopulated::update_by_id(&id, stdb_populated);
                     }
                     Some(_) => {}
                 }
@@ -392,7 +396,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     }
 
     /// Insert a terrain chunk that have just been returned by a terrain worker.
-    fn insert_terrain(mut world: &mut StdbWorld, generator: OverworldGenerator, cx: i32, cz: i32, chunk: Chunk, mut state: &mut Self::State) -> u8 {
+    fn insert_terrain(mut world: &mut StdbWorld, generator: OverworldGenerator, cx: i32, cz: i32, chunk: Chunk, mut state: &mut OverworldState) -> u8 {
         // Get the current state and check its coherency.
         let populated = 0;
         // let populated = self.chunks_populated.get_mut(&(cx, cz))
@@ -419,7 +423,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 // chunk is contained in the world, it also implies that it has a state
                 // in the local "chunks_state" map.
                 if (dcx, dcz) != (1, 1) {
-                    if world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1) {
+                    if world.world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1) {
                         // NOTE: Array access should be heavily optimized by compiler.
                         contains[dcx][dcz] = true;
                     }
@@ -500,7 +504,8 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
                         // Remove the populated status to keep coherency because we'll 
                         // remove the chunk from the world.
-                        self.chunks_populated.remove(&(current_cx, current_cz));
+                        // chunks_populated.remove(&(current_cx, current_cz));
+                        StdbChunkPopulated::delete_by_id(&stdb_populated.id);
 
                         // let snapshot = self.world.remove_chunk_snapshot(current_cx, current_cz)
                         //     .expect("chunk should be existing and snapshot possible");
@@ -511,14 +516,10 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                         // }
 
                         // Finally return the chunk snapshot!
-                        if self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Some(chunk_id) }).is_err() {
-                            // Directly abort to stop the thread because the handle is dropped.
-                            return false;
-                        }
-
-                        let id = stdb_populated.id;
-                        stdb_populated.populated = populated;
-                        StdbChunkPopulated::update_by_id(&stdb_populated.id, stdb_populated);
+                        // if self.storage_reply_sender.send(ChunkStorageReply::Load { cx, cz, res: Some(chunk_id) }).is_err() {
+                        //     // Directly abort to stop the thread because the handle is dropped.
+                        //     return false;
+                        // }
                     }
 
                 }
@@ -573,32 +574,32 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
 }
 
-impl<G: ChunkGenerator> TerrainWorker<G> {
-
-    fn run(mut self) {
-        // Run while the channel is existing, so while associated `StorageWorker` exists.
-        while let Ok(request) = self.terrain_request_receiver.recv() {
-            match request {
-                TerrainRequest::Load { cx, cz } => {
-
-                    let mut chunk = Chunk::new_no_arc();
-                    let start = Instant::now();
-                    self.generator.gen_terrain(cx, cz, &mut chunk, &mut self.state);
-                    let duration = start.elapsed();
-                    self.stats.gen_terrain_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
-                    self.stats.gen_terrain_count.fetch_add(1, Ordering::Relaxed);
-    
-                    // If the channel is disconnected, abort to stop thread.
-                    if self.terrain_reply_sender.send(TerrainReply::Load { cx, cz, chunk }).is_err() {
-                        break;
-                    }
-
-                }
-            }
-        }
-    }
-
-}
+// impl<G: ChunkGenerator> TerrainWorker<G> {
+//
+//     fn run(mut self) {
+//         // Run while the channel is existing, so while associated `StorageWorker` exists.
+//         while let Ok(request) = self.terrain_request_receiver.recv() {
+//             match request {
+//                 TerrainRequest::Load { cx, cz } => {
+//
+//                     let mut chunk = Chunk::new_no_arc();
+//                     let start = Instant::now();
+//                     self.generator.gen_terrain(cx, cz, &mut chunk, &mut self.state);
+//                     let duration = start.elapsed();
+//                     self.stats.gen_terrain_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
+//                     self.stats.gen_terrain_count.fetch_add(1, Ordering::Relaxed);
+//
+//                     // If the channel is disconnected, abort to stop thread.
+//                     if self.terrain_reply_sender.send(TerrainReply::Load { cx, cz, chunk }).is_err() {
+//                         break;
+//                     }
+//
+//                 }
+//             }
+//         }
+//     }
+//
+// }
 
 
 enum StorageRequest {
