@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_handle_break_block, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbWeather};
+use autogen::autogen::{connect, on_handle_break_block, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbSetBlockEvent, StdbWeather};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -75,24 +75,20 @@ fn on_chunk_update(
     server.worlds[0].state.chunk_trackers.flush_chunk(chunk.x, chunk.z);
 }
 
-fn on_handle_break_block_callback(
-    _sender_id: &Identity,
-    _sender_address: Option<Address>,
-    _status: &Status,
-    _entity_id: &u32,
-    packet: &StdbBreakBlockPacket,
-) {
+fn on_set_block_event_insert(event: &StdbSetBlockEvent, _reducer_event: Option<&ReducerEvent>) {
     let mut s = SERVER.lock().unwrap();
     let mut server = s.as_mut().unwrap();
-    let pos = IVec3 {
-        x: packet.x,
-        y: packet.y as i32,
-        z: packet.z,
-    };
-    let block = server.worlds[0].world.get_block(pos).unwrap();
-    s.as_mut().unwrap().worlds[0]
+    server.worlds[0]
         .world
-        .notify_block_2(pos, block.0, block.1);
+        .push_set_block_event(event.clone());
+}
+
+fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>) {
+    let mut s = SERVER.lock().unwrap();
+    let mut server = s.as_mut().unwrap();
+    server.worlds[0]
+        .world
+        .push_chunk_event(event.clone());
 }
 
 fn on_subscription_applied_callback() {
@@ -133,7 +129,7 @@ pub fn main() {
     StdbChunk::on_update(on_chunk_update);
     StdbWeather::on_update(on_weather_updated);
     on_subscription_applied(on_subscription_applied_callback);
-    on_handle_break_block(on_handle_break_block_callback);
+    StdbSetBlockEvent::on_insert(on_set_block_event_insert);
     connect(server, module, None).expect("Failed to connect");
     subscribe(&["SELECT * FROM StdbChunk; SELECT * FROM StdbTime; SELECT * FROM StdbWeather;"]).unwrap();
     println!("Connected to SpacetimeDB");

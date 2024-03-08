@@ -10,21 +10,24 @@ use spacetimedb_sdk::reducer::AnyReducerEvent;
 use spacetimedb_sdk::spacetime_module::SpacetimeModule;
 #[allow(unused)]
 use spacetimedb_sdk::{
+    Address,
     anyhow::{anyhow, Result},
     identity::Identity,
     reducer::{Reducer, ReducerCallbackId, Status},
     sats::{de::Deserialize, ser::Serialize},
     spacetimedb_lib,
     table::{TableIter, TableType, TableWithPrimaryKey},
-    Address,
 };
 use std::sync::Arc;
 
 pub mod biome;
 pub mod breaking_block;
 pub mod chunk;
+pub mod chunk_event;
 pub mod chunk_nibble_array_3;
 pub mod dimension;
+pub mod generate_chunk_reducer;
+pub mod generate_chunks_reducer;
 pub mod handle_break_block_reducer;
 pub mod java_random;
 pub mod light_kind;
@@ -32,10 +35,12 @@ pub mod light_update;
 pub mod stdb_break_block_packet;
 pub mod stdb_breaking_block;
 pub mod stdb_chunk;
+pub mod stdb_chunk_event;
 pub mod stdb_chunk_populated;
 pub mod stdb_i_vec_3;
 pub mod stdb_rand;
 pub mod stdb_server_world_state;
+pub mod stdb_set_block_event;
 pub mod stdb_time;
 pub mod stdb_weather;
 pub mod stdb_world;
@@ -47,8 +52,11 @@ pub mod world;
 pub use biome::*;
 pub use breaking_block::*;
 pub use chunk::*;
+pub use chunk_event::*;
 pub use chunk_nibble_array_3::*;
 pub use dimension::*;
+pub use generate_chunk_reducer::*;
+pub use generate_chunks_reducer::*;
 pub use handle_break_block_reducer::*;
 pub use java_random::*;
 pub use light_kind::*;
@@ -56,10 +64,12 @@ pub use light_update::*;
 pub use stdb_break_block_packet::*;
 pub use stdb_breaking_block::*;
 pub use stdb_chunk::*;
+pub use stdb_chunk_event::*;
 pub use stdb_chunk_populated::*;
 pub use stdb_i_vec_3::*;
 pub use stdb_rand::*;
 pub use stdb_server_world_state::*;
+pub use stdb_set_block_event::*;
 pub use stdb_time::*;
 pub use stdb_weather::*;
 pub use stdb_world::*;
@@ -71,6 +81,8 @@ pub use world::*;
 #[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ReducerEvent {
+    GenerateChunk(generate_chunk_reducer::GenerateChunkArgs),
+    GenerateChunks(generate_chunks_reducer::GenerateChunksArgs),
     HandleBreakBlock(handle_break_block_reducer::HandleBreakBlockArgs),
     Tick(tick_reducer::TickArgs),
 }
@@ -88,9 +100,11 @@ impl SpacetimeModule for Module {
         match table_name {
 						"StdbBreakingBlock" => client_cache.handle_table_update_no_primary_key::<stdb_breaking_block::StdbBreakingBlock>(callbacks, table_update),
 			"StdbChunk" => client_cache.handle_table_update_with_primary_key::<stdb_chunk::StdbChunk>(callbacks, table_update),
+			"StdbChunkEvent" => client_cache.handle_table_update_no_primary_key::<stdb_chunk_event::StdbChunkEvent>(callbacks, table_update),
 			"StdbChunkPopulated" => client_cache.handle_table_update_with_primary_key::<stdb_chunk_populated::StdbChunkPopulated>(callbacks, table_update),
 			"StdbRand" => client_cache.handle_table_update_no_primary_key::<stdb_rand::StdbRand>(callbacks, table_update),
 			"StdbServerWorldState" => client_cache.handle_table_update_with_primary_key::<stdb_server_world_state::StdbServerWorldState>(callbacks, table_update),
+			"StdbSetBlockEvent" => client_cache.handle_table_update_no_primary_key::<stdb_set_block_event::StdbSetBlockEvent>(callbacks, table_update),
 			"StdbTime" => client_cache.handle_table_update_no_primary_key::<stdb_time::StdbTime>(callbacks, table_update),
 			"StdbWeather" => client_cache.handle_table_update_with_primary_key::<stdb_weather::StdbWeather>(callbacks, table_update),
 			"StdbWorld" => client_cache.handle_table_update_with_primary_key::<stdb_world::StdbWorld>(callbacks, table_update),
@@ -110,6 +124,11 @@ impl SpacetimeModule for Module {
             state,
         );
         reminders.invoke_callbacks::<stdb_chunk::StdbChunk>(worker, &reducer_event, state);
+        reminders.invoke_callbacks::<stdb_chunk_event::StdbChunkEvent>(
+            worker,
+            &reducer_event,
+            state,
+        );
         reminders.invoke_callbacks::<stdb_chunk_populated::StdbChunkPopulated>(
             worker,
             &reducer_event,
@@ -117,6 +136,11 @@ impl SpacetimeModule for Module {
         );
         reminders.invoke_callbacks::<stdb_rand::StdbRand>(worker, &reducer_event, state);
         reminders.invoke_callbacks::<stdb_server_world_state::StdbServerWorldState>(
+            worker,
+            &reducer_event,
+            state,
+        );
+        reminders.invoke_callbacks::<stdb_set_block_event::StdbSetBlockEvent>(
             worker,
             &reducer_event,
             state,
@@ -137,7 +161,9 @@ impl SpacetimeModule for Module {
         };
         #[allow(clippy::match_single_binding)]
 match &function_call.reducer[..] {
-						"handle_break_block" => _reducer_callbacks.handle_event_of_type::<handle_break_block_reducer::HandleBreakBlockArgs, ReducerEvent>(event, _state, ReducerEvent::HandleBreakBlock),
+						"generate_chunk" => _reducer_callbacks.handle_event_of_type::<generate_chunk_reducer::GenerateChunkArgs, ReducerEvent>(event, _state, ReducerEvent::GenerateChunk),
+			"generate_chunks" => _reducer_callbacks.handle_event_of_type::<generate_chunks_reducer::GenerateChunksArgs, ReducerEvent>(event, _state, ReducerEvent::GenerateChunks),
+			"handle_break_block" => _reducer_callbacks.handle_event_of_type::<handle_break_block_reducer::HandleBreakBlockArgs, ReducerEvent>(event, _state, ReducerEvent::HandleBreakBlock),
 			"tick" => _reducer_callbacks.handle_event_of_type::<tick_reducer::TickArgs, ReducerEvent>(event, _state, ReducerEvent::Tick),
 			unknown => { spacetimedb_sdk::log::error!("Event on an unknown reducer: {:?}", unknown); None }
 }
@@ -156,6 +182,10 @@ match &function_call.reducer[..] {
                 ),
             "StdbChunk" => client_cache
                 .handle_resubscribe_for_type::<stdb_chunk::StdbChunk>(callbacks, new_subs),
+            "StdbChunkEvent" => client_cache
+                .handle_resubscribe_for_type::<stdb_chunk_event::StdbChunkEvent>(
+                    callbacks, new_subs,
+                ),
             "StdbChunkPopulated" => client_cache
                 .handle_resubscribe_for_type::<stdb_chunk_populated::StdbChunkPopulated>(
                     callbacks, new_subs,
@@ -165,6 +195,10 @@ match &function_call.reducer[..] {
             }
             "StdbServerWorldState" => client_cache
                 .handle_resubscribe_for_type::<stdb_server_world_state::StdbServerWorldState>(
+                    callbacks, new_subs,
+                ),
+            "StdbSetBlockEvent" => client_cache
+                .handle_resubscribe_for_type::<stdb_set_block_event::StdbSetBlockEvent>(
                     callbacks, new_subs,
                 ),
             "StdbTime" => {

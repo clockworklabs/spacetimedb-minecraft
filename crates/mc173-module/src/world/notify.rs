@@ -8,7 +8,7 @@ use glam::IVec3;
 use crate::geom::{Face, FaceSet};
 use crate::block;
 
-use super::World;
+use super::{StdbSetBlockEvent, World};
 
 
 /// Methods related to block self and neighbor notifications.
@@ -217,6 +217,7 @@ impl World {
                 if open != powered {
                     block::trapdoor::set_open(&mut metadata, powered);
                     self.set_block_notify(pos, block::TRAPDOOR, metadata);
+
                     // TODO: Another event that we don't care about in the SpacetimeDB module
                     // self.push_event(Event::Block {
                     //     pos,

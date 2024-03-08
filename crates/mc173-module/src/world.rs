@@ -185,6 +185,22 @@ pub struct StdbWorld {
     pub world: World
 }
 
+#[spacetimedb(table)]
+pub struct StdbSetBlockEvent {
+    pub pos: StdbIVec3,
+    pub old_id: u8,
+    pub old_metadata: u8,
+    pub new_id: u8,
+    pub new_metadata: u8,
+}
+
+#[spacetimedb(table)]
+pub struct StdbChunkEvent {
+    pub x: i32,
+    pub z: i32,
+    pub inner: ChunkEvent,
+}
+
 /// Core methods for worlds.
 impl World {
 
@@ -217,7 +233,7 @@ impl World {
 
     /// Pops a light update and updates the StdbWorld row with the new value.
     pub fn pop_light_update() -> Option<LightUpdate> {
-        let mut world = StdbWorld::filter_by_id(&0).unwrap();
+        let mut world = StdbWorld::filter_by_id(&1).unwrap();
         let result = world.world.pop_light_update_inner();
         StdbWorld::update_by_id(&0, world);
         result
@@ -391,6 +407,25 @@ impl World {
     ///
     /// STDB Note: Returns the chunk ID that was inserted into the StdbChunk table
     pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) -> i32 {
+        // let chunk_comp = self.chunks.entry((cx, cz)).or_default();
+        // let was_unloaded = chunk_comp.data.replace(chunk).is_none();
+        
+        // if was_unloaded {
+        //     for &index in chunk_comp.entities.values() {
+        //         self.entities.get_mut(index).unwrap().loaded = true;
+        //     }
+        //     for &index in chunk_comp.block_entities.values() {
+        //         self.block_entities.get_mut(index).unwrap().loaded = true;
+        //     }
+        // }
+
+        StdbChunkEvent::insert(StdbChunkEvent {
+            x: cx,
+            z: cz,
+            inner: ChunkEvent::Set
+        });
+        // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
+
         match StdbChunk::filter_by_x(&cx).find(|c| c.z == cz) {
             None => {
                 // This chunk doesn't exist, let's just insert it!
@@ -412,20 +447,6 @@ impl World {
                 existing_chunk.chunk_id
             }
         }
-
-        // let chunk_comp = self.chunks.entry((cx, cz)).or_default();
-        // let was_unloaded = chunk_comp.data.replace(chunk).is_none();
-        
-        // if was_unloaded {
-        //     for &index in chunk_comp.entities.values() {
-        //         self.entities.get_mut(index).unwrap().loaded = true;
-        //     }
-        //     for &index in chunk_comp.block_entities.values() {
-        //         self.block_entities.get_mut(index).unwrap().loaded = true;
-        //     }
-        // }
-        
-        // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
 
     }
 
@@ -496,6 +517,7 @@ impl World {
         Some((result.1, result.2))
     }
 
+
     pub fn set_block_inner(&mut self, pos: IVec3, id: u8, metadata: u8, chunk: &mut StdbChunk) -> (bool, u8, u8) {
 
         let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
@@ -515,6 +537,14 @@ impl World {
             }
 
             // TODO: Another event that we don't care about in the SpacetimeDB module
+            StdbSetBlockEvent::insert(StdbSetBlockEvent {
+                pos: pos.into(),
+                new_id: id,
+                new_metadata: metadata,
+                old_id: prev_id,
+                old_metadata: prev_metadata,
+            });
+
             // self.push_event(Event::Block {
             //     pos,
             //     inner: BlockEvent::Set {
@@ -524,7 +554,12 @@ impl World {
             //         prev_metadata,
             //     }
             // });
-            //
+
+            StdbChunkEvent::insert(StdbChunkEvent {
+                x: chunk.x,
+                z: chunk.z,
+                inner: ChunkEvent::Dirty
+            });
             // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
 
         }
@@ -1596,6 +1631,12 @@ impl World {
 
 
             if changed {
+                StdbChunkEvent::insert(StdbChunkEvent {
+                    x: cx,
+                    z: cz,
+                    inner: ChunkEvent::Dirty,
+                });
+
                 // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
                 let id = chunk.chunk_id;
                 StdbChunk::update_by_chunk_id(&id, chunk);
@@ -1847,7 +1888,7 @@ pub enum BlockEntityProgress {
 }
 
 /// An event with a chunk.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, SpacetimeType)]
 pub enum ChunkEvent {
     /// The chunk has been set at its position. A chunk may have been replaced at that
     /// position.

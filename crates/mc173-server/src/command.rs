@@ -335,7 +335,7 @@ fn cmd_generate_chunks(ctx: CommandContext) -> CommandResult {
     let Ok(to_z) = ctx.parts[3].parse::<i32>() else {
         return Err(None)
     };
-    // autogen::autogen::generate_chunks(from_x, from_z, to_x, to_z);
+    autogen::autogen::generate_chunks(from_x, from_z, to_x, to_z);
     Ok(())
 }
 

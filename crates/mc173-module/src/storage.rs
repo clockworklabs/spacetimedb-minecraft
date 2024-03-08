@@ -320,7 +320,6 @@ impl<G: ChunkGenerator> StorageWorker<G> {
     /// a chunk, its terrain must be generated along with all of its corner being 
     /// populated by features.
     fn request_full(mut world: &mut StdbWorld, cx: i32, cz: i32) {
-
         log::info!("Generating chunk: ({}, {})", cx, cz);
         // If the requested chunk already exists but is not fully populated, we only
         // request terrain chunks that are in the missing corners.

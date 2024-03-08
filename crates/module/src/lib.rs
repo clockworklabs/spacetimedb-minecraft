@@ -276,34 +276,19 @@ fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
     }
 }
 
-// #[spacetimedb(reducer)]
-// pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
-//     let handle = spacetimedb::time_span::Span::start("spacetimedb chunk generation func");
-//     let generator = OverworldGenerator::new(SEED);
-//     let mut state = <OverworldGenerator as ChunkGenerator>::State::default();
-//     for x in from_x..to_x {
-//         for z in from_z..to_z {
-//             let handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
-//             if StdbChunk::filter_by_x(&x).find(|mz| mz.z == z).is_some() {
-//                 log::info!("Chunk Skipped: {}, {}", x, z);
-//                 continue;
-//             }
-//
-//             let mut chunk = Chunk::new_no_arc();
-//             generator.gen_terrain(x, z, &mut chunk, &mut state);
-//             log::info!("Chunk Generated: {}, {}", x, z);
-//
-//             if let Err(_) = StdbChunk::insert(StdbChunk {
-//                 chunk_id: 0,
-//                 x,
-//                 z,
-//                 chunk,
-//             }) {
-//                 log::error!("Failed to insert unique chunk");
-//             };
-//         }
-//     }
-// }
+#[spacetimedb(reducer)]
+pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
+    let mut world = StdbWorld::filter_by_id(&1).unwrap();
+    let handle = spacetimedb::time_span::Span::start("spacetimedb chunk generation func");
+    for x in from_x..to_x {
+        for z in from_z..to_z {
+            let inner_handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
+            ChunkStorage::request_load(&mut world, x, z);
+            inner_handle.end();
+        }
+    }
+    handle.end()
+}
 
 
 
@@ -321,24 +306,12 @@ fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
 //     StdbTime::update_by_id(&0, current_time);
 // }
 
-// #[spacetimedb(reducer)]
-// pub fn generate_chunk(x: i32, z: i32) {
-//     let generator = OverworldGenerator::new(SEED);
-//     let mut state = <OverworldGenerator as ChunkGenerator>::State::default();
-//     let mut chunk = Chunk::new_no_arc();
-//     generator.gen_terrain(x, z, &mut chunk, &mut state);
-//     if let Err(_) = StdbChunk::insert(StdbChunk {
-//         chunk_id: 0,
-//         x,
-//         z,
-//         chunk,
-//     }) {
-//         log::error!("Failed to insert unique chunk");
-//     };
-//     log::info!("Chunk Generated: {}, {}", x, z);
-// }
-
-
+#[spacetimedb(reducer)]
+pub fn generate_chunk(x: i32, z: i32) {
+    let mut world = StdbWorld::filter_by_id(&1).unwrap();
+    ChunkStorage::request_load(&mut world, x, z);
+    log::info!("Chunk Generated: {}, {}", x, z);
+}
 
 /*pub fn break_block(pos_x: i32, pos_y: i32, pos_z: i32) -> Option<(u8, u8)> {
     let (prev_id, prev_metadata) = self.set_block_notify(pos, block::AIR, 0)?;

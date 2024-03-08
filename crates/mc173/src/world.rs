@@ -15,7 +15,7 @@ use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
 
 use tracing::trace;
-use autogen::autogen::{StdbTime, StdbWeather};
+use autogen::autogen::{StdbChunkEvent, StdbSetBlockEvent, StdbTime, StdbWeather};
 
 use crate::entity::{Entity, EntityCategory, EntityKind};
 use crate::block_entity::BlockEntity;
@@ -413,18 +413,21 @@ impl World {
     //        BLOCKS       //
     // =================== //
 
-    pub fn notify_block_2(&mut self, pos: IVec3, id: u8, metadata: u8) {
-        let (cx, cz) = calc_chunk_pos(pos).unwrap();
-        let chunk = self.get_chunk_mut(cx, cz).unwrap();
-        let (prev_id, prev_metadata) = chunk.get_block(pos);
+    pub fn push_set_block_event(&mut self, event: StdbSetBlockEvent) {
         self.push_event(Event::Block {
-            pos,
+            pos: event.pos.into(),
             inner: BlockEvent::Set {
-                id,
-                metadata,
-                prev_id,
-                prev_metadata,
+                id: event.new_id,
+                metadata: event.new_metadata,
+                prev_id: event.old_id,
+                prev_metadata: event.old_metadata,
             }
+        });
+    }
+
+    pub fn push_chunk_event(&mut self, event: StdbChunkEvent) {
+        self.push_event(Event::Chunk {
+            cx: event.x, cz: event.z, inner: event.inner.into()
         });
     }
 
@@ -1796,6 +1799,16 @@ pub enum ChunkEvent {
     /// Any chunk component (block, light, entity, block entity) has been modified in the
     /// chunk so it's marked dirty.
     Dirty,
+}
+
+impl From<autogen::autogen::ChunkEvent> for ChunkEvent {
+    fn from(value: autogen::autogen::ChunkEvent) -> Self {
+        match value {
+            autogen::autogen::ChunkEvent::Set => ChunkEvent::Set,
+            autogen::autogen::ChunkEvent::Remove => ChunkEvent::Remove,
+            autogen::autogen::ChunkEvent::Dirty => ChunkEvent::Dirty,
+        }
+    }
 }
 
 /// A snapshot contains all of the content within a chunk, block, light, height map,

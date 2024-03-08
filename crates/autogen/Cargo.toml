@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 spacetimedb-sdk = "0.8"
+glam = "0.24"
