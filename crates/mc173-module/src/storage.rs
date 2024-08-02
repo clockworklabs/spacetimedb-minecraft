@@ -11,12 +11,14 @@ use std::path::PathBuf;
 use std::time::Instant;
 use std::sync::Arc;
 use std::thread;
+use crate::cache_world::CacheWorld;
 
 // use crate::world::{ChunkSnapshot, World};
 use crate::world::{StdbWorld, World};
 use crate::gen::{ChunkGenerator, OverworldGenerator};
 use crate::world::Dimension;
 use crate::chunk::Chunk;
+use crate::chunk_cache::ChunkCache;
 use crate::gen::overworld::OverworldState;
 use crate::stdb::chunk::{StdbChunk, StdbChunkPopulated};
 
@@ -469,8 +471,12 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 let current_cx = cx + dcx as i32 - 1;
                 let current_cz = cz + dcz as i32 - 1;
 
+                // Construct a new chunk cache
+                let cached_world = CacheWorld::new(world);
+
+
                 // let start = Instant::now();
-                generator.gen_features(current_cx, current_cz, &mut world, &mut state);
+                generator.gen_features(current_cx, current_cz, &mut cached_world, &mut state);
                 // let duration = start.elapsed();
                 // self.stats.gen_features_duration.fetch_add(duration.as_micros() as u64, Ordering::Relaxed);
                 // self.stats.gen_features_count.fetch_add(1, Ordering::Relaxed);

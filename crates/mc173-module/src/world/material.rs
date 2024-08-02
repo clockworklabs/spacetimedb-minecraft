@@ -4,6 +4,7 @@ use glam::IVec3;
 
 use crate::block::material::Material;
 use crate::block;
+use crate::chunk_cache::ChunkCache;
 
 use super::World;
 
@@ -49,6 +50,16 @@ impl World {
     /// Return true if the block at position is air.
     #[inline]
     pub fn is_block_air(&self, pos: IVec3) -> bool {
+        if let Some((id, _)) = self.get_block(pos) {
+            id == block::AIR
+        } else {
+            true
+        }
+    }
+
+    /// Return true if the block at position is air.
+    #[inline]
+    pub fn is_block_air_with_cache(&self, pos: IVec3, cache: &mut ChunkCache) -> bool {
         if let Some((id, _)) = self.get_block(pos) {
             id == block::AIR
         } else {

@@ -6,6 +6,7 @@ use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::geom::Face;
 use crate::block;
+use crate::chunk_cache::ChunkCache;
 
 use super::FeatureGenerator;
 
@@ -27,11 +28,11 @@ impl LakeGenerator {
 
 impl FeatureGenerator for LakeGenerator {
 
-    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
 
         // Lake have a maximum size of 16x8x16, so we subtract half.
         pos -= IVec3::new(8, 0, 8);
-        while pos.y > 0 && world.is_block_air(pos) {
+        while pos.y > 0 && world.is_block_air_with_cache(pos, cache) {
             pos.y -= 1;
         }
         pos.y -= 4;

@@ -28,6 +28,7 @@ use crate::geom::{BoundingBox, Face};
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
+use crate::chunk_cache::ChunkCache;
 use crate::ivec3::StdbIVec3;
 use crate::stdb::chunk::StdbChunk;
 use crate::stdb::weather::StdbWeather;
@@ -593,6 +594,12 @@ impl World {
         let (cx, cz) = calc_chunk_pos(pos)?;
         let chunk = self.get_chunk(cx, cz)?;
         Some(chunk.chunk.get_block(pos))
+    }
+
+    pub fn get_block_with_cache(&self, pos: IVec3, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (cx, cz) = calc_chunk_pos(pos)?;
+        let stdb_chunk = cache.filter_by_coords(cx, cz)?;
+        Some(stdb_chunk.chunk.get_block(pos))
     }
 
     // =================== //
@@ -1564,9 +1571,13 @@ impl World {
     //
     // }
 
+    pub fn tick_light(&mut self, limit: usize) {
+
+    }
+
     /// Tick pending light updates for a maximum number of light updates. This function
     /// returns true only if all light updates have been processed.
-    pub fn tick_light(&mut self, limit: usize) {
+    pub fn tick_light_inner(&mut self, limit: usize, cache: Option<&mut ChunkCache>) {
 
         // IMPORTANT NOTE: This algorithm is terrible but works, I've been trying to come
         // with a better one but it has been too complicated so far.
@@ -1580,11 +1591,22 @@ impl World {
                 let face_pos = <StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta();
 
                 let Some((cx, cz)) = calc_chunk_pos(face_pos) else { continue };
-                let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
-
-                let face_emission = match update.kind {
-                    LightKind::Block => chunk.chunk.get_block_light(face_pos),
-                    LightKind::Sky => chunk.chunk.get_sky_light(face_pos),
+                // let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
+                let face_emission = match cache {
+                    None => {
+                        let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
+                         match update.kind {
+                            LightKind::Block => chunk.chunk.get_block_light(face_pos),
+                            LightKind::Sky => chunk.chunk.get_sky_light(face_pos),
+                        }
+                    }
+                    Some(cache) => {
+                        let chunk = cache.filter_by_coords(cx, cz);
+                        match update.kind {
+                            LightKind::Block => chunk.get_block_light(face_pos),
+                            LightKind::Sky => chunk.get_sky_light(face_pos),
+                        }
+                    }
                 };
 
                 max_face_emission = max_face_emission.max(face_emission);
@@ -1595,16 +1617,29 @@ impl World {
             }
 
             let Some((cx, cz)) = calc_chunk_pos(update.pos.into()) else { continue };
-            let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
 
-            let (id, _) = chunk.chunk.get_block(update.pos.into());
+
+            let result = match cache {
+                None => {
+                    let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
+                    (chunk.chunk.get_block(update.pos.into()).0, chunk.chunk.get_height(update.pos.into()) as i32)
+                }
+                Some(cache) => {
+                    let chunk = cache.filter_by_coords(cx, cz).unwrap();
+                    (chunk.chunk.get_block(update.pos.into()).0, chunk.chunk.get_height(update.pos.into()) as i32)
+                }
+            };
+
+            // let (id, _) = chunk.chunk.get_block(update.pos.into());
+            let id = result.0;
+            let column_height = result.1;
             let opacity = block::material::get_light_opacity(id).max(1);
 
             let emission = match update.kind {
                 LightKind::Block => block::material::get_light_emission(id),
                 LightKind::Sky => {
                     // If the block is above ground, then it has
-                    let column_height = chunk.chunk.get_height(update.pos.into()) as i32;
+                    // let column_height = chunk.chunk.get_height(update.pos.into()) as i32;
                     if update.pos.y >= column_height { 15 } else { 0 }
                 }
             };

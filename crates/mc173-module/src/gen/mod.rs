@@ -29,6 +29,7 @@ pub mod cave;
 // World generators.
 pub mod overworld;
 pub use overworld::OverworldGenerator;
+use crate::cache_world::CacheWorld;
 
 
 /// A trait for all chunk generators, a chunk generator is immutable, if any mutable 
@@ -52,7 +53,7 @@ pub trait ChunkGenerator {
     /// done. Populate usually applies with an offset of 8 blocks into the chunk with
     /// a 16x16 populate area, this means that neighbor chunks affected are also
     /// guaranteed to be loaded.
-    fn gen_features(&self, cx: i32, cz: i32, world: &mut StdbWorld, state: &mut Self::State);
+    fn gen_features(&self, cx: i32, cz: i32, world: &mut CacheWorld, state: &mut Self::State);
 
 }
 
@@ -61,6 +62,6 @@ pub trait ChunkGenerator {
 pub trait FeatureGenerator {
 
     /// Generate the feature at the given position in the world with given RNG.
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool;
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool;
 
 }

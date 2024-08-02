@@ -11,6 +11,7 @@ use glam::{IVec3, DVec3};
 
 use crate::biome::Biome;
 use crate::block;
+use crate::stdb::chunk::StdbChunk;
 
 
 /// Chunk size in both X and Z coordinates.

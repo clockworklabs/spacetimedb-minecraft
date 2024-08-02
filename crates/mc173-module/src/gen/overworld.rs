@@ -28,6 +28,7 @@ use crate::rand::JavaRandom;
 use crate::biome::Biome;
 use crate::world::{StdbWorld, World};
 use crate::block;
+use crate::cache_world::CacheWorld;
 
 use super::noise::{PerlinOctaveNoise, NoiseCube};
 use super::{ChunkGenerator, FeatureGenerator};
@@ -532,7 +533,7 @@ impl ChunkGenerator for OverworldGenerator {
 
     }
 
-    fn gen_features(&self, cx: i32, cz: i32, world: &mut StdbWorld, state: &mut Self::State) {
+    fn gen_features(&self, cx: i32, cz: i32, world: &mut CacheWorld, state: &mut Self::State) {
 
         let pos = IVec3::new(cx * 16, 0, cz * 16);
         let biome = self.get_biome(pos.x + 16, pos.z + 16);
