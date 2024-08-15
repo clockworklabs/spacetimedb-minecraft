@@ -16,7 +16,7 @@ categories = ["games"]
 crate-type = ["cdylib"]
 
 [dependencies]
-spacetimedb = { version = "0.8", features = ["getrandom"] }
+spacetimedb = { version = "0.10" }
 log = "0.4"
 mc173-module = { path = "../mc173-module" }
 glam = "0.24"

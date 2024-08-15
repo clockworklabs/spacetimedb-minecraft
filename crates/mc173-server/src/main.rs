@@ -124,14 +124,14 @@ pub fn main() {
         .unwrap();
 
     init_tracing();
-    ctrlc::set_handler(|| RUNNING.store(false, Ordering::Relaxed)).unwrap();
+    // ctrlc::set_handler(|| RUNNING.store(false, Ordering::Relaxed)).unwrap();
     StdbChunk::on_insert(on_chunk_inserted);
     StdbChunk::on_update(on_chunk_update);
     StdbWeather::on_update(on_weather_updated);
     on_subscription_applied(on_subscription_applied_callback);
     StdbSetBlockEvent::on_insert(on_set_block_event_insert);
     connect(server, module, None).expect("Failed to connect");
-    subscribe(&["SELECT * FROM StdbChunk; SELECT * FROM StdbTime; SELECT * FROM StdbWeather;"]).unwrap();
+    subscribe(&["SELECT * FROM StdbChunk", "SELECT * FROM StdbTime", "SELECT * FROM StdbWeather"]).unwrap();
     println!("Connected to SpacetimeDB");
 
     {

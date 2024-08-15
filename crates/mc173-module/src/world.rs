@@ -177,7 +177,7 @@ pub struct World {
     sky_light_subtracted: u8,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbWorld {
     #[primarykey]
     #[autoinc]
@@ -185,7 +185,7 @@ pub struct StdbWorld {
     pub world: World
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbSetBlockEvent {
     pub pos: StdbIVec3,
     pub old_id: u8,
@@ -194,7 +194,7 @@ pub struct StdbSetBlockEvent {
     pub new_metadata: u8,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbChunkEvent {
     pub x: i32,
     pub z: i32,

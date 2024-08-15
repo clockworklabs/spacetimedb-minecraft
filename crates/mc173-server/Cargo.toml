@@ -17,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 mc173 = { path = "../mc173", version = "0.1.0" }
 autogen = { path = "../autogen" }
-spacetimedb-sdk = "0.8"
+spacetimedb-sdk = "0.10"
 
 mio = { version = "0.8", features = ["os-poll", "net"] }
 crossbeam-channel = "0.5"

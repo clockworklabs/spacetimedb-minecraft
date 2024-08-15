@@ -27,7 +27,7 @@ use mc173_module::storage::ChunkStorage;
 pub const SEED: i64 = 9999;
 
 /// Represent the whole state of a world.
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbServerWorldState {
     #[primarykey]
     pub world_id: i32,

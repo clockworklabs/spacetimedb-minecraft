@@ -3,7 +3,7 @@ use crate::stdb::chunk::StdbTime;
 use crate::stdb::rand::StdbRand;
 use crate::world::Weather;
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbWeather {
     #[primarykey]
     pub id: u32,

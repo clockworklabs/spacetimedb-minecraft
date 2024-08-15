@@ -239,7 +239,7 @@ impl World {
 
     /// Get the world time, in ticks.
     pub fn get_time(&self) -> u64 {
-        StdbTime::filter_by_id(0).unwrap().time
+        StdbTime::find_by_id(0).unwrap().time
     }
 
     /// Get a mutable access to this world's random number generator.
@@ -249,7 +249,7 @@ impl World {
 
     /// Get the current weather in the world.
     pub fn get_weather(&self) -> Weather {
-        StdbWeather::filter_by_id(0).unwrap().weather.into()
+        StdbWeather::find_by_id(0).unwrap().weather.into()
     }
 
     /// Set the current weather in this world. If the weather has changed an event will
@@ -1300,7 +1300,7 @@ impl World {
 
         let factor = (celestial_angle * std::f32::consts::TAU).cos() * 2.0 + 0.5;
         let factor = factor.clamp(0.0, 1.0);
-        let factor = match StdbWeather::filter_by_id(0).unwrap().weather.into() {
+        let factor = match StdbWeather::find_by_id(0).unwrap().weather.into() {
             Weather::Clear => 1.0,
             Weather::Rain => 0.6875,
             Weather::Thunder => 0.47265625,

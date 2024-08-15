@@ -1,7 +1,7 @@
 use spacetimedb::spacetimedb;
 use crate::rand::JavaRandom;
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbRand {
     #[unique]
     pub id: u32,

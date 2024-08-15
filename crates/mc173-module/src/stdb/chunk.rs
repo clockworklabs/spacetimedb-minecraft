@@ -3,7 +3,7 @@ use spacetimedb::{spacetimedb, SpacetimeType};
 use crate::chunk::Chunk;
 use crate::ivec3::StdbIVec3;
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbChunk {
     #[primarykey]
     #[autoinc]
@@ -14,7 +14,7 @@ pub struct StdbChunk {
     pub chunk: Chunk,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbChunkPopulated {
     #[primarykey]
     #[autoinc]
@@ -25,7 +25,7 @@ pub struct StdbChunkPopulated {
     pub populated: u8,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbTime {
     #[unique]
     pub id: i32,
@@ -52,7 +52,7 @@ pub struct BreakingBlock {
     pub id: u8,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbBreakingBlock {
     #[unique]
     pub entity_id: u32,
