@@ -7,7 +7,7 @@ use glam::IVec3;
 
 use crate::geom::{Face, FaceSet};
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::{StdbSetBlockEvent, World};
 
 
@@ -15,44 +15,44 @@ use super::{StdbSetBlockEvent, World};
 impl World {
 
     /// Notify all blocks around the position, the notification origin block id is given.
-    pub fn notify_blocks_around(&mut self, pos: IVec3, origin_id: u8) {
+    pub fn notify_blocks_around(&mut self, pos: IVec3, origin_id: u8, cache: &mut ChunkCache) {
         for face in Face::ALL {
-            self.notify_block(pos + face.delta(), origin_id);
+            self.notify_block(pos + face.delta(), origin_id, cache);
         }
     }
 
     /// Notify a block a the position, the notification origin block id is given.
-    pub fn notify_block(&mut self, pos: IVec3, origin_id: u8) {
-        if let Some((id, metadata)) = self.get_block(pos) {
-            self.notify_block_unchecked(pos, id, metadata, origin_id);
+    pub fn notify_block(&mut self, pos: IVec3, origin_id: u8, cache: &mut ChunkCache) {
+        if let Some((id, metadata)) = self.get_block(pos, cache) {
+            self.notify_block_unchecked(pos, id, metadata, origin_id, cache);
         }
     }
 
     /// Notify a block at the position, the notification origin block id is given.
-    pub(super) fn notify_block_unchecked(&mut self, pos: IVec3, id: u8, metadata: u8, origin_id: u8) {
+    pub(super) fn notify_block_unchecked(&mut self, pos: IVec3, id: u8, metadata: u8, origin_id: u8, cache: &mut ChunkCache) {
         match id {
-            block::REDSTONE if origin_id != block::REDSTONE => self.notify_redstone(pos),
+            block::REDSTONE if origin_id != block::REDSTONE => self.notify_redstone(pos, cache),
             // block::REPEATER |
             // block::REPEATER_LIT => self.notify_repeater(pos, id, metadata),
             // block::REDSTONE_TORCH |
             // block::REDSTONE_TORCH_LIT => self.notify_redstone_torch(pos, id),
             // block::DISPENSER => self.notify_dispenser(pos, origin_id),
             block::WATER_MOVING |
-            block::LAVA_MOVING => self.notify_fluid(pos, id, metadata),
+            block::LAVA_MOVING => self.notify_fluid(pos, id, metadata, cache),
             block::WATER_STILL |
-            block::LAVA_STILL => self.notify_fluid_still(pos, id, metadata),
-            block::TRAPDOOR => self.notify_trapdoor(pos, metadata, origin_id),
+            block::LAVA_STILL => self.notify_fluid_still(pos, id, metadata, cache),
+            block::TRAPDOOR => self.notify_trapdoor(pos, metadata, origin_id, cache),
             block::WOOD_DOOR |
-            block::IRON_DOOR => self.notify_door(pos, id, metadata, origin_id),
+            block::IRON_DOOR => self.notify_door(pos, id, metadata, origin_id, cache),
             block::DANDELION |
             block::POPPY |
             block::SAPLING |
-            block::TALL_GRASS => self.notify_flower(pos, &[block::GRASS, block::DIRT, block::FARMLAND]),
-            block::DEAD_BUSH => self.notify_flower(pos, &[block::SAND]),
-            block::WHEAT => self.notify_flower(pos, &[block::FARMLAND]),
+            block::TALL_GRASS => self.notify_flower(pos, &[block::GRASS, block::DIRT, block::FARMLAND], cache),
+            block::DEAD_BUSH => self.notify_flower(pos, &[block::SAND], cache),
+            block::WHEAT => self.notify_flower(pos, &[block::FARMLAND], cache),
             block::RED_MUSHROOM |
-            block::BROWN_MUSHROOM => self.notify_mushroom(pos),
-            block::CACTUS => self.notify_cactus(pos),
+            block::BROWN_MUSHROOM => self.notify_mushroom(pos, cache),
+            block::CACTUS => self.notify_cactus(pos, cache),
             block::SAND |
             // block::GRAVEL => self.schedule_block_tick(pos, id, 3),
             _ => {}
@@ -117,17 +117,17 @@ impl World {
     // }
 
     /// Notification of a moving fluid block.
-    fn notify_fluid(&mut self, pos: IVec3, id: u8, metadata: u8) {
+    fn notify_fluid(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) {
         // If the fluid block is lava, check if we make cobblestone or lava.
         if id == block::LAVA_MOVING {
             let distance = block::fluid::get_distance(metadata);
             for face in Face::HORIZONTAL {
-                if let Some((block::WATER_MOVING | block::WATER_STILL, _)) = self.get_block(pos + face.delta()) {
+                if let Some((block::WATER_MOVING | block::WATER_STILL, _)) = self.get_block(pos + face.delta(), cache) {
                     // If there is at least one water block around.
                     if distance == 0 {
-                        self.set_block_notify(pos, block::OBSIDIAN, 0);
+                        self.set_block_notify(pos, block::OBSIDIAN, 0, cache);
                     } else if distance <= 4 {
-                        self.set_block_notify(pos, block::COBBLESTONE, 0);
+                        self.set_block_notify(pos, block::COBBLESTONE, 0, cache);
                     }
                 }
             }
@@ -135,44 +135,44 @@ impl World {
     }
 
     /// Notification of a still fluid block.
-    fn notify_fluid_still(&mut self, pos: IVec3, id: u8, metadata: u8) {
+    fn notify_fluid_still(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) {
 
         // Subtract 1 from id to go from still to moving.
         let moving_id = id - 1;
 
-        self.notify_fluid(pos, moving_id, metadata);
-        self.set_block_self_notify(pos, moving_id, metadata);
+        self.notify_fluid(pos, moving_id, metadata, cache);
+        self.set_block_self_notify(pos, moving_id, metadata, cache);
 
     }
 
     /// Notification of standard flower subclasses.
-    fn notify_flower(&mut self, pos: IVec3, stay_blocks: &[u8]) {
-        if self.get_light(pos).max() >= 8 || false /* block can see sky */ {
-            let (below_id, _) = self.get_block(pos - IVec3::Y).unwrap_or((0, 0));
+    fn notify_flower(&mut self, pos: IVec3, stay_blocks: &[u8], cache: &mut ChunkCache) {
+        if self.get_light(pos, cache).max() >= 8 || false /* block can see sky */ {
+            let (below_id, _) = self.get_block(pos - IVec3::Y, cache).unwrap_or((0, 0));
             if stay_blocks.iter().any(|&id| id == below_id) {
                 return;
             }
         }
-        self.break_block(pos);
+        self.break_block(pos, cache);
     }
 
     /// Notification of a mushroom block.
-    fn notify_mushroom(&mut self, pos: IVec3) {
-        if self.get_light(pos).max() >= 13 || !self.is_block_opaque_cube(pos - IVec3::Y) {
-            self.break_block(pos);
+    fn notify_mushroom(&mut self, pos: IVec3, cache: &mut ChunkCache) {
+        if self.get_light(pos, cache).max() >= 13 || !self.is_block_opaque_cube(pos - IVec3::Y, cache) {
+            self.break_block(pos, cache);
         }
     }
 
     /// Notification of a cactus block. The block is broken if 
-    fn notify_cactus(&mut self, pos: IVec3) {
+    fn notify_cactus(&mut self, pos: IVec3, cache: &mut ChunkCache) {
         for face in Face::HORIZONTAL {
-            if self.is_block_solid(pos + face.delta()) {
-                self.break_block(pos);
+            if self.is_block_solid(pos + face.delta(), cache) {
+                self.break_block(pos, cache);
                 return;
             }
         }
-        if !matches!(self.get_block(pos - IVec3::Y), Some((block::CACTUS | block::SAND, _))) {
-            self.break_block(pos);
+        if !matches!(self.get_block(pos - IVec3::Y, cache), Some((block::CACTUS | block::SAND, _))) {
+            self.break_block(pos, cache);
         }
     }
 
@@ -206,17 +206,17 @@ impl World {
 
     /// Notification of a trapdoor, breaking it if no longer on its wall, or updating its 
     /// state depending on redstone signal.
-    fn notify_trapdoor(&mut self, pos: IVec3, mut metadata: u8, origin_id: u8) {
+    fn notify_trapdoor(&mut self, pos: IVec3, mut metadata: u8, origin_id: u8, cache: &mut ChunkCache) {
         let face = block::trapdoor::get_face(metadata);
-        if !self.is_block_opaque_cube(pos + face.delta()) {
-            self.break_block(pos);
+        if !self.is_block_opaque_cube(pos + face.delta(), cache) {
+            self.break_block(pos, cache);
         } else {
             let open = block::trapdoor::is_open(metadata);
             if is_redstone_block(origin_id) {
-                let powered = self.has_passive_power(pos);
+                let powered = self.has_passive_power(pos, cache);
                 if open != powered {
                     block::trapdoor::set_open(&mut metadata, powered);
-                    self.set_block_notify(pos, block::TRAPDOOR, metadata);
+                    self.set_block_notify(pos, block::TRAPDOOR, metadata, cache);
 
                     // TODO: Another event that we don't care about in the SpacetimeDB module
                     // self.push_event(Event::Block {
@@ -228,35 +228,35 @@ impl World {
         }
     }
 
-    fn notify_door(&mut self, pos: IVec3, id: u8, mut metadata: u8, origin_id: u8) {
+    fn notify_door(&mut self, pos: IVec3, id: u8, mut metadata: u8, origin_id: u8, cache: &mut ChunkCache) {
 
         if block::door::is_upper(metadata) {
             
             // If the block below is not another door,
-            if let Some((below_id, below_metadata)) = self.get_block(pos - IVec3::Y) {
+            if let Some((below_id, below_metadata)) = self.get_block(pos - IVec3::Y, cache) {
                 if below_id == id {
-                    self.notify_door(pos - IVec3::Y, below_id, below_metadata, origin_id);
+                    self.notify_door(pos - IVec3::Y, below_id, below_metadata, origin_id, cache);
                     return;
                 }
             }
 
             // Do not naturally break, top door do not drop anyway.
-            self.set_block_notify(pos, block::AIR, 0);
+            self.set_block_notify(pos, block::AIR, 0, cache);
 
         } else {
 
             // If the block above is not the same door block, naturally break itself.
-            if let Some((above_id, _)) = self.get_block(pos + IVec3::Y) {
+            if let Some((above_id, _)) = self.get_block(pos + IVec3::Y, cache) {
                 if above_id != id {
-                    self.break_block(pos);
+                    self.break_block(pos, cache);
                     return;
                 }
             }
 
             // Also check that door can stay in place.
-            if !self.is_block_opaque_cube(pos - IVec3::Y) {
+            if !self.is_block_opaque_cube(pos - IVec3::Y, cache) {
                 // NOTE: This will notify the upper part and destroy it.
-                self.break_block(pos);
+                self.break_block(pos, cache);
                 return;
             }
 
@@ -264,15 +264,15 @@ impl World {
 
                 // Check if the door is powered in any way.
                 let mut powered = 
-                    self.has_passive_power_from(pos - IVec3::Y, Face::PosY) ||
-                    self.has_passive_power_from(pos + IVec3::Y * 2, Face::NegY);
+                    self.has_passive_power_from(pos - IVec3::Y, Face::PosY, cache) ||
+                    self.has_passive_power_from(pos + IVec3::Y * 2, Face::NegY, cache);
 
                 if !powered {
                     for face in Face::ALL {
                         let face_pos = pos + face.delta();
                         powered = 
-                            self.has_passive_power_from(face_pos, face.opposite()) || 
-                            self.has_passive_power_from(face_pos + IVec3::Y, face.opposite());
+                            self.has_passive_power_from(face_pos, face.opposite(), cache) ||
+                            self.has_passive_power_from(face_pos + IVec3::Y, face.opposite(), cache);
                         if powered {
                             break;
                         }
@@ -286,15 +286,15 @@ impl World {
                     block::door::set_open(&mut metadata, powered);
 
                     // Do not use notify methods to avoid updating the upper half.
-                    self.set_block_self_notify(pos, id, metadata);
+                    self.set_block_self_notify(pos, id, metadata, cache);
                     block::door::set_upper(&mut metadata, true);
-                    self.set_block_self_notify(pos + IVec3::Y, id, metadata);
+                    self.set_block_self_notify(pos + IVec3::Y, id, metadata, cache);
 
-                    self.notify_block(pos - IVec3::Y, id);
-                    self.notify_block(pos + IVec3::Y * 2, id);
+                    self.notify_block(pos - IVec3::Y, id, cache);
+                    self.notify_block(pos + IVec3::Y * 2, id, cache);
                     for face in Face::ALL {
-                        self.notify_block(pos + face.delta(), id);
-                        self.notify_block(pos + face.delta() + IVec3::Y, id);
+                        self.notify_block(pos + face.delta(), id, cache);
+                        self.notify_block(pos + face.delta() + IVec3::Y, id, cache);
                     }
 
                     // TODO: Another event that we don't care about in the SpacetimeDB module
@@ -314,7 +314,7 @@ impl World {
     /// Notify a redstone dust block. This function is a bit special because this 
     /// notification in itself will trigger other notifications for all updated blocks.
     /// The redstone update in the 
-    fn notify_redstone(&mut self, pos: IVec3) {
+    fn notify_redstone(&mut self, pos: IVec3, cache: &mut ChunkCache) {
 
         const FACES: [Face; 4] = [Face::NegX, Face::PosX, Face::NegZ, Face::PosZ];
 
@@ -365,10 +365,10 @@ impl World {
             node.links.insert(link_face);
 
             // Check if there is an opaque block above, used to prevent connecting top nodes.
-            node.opaque_above = self.get_block(pos + IVec3::Y)
+            node.opaque_above = self.get_block(pos + IVec3::Y, cache)
                 .map(|(above_id, _)| block::material::is_opaque_cube(above_id))
                 .unwrap_or(true);
-            node.opaque_below = self.get_block(pos - IVec3::Y)
+            node.opaque_below = self.get_block(pos - IVec3::Y, cache)
                 .map(|(below_id, _)| block::material::is_opaque_cube(below_id))
                 .unwrap_or(true);
 
@@ -381,7 +381,7 @@ impl World {
                 }
 
                 let face_pos = pending_pos + face.delta();
-                if let Some((id, _)) = self.get_block(face_pos) {
+                if let Some((id, _)) = self.get_block(face_pos, cache) {
 
                     if id == block::REDSTONE {
                         node.links.insert(face);
@@ -391,7 +391,7 @@ impl World {
 
                     // If the faced block is not a redstone, get the direct power from it and
                     // update our node initial power depending on it.
-                    let face_power = self.get_active_power_from(face_pos, face.opposite());
+                    let face_power = self.get_active_power_from(face_pos, face.opposite(), cache);
                     node.power = node.power.max(face_power);
 
                     if block::material::get_material(id).is_opaque() {
@@ -400,7 +400,7 @@ impl World {
                         // above.
                         if !node.opaque_above {
                             let face_above_pos = face_pos + IVec3::Y;
-                            if let Some((block::REDSTONE, _)) = self.get_block(face_above_pos) {
+                            if let Some((block::REDSTONE, _)) = self.get_block(face_above_pos, cache) {
                                 node.links.insert(face);
                                 pending.push((face_above_pos, face.opposite()));
                             }
@@ -411,7 +411,7 @@ impl World {
                         // NOTE: If the block below is not opaque, the signal cannot come to
                         // the current node, but that will be resolved in the loop below.
                         let face_below_pos = face_pos - IVec3::Y;
-                        if let Some((block::REDSTONE, _)) = self.get_block(face_below_pos) {
+                        if let Some((block::REDSTONE, _)) = self.get_block(face_below_pos, cache) {
                             node.links.insert(face);
                             pending.push((face_below_pos, face.opposite()));
                         }
@@ -425,7 +425,7 @@ impl World {
             // as it should not be possible to place, theoretically.
             for face in [Face::NegY, Face::PosY] {
                 let face_pos = pending_pos + face.delta();
-                let face_power = self.get_active_power_from(face_pos, face.opposite());
+                let face_power = self.get_active_power_from(face_pos, face.opposite(), cache);
                 node.power = node.power.max(face_power);
             }
 
@@ -466,7 +466,7 @@ impl World {
                 let Some(node) = nodes.remove(&node_pos) else { continue };
 
                 // Set block and update the changed boolean of that source.
-                if self.set_block(node_pos, block::REDSTONE, node.power) != Some((block::REDSTONE, node.power)) {
+                if self.set_block(node_pos, block::REDSTONE, node.power, cache) != Some((block::REDSTONE, node.power)) {
                     changed_nodes.push(node_pos);
                 }
 
@@ -517,7 +517,7 @@ impl World {
         // When there are no remaining power to apply, just set all remaining nodes to off.
         for node_pos in nodes.into_keys() {
             // Only notify if block has changed.
-            if self.set_block(node_pos, block::REDSTONE, 0) != Some((block::REDSTONE, 0)) {
+            if self.set_block(node_pos, block::REDSTONE, 0, cache) != Some((block::REDSTONE, 0)) {
                 changed_nodes.push(node_pos);
             }
         }
@@ -528,7 +528,7 @@ impl World {
         let mut notified = HashSet::new();
         let mut inner_notify_at = move |pos: IVec3| {
             if notified.insert(pos) {
-                self.notify_block(pos, block::REDSTONE);
+                self.notify_block(pos, block::REDSTONE, cache);
             }
         };
 

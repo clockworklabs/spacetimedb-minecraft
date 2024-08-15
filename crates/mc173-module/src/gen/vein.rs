@@ -5,7 +5,7 @@ use glam::{IVec3, DVec3};
 use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::math::MinecraftMath;
 use super::FeatureGenerator;
 
@@ -42,7 +42,7 @@ impl VeinGenerator {
 
 impl FeatureGenerator for VeinGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
 
         let angle = rand.next_float() * f32::MC_PI;
         let (angle_sin, angle_cos) = angle.mc_sin_cos();
@@ -81,8 +81,8 @@ impl FeatureGenerator for VeinGenerator {
                         let delta = (place_pos.as_dvec3() + 0.5 - center_pos) / half_size;
 
                         if delta.length_squared() < 1.0 {
-                            if world.is_block(place_pos, self.replace_id) {
-                                world.set_block(place_pos, self.place_id, 0);
+                            if world.is_block(place_pos, self.replace_id, cache) {
+                                world.set_block(place_pos, self.place_id, 0, cache);
                             }
                         }
 

@@ -25,7 +25,7 @@ macro_rules! let_expect {
 }
 
 pub(super) use let_expect as let_expect;
-
+use crate::chunk_cache::ChunkCache;
 
 // Thread local variables internally used to reduce allocation overhead.
 thread_local! {
@@ -43,9 +43,9 @@ pub fn calc_eye_pos(base: &Base) -> DVec3 {
 }
 
 /// Return true if the given bounding box is colliding with any fluid (given material).
-pub fn has_fluids_colliding(world: &World, bb: BoundingBox, material: Material) -> bool {
+pub fn has_fluids_colliding(world: &World, bb: BoundingBox, material: Material, cache: &mut ChunkCache) -> bool {
     debug_assert!(material.is_fluid());
-    world.iter_blocks_in_box(bb)
+    world.iter_blocks_in_box(bb, cache)
         .filter(|&(_, block, _)| block::material::get_material(block) == material)
         .any(|(pos, _, metadata)| {
             let dist = block::fluid::get_actual_distance(metadata);
@@ -58,7 +58,7 @@ pub fn has_fluids_colliding(world: &World, bb: BoundingBox, material: Material) 
 /// This calculation will only take the given material into account, this material should
 /// be a fluid material (water/lava), and the given metadata should be the one of the
 /// current block the the position.
-pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u8) -> DVec3 {
+pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u8, cache: &mut ChunkCache) -> DVec3 {
 
     debug_assert!(material.is_fluid());
 
@@ -69,7 +69,7 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
 
         let face_delta = face.delta();
         let face_pos = pos + face_delta;
-        let (face_block, face_metadata) = world.get_block(face_pos).unwrap_or_default();
+        let (face_block, face_metadata) = world.get_block(face_pos, cache).unwrap_or_default();
         let face_material = block::material::get_material(face_block);
 
         if face_material == material {
@@ -78,7 +78,7 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
             vel += (face_delta * delta).as_dvec3();
         } else if !face_material.is_solid() {
             let below_pos = face_pos - IVec3::Y;
-            let (below_block, below_metadata) = world.get_block(below_pos).unwrap_or_default();
+            let (below_block, below_metadata) = world.get_block(below_pos, cache).unwrap_or_default();
             let below_material = block::material::get_material(below_block);
             if below_material == material {
                 let below_distance = block::fluid::get_actual_distance(below_metadata);
@@ -96,10 +96,10 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
 }
 
 /// Calculate the light levels for an entity given its base component.
-pub fn get_entity_light(world: &World, base: &Base) -> Light {
+pub fn get_entity_light(world: &World, base: &Base, cache: &mut ChunkCache) -> Light {
     let mut check_pos = base.pos;
     check_pos.y += (base.size.height * 0.66 - base.size.center) as f64;
-    world.get_light(check_pos.floor().as_ivec3())
+    world.get_light(check_pos.floor().as_ivec3(), cache)
 }
 
 // /// Find a the closest player entity (as defined in [`World`]) within the given radius.
@@ -178,14 +178,14 @@ pub fn update_knock_back(base: &mut Base, dir: DVec3) {
 }
 
 /// Return true if the entity can eye track the target entity, this use ray tracing.
-pub fn can_eye_track(world: &World, base: &Base, target_base: &Base) -> bool {
+pub fn can_eye_track(world: &World, base: &Base, target_base: &Base, cache: &mut ChunkCache) -> bool {
     let origin = calc_eye_pos(base);
     let ray = calc_eye_pos(target_base) - origin;
-    world.ray_trace_blocks(origin, ray, RayTraceKind::Overlay).is_none()
+    world.ray_trace_blocks(origin, ray, RayTraceKind::Overlay, cache).is_none()
 }
 
 /// Get the path weight function for the given living entity kind.
-pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3) -> f32 {
+pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3, &mut ChunkCache) -> f32 {
     match living_kind {
         LivingKind::Pig(_) |
         LivingKind::Chicken(_) |
@@ -204,25 +204,25 @@ pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3) -> f32 {
 }
 
 /// Path weight function for animals.
-fn path_weight_animal(world: &World, pos: IVec3) -> f32 {
-    if world.is_block(pos - IVec3::Y, block::GRASS) {
+fn path_weight_animal(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+    if world.is_block(pos - IVec3::Y, block::GRASS, cache) {
         10.0
     } else {
-        world.get_light(pos).brightness() - 0.5
+        world.get_light(pos, cache).brightness() - 0.5
     }
 }
 
 /// Path weight function for mobs.
-fn path_weight_mob(world: &World, pos: IVec3) -> f32 {
-    0.5 - world.get_light(pos).brightness()
+fn path_weight_mob(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+    0.5 - world.get_light(pos, cache).brightness()
 }
 
 /// Path weight function for Giant.
-fn path_weight_giant(world: &World, pos: IVec3) -> f32 {
-    world.get_light(pos).brightness() - 0.5
+fn path_weight_giant(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+    world.get_light(pos, cache).brightness() - 0.5
 }
 
 /// Path weight function by default.
-fn path_weight_default(_world: &World, _pos: IVec3) -> f32 {
+fn path_weight_default(_world: &World, _pos: IVec3, cache: &mut ChunkCache) -> f32 {
     0.0
 }

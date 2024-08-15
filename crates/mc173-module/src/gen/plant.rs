@@ -7,7 +7,7 @@ use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::geom::Face;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::FeatureGenerator;
 
 
@@ -50,11 +50,11 @@ impl PlantGenerator {
 
 impl FeatureGenerator for PlantGenerator {
 
-    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         if self.find_ground {
             while pos.y > 0 {
-                if !matches!(world.get_block(pos), Some((block::AIR | block::LEAVES, _))) {
+                if !matches!(world.get_block(pos, cache), Some((block::AIR | block::LEAVES, _))) {
                     break;
                 }
                 pos.y -= 1;
@@ -70,8 +70,8 @@ impl FeatureGenerator for PlantGenerator {
             };
 
             // PARITY: Check parity of "canBlockStay"...
-            if world.is_block_air(place_pos) && world.can_place_block(place_pos, Face::NegY, self.plant_id) {
-                world.set_block(place_pos, self.plant_id, self.plant_metadata);
+            if world.is_block_air(place_pos, cache) && world.can_place_block(place_pos, Face::NegY, self.plant_id, cache) {
+                world.set_block(place_pos, self.plant_id, self.plant_metadata, cache);
             }
 
         }
@@ -95,7 +95,7 @@ impl SugarCanesGenerator {
 
 impl FeatureGenerator for SugarCanesGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..20 {
 
@@ -105,18 +105,18 @@ impl FeatureGenerator for SugarCanesGenerator {
                 z: rand.next_int_bounded(4) - rand.next_int_bounded(4),
             };
 
-            if world.is_block_air(place_pos) {
+            if world.is_block_air(place_pos, cache) {
                 
                 for face in Face::HORIZONTAL {
-                    if world.get_block_material(place_pos - IVec3::Y + face.delta()) == Material::Water {
+                    if world.get_block_material(place_pos - IVec3::Y + face.delta(), cache) == Material::Water {
 
                         let v = rand.next_int_bounded(3) + 1;
                         let height = rand.next_int_bounded(v) + 2;
 
                         // Check that the bottom cane can be placed.
-                        if world.can_place_block(place_pos, Face::NegY, block::SUGAR_CANES) {
+                        if world.can_place_block(place_pos, Face::NegY, block::SUGAR_CANES, cache) {
                             for dy in 0..height {
-                                world.set_block(place_pos + IVec3::new(0, dy, 0), block::SUGAR_CANES, 0);
+                                world.set_block(place_pos + IVec3::new(0, dy, 0), block::SUGAR_CANES, 0, cache);
                             }
                         }
 
@@ -146,7 +146,7 @@ impl PumpkinGenerator {
 
 impl FeatureGenerator for PumpkinGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..64 {
             
@@ -157,8 +157,8 @@ impl FeatureGenerator for PumpkinGenerator {
             };
 
             // PARITY: Check parity of "canBlockStay"...
-            if world.is_block_air(place_pos) && world.is_block(place_pos - IVec3::Y, block::GRASS) {
-                world.set_block(place_pos, block::PUMPKIN, rand.next_int_bounded(4) as u8);
+            if world.is_block_air(place_pos, cache) && world.is_block(place_pos - IVec3::Y, block::GRASS, cache) {
+                world.set_block(place_pos, block::PUMPKIN, rand.next_int_bounded(4) as u8, cache);
             }
 
         }
@@ -182,7 +182,7 @@ impl CactusGenerator {
 
 impl FeatureGenerator for CactusGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..10 {
 
@@ -192,15 +192,15 @@ impl FeatureGenerator for CactusGenerator {
                 z: rand.next_int_bounded(8) - rand.next_int_bounded(8),
             };
 
-            if world.is_block_air(place_pos) {
+            if world.is_block_air(place_pos, cache) {
                 
                 let v = rand.next_int_bounded(3) + 1;
                 let height = rand.next_int_bounded(v) + 1;
 
                 // Check that the bottom cane can be placed.
                 for dy in 0..height {
-                    if world.can_place_block(place_pos, Face::NegY, block::CACTUS) {
-                        world.set_block(place_pos + IVec3::new(0, dy, 0), block::CACTUS, 0);
+                    if world.can_place_block(place_pos, Face::NegY, block::CACTUS, cache) {
+                        world.set_block(place_pos + IVec3::new(0, dy, 0), block::CACTUS, 0, cache);
                     }
                 }
 

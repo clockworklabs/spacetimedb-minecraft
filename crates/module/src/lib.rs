@@ -18,6 +18,7 @@ use mc173_module::world::{Dimension, StdbWorld, World};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
 use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
+use mc173_module::chunk_cache::ChunkCache;
 use mc173_module::geom::Face;
 use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime};
 use mc173_module::stdb::weather::StdbWeather;
@@ -71,6 +72,8 @@ pub enum TickMode {
 
 #[spacetimedb(init)]
 pub fn init(context: ReducerContext) {
+    let init_span = spacetimedb::time_span::Span::start("Init");
+    let mut cache = ChunkCache::new();
     let nano_time = context.timestamp.duration_since(Timestamp::UNIX_EPOCH).unwrap().as_nanos();
     // log::info!("Starting Generation");
     // generate_chunks(-5, -5, 5, 5);
@@ -96,33 +99,42 @@ pub fn init(context: ReducerContext) {
 
     // This has to be here because this is how we schedule tick
     // Do the very fist tick
-    tick();
+    tick_inner(&mut cache);
+    schedule!(Duration::from_millis(50), tick());
+    
+    cache.apply();
+    init_span.end();
 }
 
 
 #[spacetimedb(reducer)]
 pub fn tick() {
+    let mut cache = ChunkCache::new();
+    tick_inner(&mut cache);
+    // reschedule self
+    schedule!(Duration::from_millis(50), tick());
+    cache.apply();
+}
+
+pub fn tick_inner(cache: &mut ChunkCache) {
     // Do stuff...
     // Lastly, tick time
     for mut world in StdbWorld::iter() {
         let mut state = StdbServerWorldState::filter_by_world_id(&world.id).unwrap();
-        tick_world(&mut world, &mut state);
+        tick_world(&mut world, &mut state, cache);
         let world_id = world.id;
         StdbWorld::update_by_id(&world_id, world);
         StdbServerWorldState::update_by_world_id(&world_id, state);
     }
-
-    // reschedule self
-    schedule!(Duration::from_millis(50), tick());
 }
 
 /// Tick this world.
-pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
+pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState, cache: &mut ChunkCache) {
 
     // Get server-side time.
     let time = state.time;
     if time == 0 {
-        init_world(world, state);
+        init_world(world, cache);
     }
 
     // Poll all chunks to load in the world.
@@ -147,12 +159,12 @@ pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
     // Only run if no tick freeze.
     match state.tick_mode {
         TickMode::Auto => {
-            world.world.tick();
+            world.world.tick(cache);
         }
         TickMode::Manual => {
             let mut n = state.tick_mode_manual;
             if n != 0 {
-                world.world.tick();
+                world.world.tick(cache);
             }
             state.tick_mode_manual -= 1;
         }
@@ -255,7 +267,7 @@ pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
 
 /// Initialize the world by ensuring that every entity is currently tracked. This
 /// method can be called multiple time and should be idempotent.
-fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
+fn init_world(world: &mut StdbWorld, cache: &mut ChunkCache) {
 
     // // Ensure that every entity has a tracker.
     // for (id, entity) in self.world.iter_entities() {
@@ -267,27 +279,33 @@ fn init_world(world: &mut StdbWorld, state: &mut StdbServerWorldState) {
     // }
 
     // NOTE: Temporary code.
+    let init_world_span = spacetimedb::time_span::Span::start("Init World");
     let size = 1;
     let (center_cx, center_cz) = calc_entity_chunk_pos(DVec3::new(0.0, 100.0, 0.0));
     for cx in center_cx - size..=center_cx + size {
         for cz in center_cz - size..=center_cz + size {
-            ChunkStorage::request_load(world, cx, cz);
+            let request_load_span = spacetimedb::time_span::Span::start(format!("Generate Chunk: {}, {}", cx, cz).as_str());
+            ChunkStorage::request_load(world, cx, cz, cache);
+            request_load_span.end();
         }
     }
+    init_world_span.end();
 }
 
 #[spacetimedb(reducer)]
 pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
+    let generate_chunks_span = spacetimedb::time_span::Span::start("Generate Chunks");
+    let mut cache = ChunkCache::new();
     let mut world = StdbWorld::filter_by_id(&1).unwrap();
-    let handle = spacetimedb::time_span::Span::start("spacetimedb chunk generation func");
     for x in from_x..to_x {
         for z in from_z..to_z {
             let inner_handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
-            ChunkStorage::request_load(&mut world, x, z);
+            ChunkStorage::request_load(&mut world, x, z, &mut cache);
             inner_handle.end();
         }
     }
-    handle.end()
+    cache.apply();
+    generate_chunks_span.end();
 }
 
 
@@ -308,9 +326,11 @@ pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
 
 #[spacetimedb(reducer)]
 pub fn generate_chunk(x: i32, z: i32) {
+    let mut cache = ChunkCache::new();
     let mut world = StdbWorld::filter_by_id(&1).unwrap();
-    ChunkStorage::request_load(&mut world, x, z);
+    ChunkStorage::request_load(&mut world, x, z, &mut cache);
     log::info!("Chunk Generated: {}, {}", x, z);
+    cache.apply();
 }
 
 /*pub fn break_block(pos_x: i32, pos_y: i32, pos_z: i32) -> Option<(u8, u8)> {
@@ -336,7 +356,7 @@ pub fn generate_chunk(x: i32, z: i32) {
 //     let pos = IVec3::new(pos_x, pos_y, pos_z);
 //
 //     let (cx, cz) = calc_chunk_pos(pos).unwrap();
-//     let mut chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
+//     let mut chunk = StdbChunk::filter_by_id(StdbChunk::calc_chunk_id(cx, cz)).unwrap();
 //     let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
 //
 //     if id != prev_id || metadata != prev_metadata {
@@ -372,6 +392,8 @@ pub fn generate_chunk(x: i32, z: i32) {
 
 #[spacetimedb(reducer)]
 fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
+
+    let mut cache = ChunkCache::new();
 
     // TODO(jdetter): replace this when we migrate entities
     let username = "Boppy";
@@ -412,8 +434,8 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     if packet.status == 0 {
 
         // Special case to extinguish fire.
-        if world.world.is_block(pos + face.delta(), block::FIRE) {
-            world.world.set_block_notify(pos + face.delta(), block::AIR, 0);
+        if world.world.is_block(pos + face.delta(), block::FIRE, &mut cache) {
+            world.world.set_block_notify(pos + face.delta(), block::AIR, 0, &mut cache);
         }
 
         // We ignore any interaction result for the left click (break block) to
@@ -422,14 +444,14 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
         // world.world.interact_block(pos);
 
         // Start breaking a block, ignore if the position is invalid.
-        if let Some((id, _)) = world.world.get_block(pos) {
+        if let Some((id, _)) = world.world.get_block(pos, &mut cache) {
 
             // let break_duration = world.get_break_duration(stack.id, id, in_water, on_ground);
             let break_duration = world.world.get_break_duration(hand_item, id, in_water, on_ground);
             if break_duration.is_infinite() {
                 // Do nothing, the block is unbreakable.
             } else if break_duration == 0.0 {
-                world.world.break_block(pos);
+                world.world.break_block(pos, &mut cache);
             } else {
                 // self.breaking_block = Some(BreakingBlock {
                 //     start_time: world.get_time(), // + (break_duration * 0.7) as u64,
@@ -461,12 +483,12 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     } else if packet.status == 2 {
         // Block breaking should be finished.
         if let Some(some_breaking_block) = stdb_breaking_block.take() {
-            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.world.is_block(pos, some_breaking_block.state.id) {
+            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.world.is_block(pos, some_breaking_block.state.id, &mut cache) {
                 // let break_duration = world.world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
                 let break_duration = world.world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
                 let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;
                 if world.world.get_time() >= min_time {
-                    world.world.break_block(pos);
+                    world.world.break_block(pos, &mut cache);
                 } else {
 
                     log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.world.get_time());
@@ -493,8 +515,9 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
         //     self.drop_stack(world, stack.with_size(1), false);
         //
         // }
-
     }
+
+    cache.apply();
 }
 
 

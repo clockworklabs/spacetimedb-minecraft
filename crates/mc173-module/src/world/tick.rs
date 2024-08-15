@@ -11,6 +11,7 @@ use crate::block::sapling::TreeKind;
 use crate::gen::tree::TreeGenerator;
 use crate::geom::{Face, FaceSet};
 use crate::{block, item};
+use crate::chunk_cache::ChunkCache;
 use crate::stdb::weather::StdbWeather;
 
 use super::{World, Dimension, Weather};
@@ -558,7 +559,7 @@ impl World {
     //
     // }
 
-    fn calc_fluid_flow_faces(&mut self, pos: IVec3, material: Material) -> FaceSet {
+    fn calc_fluid_flow_faces(&mut self, pos: IVec3, material: Material, cache: &mut ChunkCache) -> FaceSet {
 
         let mut lowest_cost = u8::MAX;
         let mut set = FaceSet::new();
@@ -566,19 +567,19 @@ impl World {
         for face in Face::HORIZONTAL {
 
             let face_pos = pos + face.delta();
-            let (face_block, face_metadata) = self.get_block(face_pos).unwrap_or_default();
+            let (face_block, face_metadata) = self.get_block(face_pos, cache).unwrap_or_default();
 
             if !block::material::is_fluid_proof(face_block) {
                 if block::material::get_material(face_block) != material || !block::fluid::is_source(face_metadata) {
 
                     let face_below_pos = face_pos - IVec3::Y;
-                    let (face_below_block, _) = self.get_block(face_below_pos).unwrap_or_default();
+                    let (face_below_block, _) = self.get_block(face_below_pos, cache).unwrap_or_default();
                     
                     let face_cost;
                     if !block::material::is_fluid_proof(face_below_block) {
                         face_cost = 0;
                     } else {
-                        face_cost = self.calc_fluid_flow_cost(face_pos, material, face, 1);
+                        face_cost = self.calc_fluid_flow_cost(face_pos, material, face, 1, cache);
                     }
 
                     // If this face has the lowest cost, that means that all previous face
@@ -605,7 +606,7 @@ impl World {
     /// Internal function to calculate the flow cost of a fluid toward the given face. If
     /// the face is not given, all faces are checked, and the recursive calls have the 
     /// face set to all four horizontal faces.
-    fn calc_fluid_flow_cost(&mut self, pos: IVec3, material: Material, origin_face: Face, cost: u8) -> u8 {
+    fn calc_fluid_flow_cost(&mut self, pos: IVec3, material: Material, origin_face: Face, cost: u8, cache: &mut ChunkCache) -> u8 {
         
         let mut lowest_cost = u8::MAX;
 
@@ -614,19 +615,19 @@ impl World {
             if face != origin_face.opposite() {
 
                 let face_pos = pos + face.delta();
-                let (face_block, face_metadata) = self.get_block(face_pos).unwrap_or_default();
+                let (face_block, face_metadata) = self.get_block(face_pos, cache).unwrap_or_default();
 
                 if !block::material::is_fluid_proof(face_block) {
                     if block::material::get_material(face_block) != material || !block::fluid::is_source(face_metadata) {
 
                         let face_below_pos = face_pos - IVec3::Y;
-                        let (face_below_block, _) = self.get_block(face_below_pos).unwrap_or_default();
+                        let (face_below_block, _) = self.get_block(face_below_pos, cache).unwrap_or_default();
                         if !block::material::is_fluid_proof(face_below_block) {
                             return cost;
                         }
 
                         if cost < 4 {
-                            lowest_cost = lowest_cost.min(self.calc_fluid_flow_cost(face_pos, material, origin_face, cost + 1));
+                            lowest_cost = lowest_cost.min(self.calc_fluid_flow_cost(face_pos, material, origin_face, cost + 1, cache));
                         }
 
                     }

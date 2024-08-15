@@ -9,7 +9,7 @@ use crate::block::sapling::TreeKind;
 use crate::item::{ItemStack, self};
 use crate::geom::Face;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::World;
 use super::bound::RayTraceKind;
 
@@ -20,7 +20,7 @@ impl World {
     /// Use an item stack on a given block, this is basically the action of left click. 
     /// This function returns the item stack after, if used, this may return an item stack
     /// with size of 0. The face is where the click has hit on the target block.
-    pub fn use_stack(&mut self, inv: &mut InventoryHandle, index: usize, pos: IVec3, face: Face, entity_id: u32) {
+    pub fn use_stack(&mut self, inv: &mut InventoryHandle, index: usize, pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) {
 
         let stack = inv.get(index);
         if stack.is_empty() {
@@ -29,22 +29,22 @@ impl World {
         
         let success = match stack.id {
             0 => false,
-            1..=255 => self.use_block_stack(stack.id as u8, stack.damage as u8, pos, face, entity_id),
-            item::SUGAR_CANES => self.use_block_stack(block::SUGAR_CANES, 0, pos, face, entity_id),
-            item::CAKE => self.use_block_stack(block::CAKE, 0, pos, face, entity_id),
-            item::REPEATER => self.use_block_stack(block::REPEATER, 0, pos, face, entity_id),
-            item::REDSTONE => self.use_block_stack(block::REDSTONE, 0, pos, face, entity_id),
-            item::WOOD_DOOR => self.use_door_stack(block::WOOD_DOOR, pos, face, entity_id),
-            item::IRON_DOOR => self.use_door_stack(block::IRON_DOOR, pos, face, entity_id),
-            item::BED => self.use_bed_stack(pos, face, entity_id),
+            1..=255 => self.use_block_stack(stack.id as u8, stack.damage as u8, pos, face, entity_id, cache),
+            item::SUGAR_CANES => self.use_block_stack(block::SUGAR_CANES, 0, pos, face, entity_id, cache),
+            item::CAKE => self.use_block_stack(block::CAKE, 0, pos, face, entity_id, cache),
+            item::REPEATER => self.use_block_stack(block::REPEATER, 0, pos, face, entity_id, cache),
+            item::REDSTONE => self.use_block_stack(block::REDSTONE, 0, pos, face, entity_id, cache),
+            item::WOOD_DOOR => self.use_door_stack(block::WOOD_DOOR, pos, face, entity_id, cache),
+            item::IRON_DOOR => self.use_door_stack(block::IRON_DOOR, pos, face, entity_id, cache),
+            item::BED => self.use_bed_stack(pos, face, entity_id, cache),
             item::DIAMOND_HOE |
             item::IRON_HOE |
             item::STONE_HOE |
             item::GOLD_HOE |
-            item::WOOD_HOE => self.use_hoe_stack(pos, face),
-            item::WHEAT_SEEDS => self.use_wheat_seeds_stack(pos, face),
-            item::DYE if stack.damage == 15 => self.use_bone_meal_stack(pos),
-            item::FLINT_AND_STEEL => self.use_flint_and_steel(pos, face),
+            item::WOOD_HOE => self.use_hoe_stack(pos, face, cache),
+            item::WHEAT_SEEDS => self.use_wheat_seeds_stack(pos, face, cache),
+            item::DYE if stack.damage == 15 => self.use_bone_meal_stack(pos, cache),
+            item::FLINT_AND_STEEL => self.use_flint_and_steel(pos, face, cache),
             _ => false
         };
 
@@ -77,11 +77,11 @@ impl World {
 
     /// Place a block toward the given face. This is used for single blocks, multi blocks
     /// are handled apart by other functions that do not rely on the block placing logic.
-    fn use_block_stack(&mut self, id: u8, metadata: u8, mut pos: IVec3, mut face: Face, entity_id: u32) -> bool {
+    fn use_block_stack(&mut self, id: u8, metadata: u8, mut pos: IVec3, mut face: Face, entity_id: u32, cache: &mut ChunkCache) -> bool {
 
         // let look = self.get_entity(entity_id).unwrap().0.look;
 
-        if let Some((block::SNOW, _)) = self.get_block(pos) {
+        if let Some((block::SNOW, _)) = self.get_block(pos, cache) {
             // If a block is placed by clicking on a snow block, replace that snow block.
             face = Face::NegY;
         } else {
@@ -113,17 +113,17 @@ impl World {
 
         if pos.y >= 127 && block::material::get_material(id).is_solid() {
             return false;
-        } if !self.can_place_block(pos, face, id) {
+        } if !self.can_place_block(pos, face, id, cache) {
             return false;
         }
 
-        self.place_block(pos, face, id, metadata);
+        self.place_block(pos, face, id, metadata, cache);
         true
 
     }
 
     /// Place a door item at given position.
-    fn use_door_stack(&mut self, block_id: u8, mut pos: IVec3, face: Face, entity_id: u32) -> bool {
+    fn use_door_stack(&mut self, block_id: u8, mut pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) -> bool {
 
         if face != Face::PosY {
             return false;
@@ -133,7 +133,7 @@ impl World {
 
         if pos.y >= 127 {
             return false;
-        } else if !self.can_place_block(pos, face.opposite(), block_id) {
+        } else if !self.can_place_block(pos, face.opposite(), block_id, cache) {
             return false;
         }
 
@@ -149,8 +149,8 @@ impl World {
         let right_pos = pos + door_face.rotate_right().delta();
 
         // Temporary closure to avoid boiler plate just after.
-        let is_door_block = |pos| {
-            self.get_block(pos).map(|(id, _)| id == block_id).unwrap_or(false)
+        let mut is_door_block = |pos| {
+            self.get_block(pos, cache).map(|(id, _)| id == block_id).unwrap_or(false)
         };
 
         let left_door = is_door_block(left_pos) || is_door_block(left_pos + IVec3::Y);
@@ -161,12 +161,12 @@ impl World {
         } else {
 
             let left_count = 
-                self.is_block_opaque_cube(left_pos) as u8 + 
-                self.is_block_opaque_cube(left_pos + IVec3::Y) as u8;
+                self.is_block_opaque_cube(left_pos, cache) as u8 +
+                self.is_block_opaque_cube(left_pos + IVec3::Y, cache) as u8;
             
             let right_count = 
-                self.is_block_opaque_cube(right_pos) as u8 + 
-                self.is_block_opaque_cube(right_pos + IVec3::Y) as u8;
+                self.is_block_opaque_cube(right_pos, cache) as u8 +
+                self.is_block_opaque_cube(right_pos + IVec3::Y, cache) as u8;
 
             if left_count > right_count {
                 flip = true;
@@ -183,16 +183,16 @@ impl World {
         }
 
         block::door::set_face(&mut metadata, door_face);
-        self.set_block_notify(pos, block_id, metadata);
+        self.set_block_notify(pos, block_id, metadata, cache);
 
         block::door::set_upper(&mut metadata, true);
-        self.set_block_notify(pos + IVec3::Y, block_id, metadata);
+        self.set_block_notify(pos + IVec3::Y, block_id, metadata, cache);
 
         true
 
     }
 
-    fn use_bed_stack(&mut self, mut pos: IVec3, face: Face, entity_id: u32) -> bool {
+    fn use_bed_stack(&mut self, mut pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) -> bool {
 
         if face != Face::PosY {
             return false;
@@ -205,30 +205,30 @@ impl World {
         let bed_face = Face::NegX;
         let head_pos = pos + bed_face.delta();
 
-        if !matches!(self.get_block(pos), Some((block::AIR, _))) {
+        if !matches!(self.get_block(pos, cache), Some((block::AIR, _))) {
             return false;
-        } else if !matches!(self.get_block(head_pos), Some((block::AIR, _))) {
+        } else if !matches!(self.get_block(head_pos, cache), Some((block::AIR, _))) {
             return false;
-        } else if !self.is_block_opaque_cube(pos - IVec3::Y) || !self.is_block_opaque_cube(head_pos - IVec3::Y) {
+        } else if !self.is_block_opaque_cube(pos - IVec3::Y, cache) || !self.is_block_opaque_cube(head_pos - IVec3::Y, cache) {
             return false;
         }
 
         let mut metadata = 0;
         block::bed::set_face(&mut metadata, bed_face);
-        self.set_block_notify(pos, block::BED, metadata);
+        self.set_block_notify(pos, block::BED, metadata, cache);
         block::bed::set_head(&mut metadata, true);
-        self.set_block_notify(head_pos, block::BED, metadata);
+        self.set_block_notify(head_pos, block::BED, metadata, cache);
 
         true
 
     }
 
-    fn use_hoe_stack(&mut self, pos: IVec3, face: Face) -> bool {
+    fn use_hoe_stack(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
         
-        if let Some((id, _)) = self.get_block(pos) {
-            if let Some((above_id, _)) = self.get_block(pos + IVec3::Y) {
+        if let Some((id, _)) = self.get_block(pos, cache) {
+            if let Some((above_id, _)) = self.get_block(pos + IVec3::Y, cache) {
                 if (face != Face::NegY && above_id == block::AIR && id == block::GRASS) || id == block::DIRT {
-                    self.set_block_notify(pos, block::FARMLAND, 0);
+                    self.set_block_notify(pos, block::FARMLAND, 0, cache);
                     return true;
                 }
             }
@@ -238,12 +238,12 @@ impl World {
 
     }
 
-    fn use_wheat_seeds_stack(&mut self, pos: IVec3, face: Face) -> bool {
+    fn use_wheat_seeds_stack(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
 
         if face == Face::PosY {
-            if let Some((block::FARMLAND, _)) = self.get_block(pos) {
-                if let Some((block::AIR, _)) = self.get_block(pos + IVec3::Y) {
-                    self.set_block_notify(pos + IVec3::Y, block::WHEAT, 0);
+            if let Some((block::FARMLAND, _)) = self.get_block(pos, cache) {
+                if let Some((block::AIR, _)) = self.get_block(pos + IVec3::Y, cache) {
+                    self.set_block_notify(pos + IVec3::Y, block::WHEAT, 0, cache);
                     return true;
                 }
             }
@@ -253,9 +253,9 @@ impl World {
 
     }
 
-    fn use_bone_meal_stack(&mut self, pos: IVec3) -> bool {
+    fn use_bone_meal_stack(&mut self, pos: IVec3, cache: &mut ChunkCache) -> bool {
 
-        let Some((block, metadata)) = self.get_block(pos) else { return false };
+        let Some((block, metadata)) = self.get_block(pos, cache) else { return false };
 
         if block == block::SAPLING {
             
@@ -266,7 +266,7 @@ impl World {
                 TreeKind::Spruce => TreeGenerator::new_spruce2(),
             };
             
-            gen.generate_from_sapling(self, pos);
+            gen.generate_from_sapling(self, pos, cache);
             true
 
         } else {
@@ -275,9 +275,9 @@ impl World {
 
     }
 
-    fn use_flint_and_steel(&mut self, pos: IVec3, face: Face) -> bool {
+    fn use_flint_and_steel(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
 
-        if self.is_block(pos, block::TNT) {
+        if self.is_block(pos, block::TNT, cache) {
             // self.spawn_entity(Tnt::new_with(|new_base, new_tnt| {
             //     new_base.pos = pos.as_dvec3() + 0.5;
             //     new_tnt.fuse_time = 80;
@@ -285,8 +285,8 @@ impl World {
             // self.set_block_notify(pos, block::AIR, 0);
         } else {
             let fire_pos = pos + face.delta();
-            if self.is_block_air(fire_pos) {
-                self.set_block_notify(fire_pos, block::FIRE, 0);
+            if self.is_block_air(fire_pos, cache) {
+                self.set_block_notify(fire_pos, block::FIRE, 0, cache);
             }
         }
 

@@ -8,7 +8,8 @@ use glam::{IVec3, DVec3};
 // use crate::block_entity::BlockEntity;
 use crate::geom::{BoundingBox, Face};
 use crate::block;
-
+use crate::chunk::Chunk;
+use crate::chunk_cache::ChunkCache;
 use super::World;
 
 
@@ -203,26 +204,26 @@ impl World {
     /// Iterate over all blocks that are in the bounding box area, this doesn't check for
     /// actual collision with the block's bounding box, it just return all potential 
     /// blocks in the bounding box' area.
-    pub fn iter_blocks_in_box(&self, bb: BoundingBox) -> impl Iterator<Item = (IVec3, u8, u8)> + '_ {
+    pub fn iter_blocks_in_box<'a>(&'a self, bb: BoundingBox, cache: &'a mut ChunkCache) -> impl Iterator<Item = (IVec3, u8, u8)> + '_ {
         let min = bb.min.floor().as_ivec3();
         let max = bb.max.add(1.0).floor().as_ivec3();
-        self.iter_blocks_in(min, max)
+        self.iter_blocks_in(min, max, cache)
     }
 
     /// Iterate over all bounding boxes in the given area.
     /// *Min is inclusive and max is exclusive.*
-    pub fn iter_blocks_boxes_in(&self, min: IVec3, max: IVec3) -> impl Iterator<Item = BoundingBox> + '_ {
-        self.iter_blocks_in(min, max).flat_map(|(pos, id, metadata)| {
+    pub fn iter_blocks_boxes_in<'a>(&'a self, min: IVec3, max: IVec3, cache: &'a mut ChunkCache) -> impl Iterator<Item = BoundingBox> + '_ {
+        self.iter_blocks_in(min, max, cache).flat_map(|(pos, id, metadata)| {
             self.iter_block_colliding_boxes(pos, id, metadata)
         })
     }
 
     /// Iterate over all bounding boxes in the given area that are colliding with the 
     /// given one.
-    pub fn iter_blocks_boxes_colliding(&self, bb: BoundingBox) -> impl Iterator<Item = BoundingBox> + '_ {
+    pub fn iter_blocks_boxes_colliding<'a>(&'a self, bb: BoundingBox, cache: &'a mut ChunkCache) -> impl Iterator<Item = BoundingBox> + '_ {
         let min = bb.min.floor().as_ivec3();
         let max = bb.max.add(1.0).floor().as_ivec3();
-        self.iter_blocks_boxes_in(min, max)
+        self.iter_blocks_boxes_in(min, max, cache)
             .filter(move |block_bb| block_bb.intersects(bb))
     }
 
@@ -230,7 +231,7 @@ impl World {
     /// entity or block. The fluid argument is used to hit the fluid **source** blocks or
     /// not. The overlay argument is used to select the block overlay box instead of the
     /// block bound box.
-    pub fn ray_trace_blocks(&self, origin: DVec3, ray: DVec3, kind: RayTraceKind) -> Option<RayTraceHit> {
+    pub fn ray_trace_blocks(&self, origin: DVec3, ray: DVec3, kind: RayTraceKind, cache: &mut ChunkCache) -> Option<RayTraceHit> {
         
         let ray_norm = ray.normalize();
 
@@ -239,7 +240,7 @@ impl World {
         let stop_pos = origin.add(ray).floor().as_ivec3();
 
         // Break when an invalid chunk is encountered.
-        while let Some((block, metadata)) = self.get_block(block_pos) {
+        while let Some((block, metadata)) = self.get_block(block_pos, cache) {
 
             let bb = match kind {
                 RayTraceKind::Colliding => 

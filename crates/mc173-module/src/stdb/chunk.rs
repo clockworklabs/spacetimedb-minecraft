@@ -4,22 +4,36 @@ use crate::chunk::Chunk;
 use crate::ivec3::StdbIVec3;
 
 #[spacetimedb(table(public))]
+#[derive(Clone)]
 pub struct StdbChunk {
     #[primarykey]
-    #[autoinc]
-    pub chunk_id: i32,
+    pub chunk_id: u32,
     pub x: i32,
     pub z: i32,
 
     pub chunk: Chunk,
 }
 
+impl StdbChunk {
+    pub fn xz_to_chunk_id(x: i32, z: i32) -> u32 {
+        // bounds check x and z, which must both fit in an i16
+        assert!(x >= -32768 && x <= 32767);
+        assert!(z >= -32768 && z <= 32767);
+        ((x as u32) << 16) | (z as u32 & 0xFFFF)
+    }
+
+    pub fn id_to_x_y(id: u32) -> (i32, i32) {
+        let x = (id >> 16) as i32;
+        let z = (id & 0xFFFF) as i32;
+        (x, z)
+    }
+}
+
 #[spacetimedb(table(public))]
 pub struct StdbChunkPopulated {
     #[primarykey]
-    #[autoinc]
     // Note: This is not a chunk id, this ID is unique to this table
-    pub id: i32,
+    pub id: u32,
     pub x: i32,
     pub z: i32,
     pub populated: u8,

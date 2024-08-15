@@ -5,7 +5,7 @@ use glam::IVec3;
 use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::FeatureGenerator;
 
 
@@ -41,7 +41,7 @@ impl SimpleTreeGenerator {
 
 impl FeatureGenerator for SimpleTreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(3) + self.min_height as i32;
 
@@ -55,11 +55,11 @@ impl FeatureGenerator for SimpleTreeGenerator {
             }
         };
 
-        if !check_tree(world, pos, height, check_radius) {
+        if !check_tree(world, pos, height, check_radius, cache) {
             return false;
         }
 
-        world.set_block(pos - IVec3::Y, block::DIRT, 0);
+        world.set_block(pos - IVec3::Y, block::DIRT, 0, cache);
 
         for y in (pos.y + height - 3)..=(pos.y + height) {
 
@@ -72,8 +72,8 @@ impl FeatureGenerator for SimpleTreeGenerator {
                     let dz = (z - pos.z).abs();
                     if dx != radius || dz != radius || (rand.next_int_bounded(2) != 0 && dy != 0) {
                         let replace_pos = IVec3::new(x, y, z);
-                        if !world.is_block_opaque_cube(replace_pos) {
-                            world.set_block(replace_pos, block::LEAVES, self.metadata);
+                        if !world.is_block_opaque_cube(replace_pos, cache) {
+                            world.set_block(replace_pos, block::LEAVES, self.metadata, cache);
                         }
                     }
                 }
@@ -83,8 +83,8 @@ impl FeatureGenerator for SimpleTreeGenerator {
 
         for y in pos.y..(pos.y + height) {
             let replace_pos = IVec3::new(pos.x, y, pos.z);
-            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos) {
-                world.set_block(replace_pos, block::LOG, self.metadata);
+            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos, cache) {
+                world.set_block(replace_pos, block::LOG, self.metadata, cache);
             }
         }
 
@@ -107,19 +107,19 @@ pub struct BigTreeGenerator {
 
 impl FeatureGenerator for BigTreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let mut rand = JavaRandom::new(rand.next_long());
         let mut height = rand.next_int_bounded(self.height_range) + 5;
 
-        if !matches!(world.get_block(pos - IVec3::Y), Some((block::GRASS | block::DIRT, _))) {
+        if !matches!(world.get_block(pos - IVec3::Y, cache), Some((block::GRASS | block::DIRT, _))) {
             return false;
         }
 
         // Check that we can grow the main branch.
         let main_branch_from = pos;
         let main_branch_to = pos + IVec3::new(0, height, 0);
-        match self.check_big_tree_branch(world, main_branch_from, main_branch_to) {
+        match self.check_big_tree_branch(world, main_branch_from, main_branch_to, cache) {
             Some(new_to) => {
                 // If the new length is too short, abort.
                 if new_to.y - pos.y < 6 {
@@ -171,7 +171,7 @@ impl FeatureGenerator for BigTreeGenerator {
 
                     let leaf_pos = IVec3::new(leaf_x, leaf_y, leaf_z);
                     let leaf_check_pos = leaf_pos + IVec3::new(0, self.branch_delta_height, 0);
-                    if self.check_big_tree_branch(world, leaf_pos, leaf_check_pos).is_none() {
+                    if self.check_big_tree_branch(world, leaf_pos, leaf_check_pos, cache).is_none() {
 
                         // We compute the horizontal distance to the leaf from the main 
                         // branch, the branch will start this distance subtracted to leaf Y.
@@ -185,7 +185,7 @@ impl FeatureGenerator for BigTreeGenerator {
                         let leaf_start_y = ((leaf_y as f32 - leaf_start_delta) as i32).min(start_y);
                         
                         let leaf_start_pos = IVec3::new(pos.x, leaf_start_y, pos.z);
-                        if self.check_big_tree_branch(world, leaf_start_pos, leaf_pos).is_none() {
+                        if self.check_big_tree_branch(world, leaf_start_pos, leaf_pos, cache).is_none() {
                             nodes.push(BigTreeNode {
                                 pos: leaf_pos,
                                 start_y: leaf_start_y,
@@ -205,17 +205,17 @@ impl FeatureGenerator for BigTreeGenerator {
 
         // Place all the leaves blocks.
         for node in &nodes {
-            self.place_big_tree_leaf(world, node.pos);
+            self.place_big_tree_leaf(world, node.pos, cache);
         }
 
         // Place the main branch.
-        self.place_big_tree_branch(world, pos, pos + IVec3::new(0, height_attenuated, 0));
+        self.place_big_tree_branch(world, pos, pos + IVec3::new(0, height_attenuated, 0), cache);
         
         // Place all branches.
         let min_height = height as f32 * 0.2;
         for node in &nodes {
             if (node.start_y - pos.y) as f32 >= min_height {
-                self.place_big_tree_branch(world, IVec3::new(pos.x, node.start_y, pos.z), node.pos);
+                self.place_big_tree_branch(world, IVec3::new(pos.x, node.start_y, pos.z), node.pos, cache);
             }
         }
 
@@ -249,15 +249,15 @@ impl BigTreeGenerator {
     }
 
     /// Grow a big tree leaf ball of leaves.
-    fn place_big_tree_leaf(&self, world: &mut World, pos: IVec3) {
+    fn place_big_tree_leaf(&self, world: &mut World, pos: IVec3, cache: &mut ChunkCache) {
         for dy in 0..self.branch_delta_height {
             let radius = if dy != 0 && dy != self.branch_delta_height - 1 { 3.0 } else { 2.0 };
-            self.place_big_tree_leaf_layer(world, pos + IVec3::new(0, dy, 0), radius);
+            self.place_big_tree_leaf_layer(world, pos + IVec3::new(0, dy, 0), radius, cache);
         }
     }
 
     /// Grow a single horizontal layer of leaves of given radius.
-    fn place_big_tree_leaf_layer(&self, world: &mut World, pos: IVec3, radius: f32) {
+    fn place_big_tree_leaf_layer(&self, world: &mut World, pos: IVec3, radius: f32, cache: &mut ChunkCache) {
 
         let block_radius = (radius + 0.618) as i32;
 
@@ -266,8 +266,8 @@ impl BigTreeGenerator {
                 let dist = ((dx.abs() as f32 + 0.5).powi(2) + (dz.abs() as f32 + 0.5).powi(2)).sqrt();
                 if dist <= radius {
                     let replace_pos = pos + IVec3::new(dx, 0, dz);
-                    if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos) {
-                        world.set_block(replace_pos, block::LEAVES, 0);
+                    if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos, cache) {
+                        world.set_block(replace_pos, block::LEAVES, 0, cache);
                     }
                 }
             }
@@ -276,19 +276,19 @@ impl BigTreeGenerator {
     }
 
     /// Place a branch from a position to another one.
-    fn place_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3) {
+    fn place_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3, cache: &mut ChunkCache) {
         for pos in BlockLineIter::new(from, to) {
-            world.set_block(pos, block::LOG, 0);
+            world.set_block(pos, block::LOG, 0, cache);
         }
     }
 
     /// Check a big tree branch, this function returns the first position on the line 
     /// that is not valid for growing a branch.
     /// If none is returned then the branch is fully valid.
-    fn check_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3) -> Option<IVec3> {
+    fn check_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3, cache: &mut ChunkCache) -> Option<IVec3> {
 
         for pos in BlockLineIter::new(from, to) {
-            if !matches!(world.get_block(pos), Some((block::AIR | block::LEAVES, _))) {
+            if !matches!(world.get_block(pos, cache), Some((block::AIR | block::LEAVES, _))) {
                 return Some(pos);
             }
         }
@@ -337,7 +337,7 @@ impl Spruce1TreeGenerator {
 
 impl FeatureGenerator for Spruce1TreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(5) + 7;
         let leaves_offset = height - rand.next_int_bounded(2) - 3;
@@ -353,11 +353,11 @@ impl FeatureGenerator for Spruce1TreeGenerator {
             }
         };
 
-        if !check_tree(world, pos, height, check_radius) {
+        if !check_tree(world, pos, height, check_radius, cache) {
             return false;
         }
 
-        world.set_block(pos - IVec3::Y, block::DIRT, 0);
+        world.set_block(pos - IVec3::Y, block::DIRT, 0, cache);
 
         let mut current_radius = 0;
 
@@ -370,8 +370,8 @@ impl FeatureGenerator for Spruce1TreeGenerator {
                     let dz = (z - pos.z).abs();
                     if dx != current_radius || dz != current_radius || current_radius <= 0 {
                         let replace_pos = IVec3::new(x, y, z);
-                        if !world.is_block_opaque_cube(replace_pos) {
-                            world.set_block(replace_pos, block::LEAVES, 1);
+                        if !world.is_block_opaque_cube(replace_pos, cache) {
+                            world.set_block(replace_pos, block::LEAVES, 1, cache);
                         }
                     }
 
@@ -388,8 +388,8 @@ impl FeatureGenerator for Spruce1TreeGenerator {
 
         for y in pos.y..(pos.y + height - 1) {
             let replace_pos = IVec3::new(pos.x, y, pos.z);
-            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos) {
-                world.set_block(replace_pos, block::LOG, 1);
+            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos, cache) {
+                world.set_block(replace_pos, block::LOG, 1, cache);
             }
         }
 
@@ -411,7 +411,7 @@ impl Spruce2TreeGenerator {
 
 impl FeatureGenerator for Spruce2TreeGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(4) + 6;
         let leaves_offset = rand.next_int_bounded(2) + 1;
@@ -427,11 +427,11 @@ impl FeatureGenerator for Spruce2TreeGenerator {
             }
         };
 
-        if !check_tree(world, pos, height, check_radius) {
+        if !check_tree(world, pos, height, check_radius, cache) {
             return false;
         }
 
-        world.set_block(pos - IVec3::Y, block::DIRT, 0);
+        world.set_block(pos - IVec3::Y, block::DIRT, 0, cache);
 
         let mut current_radius = rand.next_int_bounded(2);
         let mut start_radius = 0;
@@ -447,8 +447,8 @@ impl FeatureGenerator for Spruce2TreeGenerator {
                     let dz = (z - pos.z).abs();
                     if dx != current_radius || dz != current_radius || current_radius <= 0 {
                         let replace_pos = IVec3::new(x, y, z);
-                        if !world.is_block_opaque_cube(replace_pos) {
-                            world.set_block(replace_pos, block::LEAVES, 1);
+                        if !world.is_block_opaque_cube(replace_pos, cache) {
+                            world.set_block(replace_pos, block::LEAVES, 1, cache);
                         }
                     }
                 }
@@ -467,8 +467,8 @@ impl FeatureGenerator for Spruce2TreeGenerator {
         let log_offset = rand.next_int_bounded(3);
         for y in pos.y..(pos.y + height - log_offset) {
             let replace_pos = IVec3::new(pos.x, y, pos.z);
-            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos) {
-                world.set_block(replace_pos, block::LOG, 1);
+            if let Some((block::AIR | block::LEAVES, _)) = world.get_block(replace_pos, cache) {
+                world.set_block(replace_pos, block::LOG, 1, cache);
             }
         }
 
@@ -523,12 +523,12 @@ impl TreeGenerator {
 
 impl FeatureGenerator for TreeGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         match self {
-            TreeGenerator::Simple(gen) => gen.generate(world, pos, rand),
-            TreeGenerator::Big(gen) => gen.generate(world, pos, rand),
-            TreeGenerator::Spruce1(gen) => gen.generate(world, pos, rand),
-            TreeGenerator::Spruce2(gen) => gen.generate(world, pos, rand),
+            TreeGenerator::Simple(gen) => gen.generate(world, pos, rand, cache),
+            TreeGenerator::Big(gen) => gen.generate(world, pos, rand, cache),
+            TreeGenerator::Spruce1(gen) => gen.generate(world, pos, rand, cache),
+            TreeGenerator::Spruce2(gen) => gen.generate(world, pos, rand, cache),
         }
     }
 
@@ -539,15 +539,15 @@ impl TreeGenerator {
     // Special function for generating a tree from its sapling, this ensure that the
     // sapling remains is the generation fails. This implementation also pass world
     // random for the the randomization of tree.
-    pub fn generate_from_sapling(&mut self, world: &mut World, pos: IVec3) -> bool {
+    pub fn generate_from_sapling(&mut self, world: &mut World, pos: IVec3, cache: &mut ChunkCache) -> bool {
         
-        let Some((prev_id, prev_metadata)) = world.set_block(pos, block::AIR, 0) else { 
+        let Some((prev_id, prev_metadata)) = world.set_block(pos, block::AIR, 0, cache) else {
             return false
         };
 
         let mut rand = world.get_rand_mut().clone();
-        let success = if !self.generate(world, pos, &mut rand) {
-            world.set_block(pos, prev_id, prev_metadata);
+        let success = if !self.generate(world, pos, &mut rand, cache) {
+            world.set_block(pos, prev_id, prev_metadata, cache);
             false
         } else {
             true
@@ -567,6 +567,7 @@ fn check_tree(
     pos: IVec3, 
     height: i32,
     check_radius: impl Fn(i32) -> i32,
+    cache: &mut ChunkCache
 ) -> bool {
 
     let max_y = pos.y + height + 1;
@@ -575,7 +576,7 @@ fn check_tree(
     }
 
     // NOTE: This also ensure that our chunk is loaded.
-    if !matches!(world.get_block(pos - IVec3::Y), Some((block::GRASS | block::DIRT, _))) {
+    if !matches!(world.get_block(pos - IVec3::Y, cache), Some((block::GRASS | block::DIRT, _))) {
         return false;
     }
 
@@ -585,7 +586,7 @@ fn check_tree(
         let check_radius = check_radius(y);
         for x in pos.x - check_radius..=pos.x + check_radius {
             for z in pos.z - check_radius..=pos.z + check_radius {
-                if let Some((block::AIR | block::LEAVES, _)) = world.get_block(IVec3::new(x, y, z)) {
+                if let Some((block::AIR | block::LEAVES, _)) = world.get_block(IVec3::new(x, y, z), cache) {
                     continue;
                 }
                 return false;

@@ -6,7 +6,7 @@ use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::geom::Face;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::FeatureGenerator;
 
 
@@ -27,11 +27,11 @@ impl LakeGenerator {
 
 impl FeatureGenerator for LakeGenerator {
 
-    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
 
         // Lake have a maximum size of 16x8x16, so we subtract half.
         pos -= IVec3::new(8, 0, 8);
-        while pos.y > 0 && world.is_block_air(pos) {
+        while pos.y > 0 && world.is_block_air(pos, cache) {
             pos.y -= 1;
         }
         pos.y -= 4;
@@ -80,7 +80,7 @@ impl FeatureGenerator for LakeGenerator {
 
                     if filled {
                         let check_pos = pos + IVec3::new(dx as i32, dy as i32, dz as i32);
-                        let check_id = world.get_block(check_pos).map(|(id, _)| id).unwrap_or(block::AIR);
+                        let check_id = world.get_block(check_pos, cache).map(|(id, _)| id).unwrap_or(block::AIR);
                         let check_material = block::material::get_material(check_id);
                         if dy >= 4 && check_material.is_fluid() {
                             return false;
@@ -98,7 +98,7 @@ impl FeatureGenerator for LakeGenerator {
                 for dy in 0..8 {
                     if fill[dx][dz][dy] {
                         let place_pos = pos + IVec3::new(dx as i32, dy as i32, dz as i32);
-                        world.set_block(place_pos, if dy >= 4 { block::AIR } else { self.fluid_id }, 0);
+                        world.set_block(place_pos, if dy >= 4 { block::AIR } else { self.fluid_id }, 0, cache);
                     }
                 }
             }
@@ -109,9 +109,9 @@ impl FeatureGenerator for LakeGenerator {
                 for dy in 4..8 {
                     if fill[dx][dz][dy] {
                         let check_pos = pos + IVec3::new(dx as i32, dy as i32 - 1, dz as i32);
-                        if world.is_block(check_pos, block::DIRT) {
-                            if world.get_light(check_pos).sky > 0 {
-                                world.set_block(check_pos, block::GRASS, 0);
+                        if world.is_block(check_pos, block::DIRT, cache) {
+                            if world.get_light(check_pos, cache).sky > 0 {
+                                world.set_block(check_pos, block::GRASS, 0, cache);
                             }
                         }
                     }
@@ -135,8 +135,8 @@ impl FeatureGenerator for LakeGenerator {
 
                         if filled && (dy < 4 || rand.next_int_bounded(2) != 0) {
                             let place_pos = pos + IVec3::new(dx as i32, dy as i32, dz as i32);
-                            if world.get_block_material(place_pos).is_solid() {
-                                world.set_block(place_pos, block::STONE, 0);
+                            if world.get_block_material(place_pos, cache).is_solid() {
+                                world.set_block(place_pos, block::STONE, 0, cache);
                             }
                         }
 
@@ -169,13 +169,13 @@ impl LiquidGenerator {
 
 impl FeatureGenerator for LiquidGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, _rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, _rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
-        if !world.is_block(pos + IVec3::Y, block::STONE) {
+        if !world.is_block(pos + IVec3::Y, block::STONE, cache) {
             return false;
-        } else if !world.is_block(pos - IVec3::Y, block::STONE) {
+        } else if !world.is_block(pos - IVec3::Y, block::STONE, cache) {
             return false;
-        } else if !matches!(world.get_block(pos), Some((block::AIR | block::STONE, _))) {
+        } else if !matches!(world.get_block(pos, cache), Some((block::AIR | block::STONE, _))) {
             return false;
         }
 
@@ -183,7 +183,7 @@ impl FeatureGenerator for LiquidGenerator {
         let mut air_count = 0;
 
         for face in Face::HORIZONTAL {
-            match world.get_block(pos + face.delta()) {
+            match world.get_block(pos + face.delta(), cache) {
                 Some((block::STONE, _)) => stone_count += 1,
                 None | Some((block::AIR, _)) => air_count += 1,
                 _ => {}
@@ -191,7 +191,7 @@ impl FeatureGenerator for LiquidGenerator {
         }
 
         if stone_count == 3 && air_count == 1 {
-            world.set_block(pos, self.fluid_id, 0);
+            world.set_block(pos, self.fluid_id, 0, cache);
         }
 
         true

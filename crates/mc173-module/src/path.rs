@@ -10,7 +10,7 @@ use crate::block::material::Material;
 use crate::geom::BoundingBox;
 use crate::world::World;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 
 /// A path finder on a world.
 pub struct PathFinder<'a> {
@@ -27,6 +27,8 @@ pub struct PathFinder<'a> {
     /// target, getting it from the end reduces overhead of the operation because no
     /// other element need to be moved.
     pending: Vec<usize>,
+
+    cache: &'a mut ChunkCache,
 }
 
 #[derive(Default)]
@@ -49,13 +51,14 @@ struct PathPoint {
 
 impl<'a> PathFinder<'a> {
 
-    pub fn new(world: &'a World) -> Self {
+    pub fn new(world: &'a World, cache: &'a mut ChunkCache) -> Self {
         Self {
             world,
             entity_size: IVec3::ONE,
             points: Vec::new(),
             points_map: HashMap::new(),
             pending: Vec::new(),
+            cache,
         }
     }
 
@@ -79,9 +82,9 @@ impl<'a> PathFinder<'a> {
     }
 
     /// Check clearance of the given position, depending on the current entity size.
-    fn check_clearance(&self, pos: IVec3) -> PathClearance {
+    fn check_clearance(&mut self, pos: IVec3) -> PathClearance {
         
-        for (_, block, metadata) in self.world.iter_blocks_in(pos, pos + self.entity_size) {
+        for (_, block, metadata) in self.world.iter_blocks_in(pos, pos + self.entity_size, self.cache) {
             match block {
                 block::AIR => {}
                 block::IRON_DOOR | block::WOOD_DOOR => {

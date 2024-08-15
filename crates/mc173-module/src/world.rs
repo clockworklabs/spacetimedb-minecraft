@@ -28,6 +28,7 @@ use crate::geom::{BoundingBox, Face};
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
+use crate::chunk_cache::ChunkCache;
 use crate::ivec3::StdbIVec3;
 use crate::stdb::chunk::StdbChunk;
 use crate::stdb::weather::StdbWeather;
@@ -406,7 +407,7 @@ impl World {
     /// Only entities and block entities that are in a chunk will be ticked.
     ///
     /// STDB Note: Returns the chunk ID that was inserted into the StdbChunk table
-    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk) -> i32 {
+    pub fn set_chunk(&mut self, cx: i32, cz: i32, chunk: Chunk, cache: &mut ChunkCache) -> bool {
         // let chunk_comp = self.chunks.entry((cx, cz)).or_default();
         // let was_unloaded = chunk_comp.data.replace(chunk).is_none();
         
@@ -426,46 +427,32 @@ impl World {
         });
         // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
 
-        match StdbChunk::filter_by_x(&cx).find(|c| c.z == cz) {
-            None => {
-                // This chunk doesn't exist, let's just insert it!
-                let a = StdbChunk::insert(StdbChunk {
-                    chunk_id: 0,
-                    x: cx,
-                    z: cz,
-                    chunk,
-                }).unwrap();
-                a.chunk_id
-            }
-            Some(existing_chunk) => {
-                StdbChunk::update_by_chunk_id(&existing_chunk.chunk_id, StdbChunk {
-                    chunk_id: existing_chunk.chunk_id,
-                    x: cx,
-                    z: cz,
-                    chunk,
-                });
-                existing_chunk.chunk_id
-            }
-        }
+        cache.set_chunk(StdbChunk {
+            chunk_id: StdbChunk::xz_to_chunk_id(cx, cz),
+            x: cx,
+            z: cz,
+            chunk,
+        });
 
+        true
     }
 
     /// Return true if a given chunk is present in the world.
-    pub fn contains_chunk(&self, cx: i32, cz: i32) -> bool {
+    pub fn contains_chunk(&self, cx: i32, cz: i32, cache: &mut ChunkCache) -> bool {
+        cache.get_chunk(cx, cz).is_some()
         // query!(|c: StdbChunk|c.x == cx && c.z == cz);
-        StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).is_some()
         // self.chunks.get(&(cx, cz)).is_some_and(|c| c.data.is_some())
     }
 
     /// Get a reference to a chunk, if existing.
-    pub fn get_chunk(&self, cx: i32, cz: i32) -> Option<StdbChunk> {
-        StdbChunk::filter_by_x(&cx).find(|c| c.z == cz)
+    pub fn get_chunk(&self, cx: i32, cz: i32, cache: &mut ChunkCache) -> Option<StdbChunk> {
+        cache.get_chunk(cx, cz)
         // self.chunks.get(&(cx, cz)).and_then(|c| c.data.as_deref())
     }
 
     //// Get a mutable reference to a chunk, if existing.
     // pub fn get_chunk_mut(&mut self, cx: i32, cz: i32) -> Option<&mut Chunk> {
-    //     StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).map(|c|c.chunk)
+    //     StdbChunk::filter_by_chunk_id(StdbChunk::chunk_id(cx, cz))
     //     // self.chunks.get_mut(&(cx, cz)).and_then(|c| c.data.as_mut().map(Arc::make_mut))
     // }
 
@@ -502,16 +489,16 @@ impl World {
     /// loaded, none is returned, but if it is existing the previous block and metadata
     /// is returned. This function also push a block change event and update lights
     /// accordingly.
-    pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
-
+    pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
         let (cx, cz) = calc_chunk_pos(pos)?;
-        let mut chunk = self.get_chunk(cx, cz)?;
+        let mut chunk = self.get_chunk(cx, cz, cache)?;
 
         let result = self.set_block_inner(pos, id, metadata, &mut chunk);
 
         if result.0 {
             let id = chunk.chunk_id;
-            StdbChunk::update_by_chunk_id(&id, chunk);
+            cache.set_chunk(chunk);
+            // StdbChunk::update_by_chunk_id(&id, chunk);
         }
 
         Some((result.1, result.2))
@@ -571,8 +558,8 @@ impl World {
     /// notified of that removal and addition.
     /// 
     /// [`set_block`]: Self::set_block
-    pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block(pos, id, metadata)?;
+    pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = self.set_block(pos, id, metadata, cache)?;
         // self.notify_change_unchecked(pos, prev_id, prev_metadata, id, metadata);
         Some((prev_id, prev_metadata))
     }
@@ -581,17 +568,17 @@ impl World {
     /// are notified of that neighbor change.
     /// 
     /// [`set_block_self_notify`]: Self::set_block_self_notify
-    pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata)?;
-        self.notify_blocks_around(pos, id);
+    pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata, cache)?;
+        self.notify_blocks_around(pos, id, cache);
         Some((prev_id, prev_metadata))
     }
 
     /// Get block and metadata at given position in the world, if the chunk is not
     /// loaded, none is returned.
-    pub fn get_block(&self, pos: IVec3) -> Option<(u8, u8)> {
+    pub fn get_block(&self, pos: IVec3, cache: &mut ChunkCache) -> Option<(u8, u8)> {
         let (cx, cz) = calc_chunk_pos(pos)?;
-        let chunk = self.get_chunk(cx, cz)?;
+        let chunk = self.get_chunk(cx, cz, cache)?;
         Some(chunk.chunk.get_block(pos))
     }
 
@@ -600,9 +587,9 @@ impl World {
     // =================== //
 
     /// Get saved height of a chunk column, Y component is ignored in the position.
-    pub fn get_height(&self, pos: IVec3) -> Option<u8> {
+    pub fn get_height(&self, pos: IVec3, cache: &mut ChunkCache) -> Option<u8> {
         let (cx, cz) = calc_chunk_pos_unchecked(pos);
-        let chunk = self.get_chunk(cx, cz)?;
+        let chunk = self.get_chunk(cx, cz, cache)?;
         Some(chunk.chunk.get_height(pos))
     }
 
@@ -611,7 +598,7 @@ impl World {
     // =================== //
 
     /// Get light level at the given position, in range 0..16.
-    pub fn get_light(&self, mut pos: IVec3) -> Light {
+    pub fn get_light(&self, mut pos: IVec3, cache: &mut ChunkCache) -> Light {
         
         if pos.y > 127 {
             pos.y = 127;
@@ -624,7 +611,7 @@ impl World {
         };
 
         if let Some((cx, cz)) = calc_chunk_pos(pos) {
-            if let Some(chunk) = self.get_chunk(cx, cz) {
+            if let Some(chunk) = self.get_chunk(cx, cz, cache) {
                 light.block = chunk.chunk.get_block_light(pos);
                 light.sky = chunk.chunk.get_sky_light(pos);
             }
@@ -632,7 +619,6 @@ impl World {
 
         light.sky_real = light.sky.saturating_sub(self.sky_light_subtracted);
         light
-
     }
 
     /// Schedule a light update to be processed in a future tick.
@@ -657,9 +643,9 @@ impl World {
     // =================== //
 
     /// Get the biome at some position (Y component is ignored).
-    pub fn get_biome(&self, pos: IVec3) -> Option<Biome> {
+    pub fn get_biome(&self, pos: IVec3, cache: &mut ChunkCache) -> Option<Biome> {
         let (cx, cz) = calc_chunk_pos_unchecked(pos);
-        let chunk = self.get_chunk(cx, cz)?;
+        let chunk = self.get_chunk(cx, cz, cache)?;
         Some(chunk.chunk.get_biome(pos))
     }
 
@@ -681,7 +667,7 @@ impl World {
     //     trace!("spawn entity #{id} ({:?})", kind);
     //
     //     let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
-    //     let chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
+    //     let chunk = StdbChunk::filter_by_chunk_id(StdbChunk::chunk_id(cx, cz)).unwrap();
     //     let entity_index = self.entities.push(EntityComponent {
     //         inner: Some(entity),
     //         id,
@@ -1009,14 +995,14 @@ impl World {
 
     /// Iterate over all blocks in the given area where max is excluded.
     #[inline]
-    pub fn iter_blocks_in(&self, min: IVec3, max: IVec3) -> BlocksInIter<'_> {
-        BlocksInIter::new(self, min, max)
+    pub fn iter_blocks_in<'a>(&'a self, min: IVec3, max: IVec3, cache: &'a mut ChunkCache) -> BlocksInIter<'a> {
+        BlocksInIter::new(self, min, max, cache)
     }
 
     /// Iterate over all blocks in the chunk at given coordinates.
     #[inline]
-    pub fn iter_blocks_in_chunk(&self, cx: i32, cz: i32) -> BlocksInChunkIter {
-        BlocksInChunkIter::new(self, cx, cz)
+    pub fn iter_blocks_in_chunk(&self, cx: i32, cz: i32, cache: &mut ChunkCache) -> BlocksInChunkIter {
+        BlocksInChunkIter::new(self, cx, cz, cache)
     }
 
     // /// Iterate over all entities in the world.
@@ -1131,7 +1117,7 @@ impl World {
     
     /// Tick the world, this ticks all entities.
     /// TODO: Guard this from being called recursively from tick functions.
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, cache: &mut ChunkCache) {
 
         if self.time % 20 == 0 {
             // println!("time: {}", self.time);
@@ -1153,7 +1139,7 @@ impl World {
         // self.tick_entities(nano_time);
         // self.tick_block_entities();
 
-        self.tick_light(1000);
+        self.tick_light(1000, cache);
         
     }
 
@@ -1566,7 +1552,7 @@ impl World {
 
     /// Tick pending light updates for a maximum number of light updates. This function
     /// returns true only if all light updates have been processed.
-    pub fn tick_light(&mut self, limit: usize) {
+    pub fn tick_light(&mut self, limit: usize, cache: &mut ChunkCache) {
 
         // IMPORTANT NOTE: This algorithm is terrible but works, I've been trying to come
         // with a better one but it has been too complicated so far.
@@ -1580,7 +1566,7 @@ impl World {
                 let face_pos = <StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta();
 
                 let Some((cx, cz)) = calc_chunk_pos(face_pos) else { continue };
-                let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
+                let Some(mut chunk) = self.get_chunk(cx, cz, cache) else { continue };
 
                 let face_emission = match update.kind {
                     LightKind::Block => chunk.chunk.get_block_light(face_pos),
@@ -1595,7 +1581,7 @@ impl World {
             }
 
             let Some((cx, cz)) = calc_chunk_pos(update.pos.into()) else { continue };
-            let Some(mut chunk) = self.get_chunk(cx, cz) else { continue };
+            let Some(mut chunk) = self.get_chunk(cx, cz, cache) else { continue };
 
             let (id, _) = chunk.chunk.get_block(update.pos.into());
             let opacity = block::material::get_light_opacity(id).max(1);
@@ -1638,8 +1624,7 @@ impl World {
                 });
 
                 // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
-                let id = chunk.chunk_id;
-                StdbChunk::update_by_chunk_id(&id, chunk);
+                cache.set_chunk(chunk);
             }
 
             if changed && update.credit >= 1 {
@@ -2366,12 +2351,14 @@ pub struct BlocksInIter<'a> {
     end: IVec3,
     /// Next block to fetch.
     cursor: IVec3,
+
+    cache: &'a mut ChunkCache
 }
 
 impl<'a> BlocksInIter<'a> {
 
     #[inline]
-    fn new(world: &'a World, mut start: IVec3, mut end: IVec3) -> Self {
+    fn new(world: &'a World, mut start: IVec3, mut end: IVec3, cache: &'a mut ChunkCache) -> Self {
 
         debug_assert!(start.x <= end.x && start.y <= end.y && start.z <= end.z);
 
@@ -2390,6 +2377,7 @@ impl<'a> BlocksInIter<'a> {
             start,
             end,
             cursor: start,
+            cache
         }
 
     }
@@ -2413,7 +2401,7 @@ impl Iterator for BlocksInIter<'_> {
             // NOTE: Unchecked because the Y value is clamped in the constructor.
             let (cx, cz) = calc_chunk_pos_unchecked(self.cursor);
             if !matches!(&self.chunk, Some(chunk) if (chunk.x, chunk.z) == (cx, cz)) {
-                let chunk = StdbChunk::filter_by_x(&cx).find(|c| c.z == cz).unwrap();
+                let chunk = self.cache.get_chunk(cx, cz).unwrap();
                 self.chunk = Some(chunk);
             }
         }
@@ -2459,9 +2447,9 @@ pub struct BlocksInChunkIter {
 impl BlocksInChunkIter {
 
     #[inline]
-    fn new(world: &World, cx: i32, cz: i32) -> Self {
+    fn new(world: &World, cx: i32, cz: i32, cache: &mut ChunkCache) -> Self {
         Self {
-            chunk: world.get_chunk(cx, cz),
+            chunk: world.get_chunk(cx, cz, cache),
             cursor: IVec3::new(cx * CHUNK_WIDTH as i32, 0, cz * CHUNK_WIDTH as i32),
         }
     }

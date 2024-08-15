@@ -5,7 +5,7 @@ use glam::IVec3;
 
 use crate::geom::{Face, FaceSet};
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::World;
 
 
@@ -14,31 +14,31 @@ impl World {
 
     /// Check if the given block position get any active power from surrounding faces.
     #[inline]
-    pub fn has_active_power(&mut self, pos: IVec3) -> bool {
-        Face::ALL.into_iter().any(|face| self.has_active_power_from(pos + face.delta(), face.opposite()))
+    pub fn has_active_power(&mut self, pos: IVec3, cache: &mut ChunkCache) -> bool {
+        Face::ALL.into_iter().any(|face| self.has_active_power_from(pos + face.delta(), face.opposite(), cache))
     }
 
     /// Check if the given block position get any passive power from surrounding faces.
     #[inline]
-    pub fn has_passive_power(&mut self, pos: IVec3) -> bool {
-        Face::ALL.into_iter().any(|face| self.has_passive_power_from(pos + face.delta(), face.opposite()))
+    pub fn has_passive_power(&mut self, pos: IVec3, cache: &mut ChunkCache) -> bool {
+        Face::ALL.into_iter().any(|face| self.has_passive_power_from(pos + face.delta(), face.opposite(), cache))
     }
 
     /// Return true if the given block's face produces any active power.
     #[inline]
-    pub fn has_active_power_from(&mut self, pos: IVec3, face: Face) -> bool {
-        self.get_active_power_from(pos, face) > 0
+    pub fn has_active_power_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
+        self.get_active_power_from(pos, face, cache) > 0
     }
 
     /// Return true if the given block's face has any passive power.
     #[inline]
-    pub fn has_passive_power_from(&mut self, pos: IVec3, face: Face) -> bool {
-        self.get_passive_power_from(pos, face) > 0
+    pub fn has_passive_power_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
+        self.get_passive_power_from(pos, face, cache) > 0
     }
 
     /// Get the active power produced by a block's face.
-    pub fn get_active_power_from(&mut self, pos: IVec3, face: Face) -> u8 {
-        let power = self.get_power_from(pos, face, true);
+    pub fn get_active_power_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> u8 {
+        let power = self.get_power_from(pos, face, true, cache);
         if power.indirect || !power.passive {
             power.level
         } else {
@@ -47,24 +47,24 @@ impl World {
     }
 
     /// Get the passive power of a block's face.
-    pub fn get_passive_power_from(&mut self, pos: IVec3, face: Face) -> u8 {
-        self.get_power_from(pos, face, true).level
+    pub fn get_passive_power_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> u8 {
+        self.get_power_from(pos, face, true, cache).level
     }
 
     /// Get the power produced by a block on a given face.
-    fn get_power_from(&mut self, pos: IVec3, face: Face, test_block: bool) -> Power {
+    fn get_power_from(&mut self, pos: IVec3, face: Face, test_block: bool, cache: &mut ChunkCache) -> Power {
 
-        let Some((id, metadata)) = self.get_block(pos) else { return Power::OFF };
+        let Some((id, metadata)) = self.get_block(pos, cache) else { return Power::OFF };
 
         match id {
             block::LEVER => self.get_lever_power_from(face, metadata),
             block::BUTTON => self.get_button_power_from(face, metadata),
             block::REPEATER_LIT => self.get_repeater_power_from(face, metadata),
             block::REDSTONE_TORCH_LIT => self.get_redstone_torch_power_from(face, metadata),
-            block::REDSTONE => self.get_redstone_power_from(pos, face, metadata),
+            block::REDSTONE => self.get_redstone_power_from(pos, face, metadata, cache),
             // Opaque block relaying indirect power 
             _ if test_block && block::material::is_opaque_cube(id) => 
-                self.get_block_power_from(pos, face),
+                self.get_block_power_from(pos, face, cache),
             // Non-redstone blocks
             _ => Power::OFF
         }
@@ -72,7 +72,7 @@ impl World {
     }
 
     /// Get the power of a block that would be indirectly powered.
-    fn get_block_power_from(&mut self, pos: IVec3, face: Face) -> Power {
+    fn get_block_power_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> Power {
 
         // By default the block is passive, but if a face has a non-passive power then is 
         // will no longer be passive.
@@ -85,7 +85,7 @@ impl World {
                 // Test the power coming from that face, but disable 'test_block' to avoid
                 // infinite recursion between those two functions, this assumption is valid
                 // because a block cannot retransmit other block's power.
-                let power = self.get_power_from(pos + test_face.delta(), test_face.opposite(), false);
+                let power = self.get_power_from(pos + test_face.delta(), test_face.opposite(), false, cache);
                 // Only relay the power if the face provides indirect power.
                 if power.indirect {
 
@@ -152,7 +152,7 @@ impl World {
         }
     }
 
-    fn get_redstone_power_from(&mut self, pos: IVec3, face: Face, metadata: u8) -> Power {
+    fn get_redstone_power_from(&mut self, pos: IVec3, face: Face, metadata: u8, cache: &mut ChunkCache) -> Power {
         if face == Face::PosY || metadata == 0 {
             Power::OFF
         } else if face == Face::NegY {
@@ -161,22 +161,22 @@ impl World {
 
             let mut links = FaceSet::new();
 
-            let opaque_above = self.get_block(pos + IVec3::Y)
+            let opaque_above = self.get_block(pos + IVec3::Y, cache)
                 .map(|(above_id, _)| block::material::is_opaque_cube(above_id))
                 .unwrap_or(true);
 
             for face in [Face::NegX, Face::PosX, Face::NegZ, Face::PosZ] {
                 let face_pos = pos + face.delta();
-                if self.is_linkable_from(face_pos, face.opposite()) {
+                if self.is_linkable_from(face_pos, face.opposite(), cache) {
                     links.insert(face);
                 } else {
-                    if let Some((id, _)) = self.get_block(face_pos) {
+                    if let Some((id, _)) = self.get_block(face_pos, cache) {
                         if !block::material::is_opaque_cube(id) {
-                            if self.is_linkable_from(face_pos - IVec3::Y, Face::PosY) {
+                            if self.is_linkable_from(face_pos - IVec3::Y, Face::PosY, cache) {
                                 links.insert(face);
                             }
                         } else if !opaque_above {
-                            if self.is_linkable_from(face_pos + IVec3::Y, Face::NegY) {
+                            if self.is_linkable_from(face_pos + IVec3::Y, Face::NegY, cache) {
                                 links.insert(face);
                             }
                         }
@@ -208,8 +208,8 @@ impl World {
 
     /// Return true if the block at given position can link to a redstone wire from its 
     /// given face.
-    fn is_linkable_from(&mut self, pos: IVec3, face: Face) -> bool {
-        if let Some((id, metadata)) = self.get_block(pos) {
+    fn is_linkable_from(&mut self, pos: IVec3, face: Face, cache: &mut ChunkCache) -> bool {
+        if let Some((id, metadata)) = self.get_block(pos, cache) {
             match id {
                 block::LEVER |
                 block::BUTTON |

@@ -11,7 +11,7 @@ use crate::rand::JavaRandom;
 use crate::world::World;
 use crate::geom::Face;
 use crate::block;
-
+use crate::chunk_cache::ChunkCache;
 use super::FeatureGenerator;
 
 
@@ -62,7 +62,7 @@ impl DungeonGenerator {
 
 impl FeatureGenerator for DungeonGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom) -> bool {
+    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let x_radius = rand.next_int_bounded(2) + 2;
         let z_radius = rand.next_int_bounded(2) + 2;
@@ -77,14 +77,14 @@ impl FeatureGenerator for DungeonGenerator {
                 for z in start.z..=end.z {
                     
                     let check_pos = IVec3::new(x, y, z);
-                    let check_material = world.get_block_material(check_pos);
+                    let check_material = world.get_block_material(check_pos, cache);
 
                     if y == start.y && !check_material.is_solid() {
                         return false;
                     } else if y == end.y && !check_material.is_solid() {
                         return false;
                     } else if y == pos.y && (x == start.x || x == end.x || z == start.z || z == end.z) {
-                        if world.is_block_air(check_pos) && world.is_block_air(check_pos + IVec3::Y) {
+                        if world.is_block_air(check_pos, cache) && world.is_block_air(check_pos + IVec3::Y, cache) {
                             air_count += 1;
                         }
                     }
@@ -106,14 +106,14 @@ impl FeatureGenerator for DungeonGenerator {
 
                     let carve_pos = IVec3::new(x, y, z);
                     if x != start.x && y != start.y && z != start.z && x != end.x && z != end.z {
-                        world.set_block(carve_pos, block::AIR, 0);
-                    } else if y >= 0 && !world.get_block_material(carve_pos - IVec3::Y).is_solid() {
-                        world.set_block(carve_pos, block::AIR, 0);
-                    } else if world.get_block_material(carve_pos).is_solid() {
+                        world.set_block(carve_pos, block::AIR, 0, cache);
+                    } else if y >= 0 && !world.get_block_material(carve_pos - IVec3::Y, cache).is_solid() {
+                        world.set_block(carve_pos, block::AIR, 0, cache);
+                    } else if world.get_block_material(carve_pos, cache).is_solid() {
                         if y == start.y && rand.next_int_bounded(4) != 0 {
-                            world.set_block(carve_pos, block::MOSSY_COBBLESTONE, 0);
+                            world.set_block(carve_pos, block::MOSSY_COBBLESTONE, 0, cache);
                         } else {
-                            world.set_block(carve_pos, block::COBBLESTONE, 0);
+                            world.set_block(carve_pos, block::COBBLESTONE, 0, cache);
                         }
                     }
 
@@ -132,11 +132,11 @@ impl FeatureGenerator for DungeonGenerator {
                     z: rand.next_int_bounded(z_radius * 2 + 1) - z_radius,
                 };
 
-                if world.is_block_air(pos) {
+                if world.is_block_air(pos, cache) {
 
                     let mut solid_count = 0usize;
                     for face in Face::HORIZONTAL {
-                        if world.get_block_material(chest_pos + face.delta()).is_solid() {
+                        if world.get_block_material(chest_pos + face.delta(), cache).is_solid() {
                             solid_count += 1;
                             if solid_count > 1 {
                                 continue 'chest_try;

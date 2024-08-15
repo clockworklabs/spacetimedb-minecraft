@@ -17,11 +17,9 @@ pub mod smelt;
 pub mod path;
 
 pub mod chunk;
+pub mod chunk_cache;
 pub mod world;
 pub mod storage;
 pub mod gen;
 pub mod stdb;
 pub mod ivec3;
-
-
-
