@@ -2,7 +2,8 @@
 
 use std::mem;
 
-use glam::IVec3;
+use glam::{DVec3, IVec3};
+use autogen::autogen::{StdbDVec3, StdbEntity};
 // use autogen::autogen::set_weather;
 
 use mc173::item::{self, ItemStack};
@@ -244,6 +245,7 @@ fn cmd_give(ctx: CommandContext) -> CommandResult {
 }
 
 fn cmd_spawn(ctx: CommandContext) -> CommandResult {
+    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
 
     let [entity_kind_raw] = *ctx.parts else {
         return Err(None);
@@ -266,7 +268,7 @@ fn cmd_spawn(ctx: CommandContext) -> CommandResult {
         _ => return Err(Some(format!("§cError: invalid or unsupported entity kind:§r {entity_kind_raw}")))
     };
 
-    let mut entity = entity_kind.new_default(ctx.player.pos);
+    let mut entity = entity_kind.new_default(entity.pos.as_dvec3());
     entity.0.persistent = true;
 
     entity.init_natural_spawn(ctx.world);
@@ -388,11 +390,12 @@ fn cmd_weather(ctx: CommandContext) -> CommandResult {
 }
 
 fn cmd_pos(ctx: CommandContext) -> CommandResult { 
-    
+    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
+
     ctx.player.send_chat(format!("§8====================================================="));
 
-    let block_pos = ctx.player.pos.floor().as_ivec3();
-    ctx.player.send_chat(format!("§aReal:§r {}", ctx.player.pos));
+    let block_pos = entity.pos.clone().as_dvec3().floor().as_ivec3();
+    ctx.player.send_chat(format!("§aReal:§r {}", entity.pos.as_dvec3()));
     ctx.player.send_chat(format!("§aBlock:§r {}", block_pos));
 
     if let Some(height) = ctx.world.get_height(block_pos) {
@@ -414,7 +417,7 @@ fn cmd_pos(ctx: CommandContext) -> CommandResult {
 }
 
 fn cmd_effect(ctx: CommandContext) -> CommandResult { 
-
+    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
     if ctx.parts.len() != 1 && ctx.parts.len() != 2 {
         return Err(None);
     }
@@ -442,7 +445,7 @@ fn cmd_effect(ctx: CommandContext) -> CommandResult {
             .map_err(|_| format!("§cError: invalid effect data:§r {effect_data_raw}"))?;
     }
 
-    let pos = ctx.player.pos.floor().as_ivec3();
+    let pos = entity.pos.as_dvec3().floor().as_ivec3();
     ctx.player.send(OutPacket::EffectPlay(proto::EffectPlayPacket {
         x: pos.x,
         y: pos.y as i8,
@@ -462,7 +465,8 @@ fn cmd_path(ctx: CommandContext) -> CommandResult {
         return Err(None);
     };
 
-    let from = ctx.player.pos.floor().as_ivec3();
+    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
+    let from = entity.pos.as_dvec3().floor().as_ivec3();
     let to = IVec3 {
         x: x_raw.parse::<i32>().map_err(|_| format!("§cError: invalid x:§r {x_raw}"))?,
         y: y_raw.parse::<i32>().map_err(|_| format!("§cError: invalid y:§r {y_raw}"))?,
@@ -533,7 +537,8 @@ fn cmd_clean(ctx: CommandContext) -> CommandResult {
 fn cmd_explode(ctx: CommandContext) -> CommandResult { 
 
     // ctx.world.explode(ctx.player.pos, 4.0, false, Some(ctx.player.entity_id));
-    ctx.player.send_chat(format!("§aExplode at:§r {}", ctx.player.pos));
+    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
+    ctx.player.send_chat(format!("§aExplode at:§r {}", entity.pos.as_dvec3()));
     Ok(())
 
 }

@@ -15,7 +15,7 @@ use spacetimedb_sdk::{
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct StdbChunk {
-    pub chunk_id: i32,
+    pub chunk_id: u32,
     pub x: i32,
     pub z: i32,
     pub chunk: Chunk,
@@ -27,7 +27,7 @@ impl TableType for StdbChunk {
 }
 
 impl TableWithPrimaryKey for StdbChunk {
-    type PrimaryKey = i32;
+    type PrimaryKey = u32;
     fn primary_key(&self) -> &Self::PrimaryKey {
         &self.chunk_id
     }
@@ -35,11 +35,11 @@ impl TableWithPrimaryKey for StdbChunk {
 
 impl StdbChunk {
     #[allow(unused)]
-    pub fn filter_by_chunk_id(chunk_id: i32) -> TableIter<Self> {
+    pub fn filter_by_chunk_id(chunk_id: u32) -> TableIter<Self> {
         Self::filter(|row| row.chunk_id == chunk_id)
     }
     #[allow(unused)]
-    pub fn find_by_chunk_id(chunk_id: i32) -> Option<Self> {
+    pub fn find_by_chunk_id(chunk_id: u32) -> Option<Self> {
         Self::find(|row| row.chunk_id == chunk_id)
     }
     #[allow(unused)]

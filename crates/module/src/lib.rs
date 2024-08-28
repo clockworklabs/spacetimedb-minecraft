@@ -19,10 +19,17 @@ use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestam
 use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
 use mc173_module::chunk_cache::ChunkCache;
+use mc173_module::dvec3::StdbDVec3;
 use mc173_module::geom::Face;
 use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime};
 use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
+use mc173_module::vec2::StdbVec2;
+use crate::player::StdbServerPlayer;
+use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
+
+pub mod player;
+mod proto;
 
 /// Server world seed is currently hardcoded.
 pub const SEED: i64 = 9999;
@@ -57,6 +64,21 @@ pub struct StdbServerWorldState {
     // pub tick_interval: FadingAverage,
     //// Fading average of events count on each tick.
     // pub events_count: FadingAverage,
+}
+
+#[spacetimedb(table)]
+#[derive(Clone)]
+pub struct StdbEntity {
+    #[autoinc]
+    #[primarykey]
+    entity_id: u32,
+    world_id: i32,
+    // TODO: This should be part of proper entities
+    on_ground: bool,
+    /// Last position sent by the client.
+    pub pos: StdbDVec3,
+    /// Last look sent by the client.
+    pub look: StdbVec2,
 }
 
 /// Indicate the current mode for ticking the world.
@@ -521,4 +543,141 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
 }
 
 
+pub const SPAWN_POS: DVec3 = DVec3::new(0.0, 100.0, 0.0);
+#[spacetimedb(reducer)]
+fn handle_login(connection_id: u32, packet: proto::InLoginPacket) {
+    log::info!("New player logged in: {}", packet.username);
 
+    // if packet.protocol_version != 14 {
+    //     self.send_disconnect(client, format!("Protocol version mismatch!"));
+    //     return;
+    // }
+
+    let spawn_pos = SPAWN_POS;
+
+    // Get the offline player, if not existing we create a new one with the
+    // TODO(jdetter): Add support for offline players later
+    // let offline_player = self.offline_players.entry(packet.username.clone())
+    //     .or_insert_with(|| {
+    //         let spawn_world = &self.worlds[0];
+    //         OfflinePlayer {
+    //             world: spawn_world.state.name.clone(),
+    //             pos: spawn_pos,
+    //             look: Vec2::ZERO,
+    //         }
+    //     });
+
+    // let (world_index, world) = self.worlds.iter_mut()
+    //     .enumerate()
+    //     .filter(|(_, world)| world.state.name == offline_player.world)
+    //     .next()
+    //     .expect("invalid offline player world name");
+
+    // let entity = e::Human::new_with(|base, living, player| {
+    //     base.pos = offline_player.pos;
+    //     base.look = offline_player.look;
+    //     base.persistent = false;
+    //     base.can_pickup = true;
+    //     living.artificial = true;
+    //     living.health = 200;  // FIXME: Lot of HP for testing.
+    //     player.username = packet.username.clone();
+    // });
+
+    // let entity_id = world.world.spawn_entity(entity);
+    // world.world.set_entity_player(entity_id, true);
+    let new_entity = StdbEntity::insert(StdbEntity {
+        entity_id: 0,
+        world_id: 1,
+        on_ground: false,
+        pos: std::convert::Into::<StdbDVec3>::into(spawn_pos).clone(),
+        look: StdbVec2 {
+            x: 1.0,
+            y: 0.0,
+        },
+
+    }).unwrap();
+    let _ = StdbServerPlayer::insert(StdbServerPlayer {
+        entity_id: new_entity.entity_id.clone(),
+        username: packet.username,
+        connection_id,
+        dimension: 1,
+        spawn_pos: spawn_pos.into(),
+    });
+
+    // Confirm the login by sending same packet in response.
+    // self.net.send(client, OutPacket::Login(proto::OutLoginPacket {
+    //     entity_id,
+    //     random_seed: world.state.seed,
+    //     dimension: match world.world.get_dimension() {
+    //         Dimension::Overworld => 0,
+    //         Dimension::Nether => -1,
+    //     },
+    // }));
+
+    // The standard server sends the spawn position just after login response.
+    // self.net.send(client, OutPacket::SpawnPosition(proto::SpawnPositionPacket {
+    //     pos: spawn_pos.as_ivec3(),
+    // }));
+
+    // Send the initial position for the client.
+    // self.net.send(client, OutPacket::PositionLook(proto::PositionLookPacket {
+    //     pos: offline_player.pos,
+    //     stance: offline_player.pos.y + 1.62,
+    //     look: offline_player.look,
+    //     on_ground: false,
+    // }));
+
+    // Time must be sent once at login to conclude the login phase.
+    // self.net.send(client, OutPacket::UpdateTime(proto::UpdateTimePacket {
+    //     time: world.world.get_time(),
+    // }));
+
+    // if world.world.get_weather() != Weather::Clear {
+    //     self.net.send(client, OutPacket::Notification(proto::NotificationPacket {
+    //         reason: 1,
+    //     }));
+    // }
+
+    // Finally insert the player tracker.
+    // let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
+    // let player_index = world.handle_player_join(server_player);
+
+    // Replace the previous state with a playing state containing the world and
+    // player indices, used to get to the player instance.
+    // let previous_state = self.clients.insert(client, ClientState::Playing {
+    //     world_index,
+    //     player_index,
+    // });
+
+    // Just a sanity check...
+    // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
+
+    // TODO: Broadcast chat joining chat message.
+
+}
+
+#[spacetimedb(reducer)]
+fn handle_position(entity_id: u32, packet: StdbPositionPacket) {
+    let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
+        format!("Could not find player with id: {}", entity_id).as_str());
+    player.handle_position_look_inner(Some(packet.pos), None, packet.on_ground);
+    log::info!("Updated Player position");
+}
+
+/// Handle a look packet.
+#[spacetimedb(reducer)]
+fn handle_look(entity_id: u32, packet: StdbLookPacket) {
+    let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
+        format!("Could not find player with id: {}", entity_id).as_str());
+    player.handle_position_look_inner(None, Some(packet.look), packet.on_ground);
+    log::info!("Updated Player look");
+}
+
+/// Handle a position and look packet.
+#[spacetimedb(reducer)]
+fn handle_position_look(entity_id: u32, packet: StdbPositionLookPacket) {
+    let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
+        format!("Could not find player with id: {}", entity_id).as_str());
+    player.handle_position_look_inner(Some(packet.pos), Some(packet.look), packet.on_ground);
+    log::info!("Updated Player position and look");
+}

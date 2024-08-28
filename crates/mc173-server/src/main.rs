@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_handle_break_block, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbSetBlockEvent, StdbWeather};
+use autogen::autogen::{connect, on_handle_break_block, on_handle_login, on_handle_look, on_handle_position, on_handle_position_look, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -8,13 +8,14 @@ use spacetimedb_sdk::identity::Identity;
 use spacetimedb_sdk::reducer::Status;
 use spacetimedb_sdk::table::TableType;
 use spacetimedb_sdk::table::TableWithPrimaryKey;
-use spacetimedb_sdk::{subscribe, Address, on_subscription_applied};
+use spacetimedb_sdk::{subscribe, Address, on_subscription_applied, log};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::warn;
 use mc173::world::Event;
+use crate::proto::{InLoginPacket, OutPacket};
 
 // The common configuration of the server.
 pub mod config;
@@ -91,6 +92,27 @@ fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>)
         .push_chunk_event(event.clone());
 }
 
+fn on_stdb_server_player_inserted(player: &StdbServerPlayer, _reducer_event: Option<&ReducerEvent>) {
+    println!("Player added to server: {}", player.username);
+    let mut s = SERVER.lock().unwrap();
+    s.as_mut().unwrap().handle_login_result(player.connection_id, player);
+}
+
+fn on_handle_position_callback(ident: &Identity, _addr: Option<Address>, status: &Status,
+                               entity_id: &u32, packet: &StdbPositionPacket) {
+
+}
+
+fn on_handle_position_look_callback(ident: &Identity, _addr: Option<Address>, status: &Status,
+                                    entity_id: &u32, packet: &StdbPositionLookPacket) {
+
+}
+
+fn on_handle_look_callback(ident: &Identity, _addr: Option<Address>, status: &Status,
+                           entity_id: &u32, packet: &StdbLookPacket) {
+
+}
+
 fn on_subscription_applied_callback() {
     READY.store(true, Ordering::Relaxed);
     println!("Initial subscription!")
@@ -130,8 +152,12 @@ pub fn main() {
     StdbWeather::on_update(on_weather_updated);
     on_subscription_applied(on_subscription_applied_callback);
     StdbSetBlockEvent::on_insert(on_set_block_event_insert);
+    StdbServerPlayer::on_insert(on_stdb_server_player_inserted);
+    on_handle_position(on_handle_position_callback);
+    on_handle_position_look(on_handle_position_look_callback);
+    on_handle_look(on_handle_look_callback);
     connect(server, module, None).expect("Failed to connect");
-    subscribe(&["SELECT * FROM StdbChunk", "SELECT * FROM StdbTime", "SELECT * FROM StdbWeather"]).unwrap();
+    subscribe(&["SELECT * FROM *"]).unwrap();
     println!("Connected to SpacetimeDB");
 
     {

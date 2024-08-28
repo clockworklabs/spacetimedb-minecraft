@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::io;
 
-use glam::Vec2;
+use glam::{DVec3, Vec2};
 
 use tracing::{warn, info};
-
+use autogen::autogen::{InLoginPacket, StdbEntity, StdbServerPlayer};
 use mc173::world::{Dimension, Weather};
 use mc173::entity::{self as e};
 
@@ -30,6 +30,8 @@ pub struct Server {
     net: Network,
     /// Clients of this server, these structures track the network state of each client.
     clients: HashMap<NetworkClient, ClientState>,
+    pub client_ids: Vec<(u32, NetworkClient)>,
+    pub next_client_id: u32,
     /// Worlds list.
     pub worlds: Vec<ServerWorld>,
     /// Offline players
@@ -46,12 +48,22 @@ impl Server {
         Ok(Self {
             net: Network::bind(addr)?,
             clients: HashMap::new(),
+            client_ids: Vec::<(u32,NetworkClient)>::new(),
+            next_client_id: 1,
             worlds: vec![
                 ServerWorld::new("overworld"),
             ],
             offline_players: HashMap::new(),
         })
 
+    }
+
+    pub fn get_connection_id_for_client(&self, client: NetworkClient) -> Option<u32> {
+        self.client_ids.iter().find(|x| x.1 == client).map(|x| x.0)
+    }
+
+    pub fn get_client_for_connection_id(&self, connection_id: u32) -> Option<NetworkClient> {
+        self.client_ids.iter().find(|x| x.0 == connection_id).map(|x| x.1)
     }
 
     /// Force save this server and block waiting for all resources to be saved.
@@ -101,6 +113,9 @@ impl Server {
     fn handle_accept(&mut self, client: NetworkClient) {
         info!("accept client #{}", client.id());
         self.clients.insert(client, ClientState::Handshaking);
+        let client_id = self.next_client_id;
+        self.next_client_id += 1;
+        self.client_ids.push((client_id, client));
     }
 
     /// Handle a lost client.
@@ -109,6 +124,7 @@ impl Server {
         info!("lost client #{}: {:?}", client.id(), error);
         
         let state = self.clients.remove(&client).unwrap();
+        self.client_ids.retain(|x| x.1 != client);
         
         if let ClientState::Playing { world_index, player_index } = state {
             // If the client was playing, remove it from its world.
@@ -138,7 +154,6 @@ impl Server {
                 player.handle(&mut world.world, &mut world.state, packet);
             }
         }
-
     }
 
     /// Handle a packet for a client that is in handshaking state.
@@ -148,7 +163,7 @@ impl Server {
             InPacket::Handshake(_) => 
                 self.handle_handshake(client),
             InPacket::Login(packet) =>
-                self.handle_login(client, packet),
+                self.handle_login(client, packet).unwrap(),
             _ => self.send_disconnect(client, format!("Invalid packet: {packet:?}"))
         }
     }
@@ -162,48 +177,67 @@ impl Server {
     }
 
     /// Handle a login after handshake.
-    fn handle_login(&mut self, client: NetworkClient, packet: proto::InLoginPacket) {
+    fn handle_login(&mut self, client: NetworkClient, packet: proto::InLoginPacket) -> Result<(), String> {
 
         if packet.protocol_version != 14 {
             self.send_disconnect(client, format!("Protocol version mismatch!"));
-            return;
+            return Err("Protocol version mismatch!".to_string());
         }
 
-        let spawn_pos = config::SPAWN_POS;
+
+        // let spawn_pos = config::SPAWN_POS;
 
         // Get the offline player, if not existing we create a new one with the 
-        let offline_player = self.offline_players.entry(packet.username.clone())
-            .or_insert_with(|| {
-                let spawn_world = &self.worlds[0];
-                OfflinePlayer {
-                    world: spawn_world.state.name.clone(),
-                    pos: spawn_pos,
-                    look: Vec2::ZERO,
-                }
-            });
+        // let offline_player = self.offline_players.entry(packet.username.clone())
+        //     .or_insert_with(|| {
+        //         let spawn_world = &self.worlds[0];
+        //         OfflinePlayer {
+        //             world: spawn_world.state.name.clone(),
+        //             pos: spawn_pos,
+        //             look: Vec2::ZERO,
+        //         }
+        //     });
 
-        let (world_index, world) = self.worlds.iter_mut()
-            .enumerate()
-            .filter(|(_, world)| world.state.name == offline_player.world)
-            .next()
-            .expect("invalid offline player world name");
+        // let (world_index, world) = self.worlds.iter_mut()
+        //     .enumerate()
+        //     .filter(|(_, world)| world.state.name == offline_player.world)
+        //     .next()
+        //     .expect("invalid offline player world name");
 
-        let entity = e::Human::new_with(|base, living, player| {
-            base.pos = offline_player.pos;
-            base.look = offline_player.look;
-            base.persistent = false;
-            base.can_pickup = true;
-            living.artificial = true;
-            living.health = 200;  // FIXME: Lot of HP for testing.
-            player.username = packet.username.clone();
+        // let entity = e::Human::new_with(|base, living, player| {
+        //     base.pos = offline_player.pos;
+        //     base.look = offline_player.look;
+        //     base.persistent = false;
+        //     base.can_pickup = true;
+        //     living.artificial = true;
+        //     living.health = 200;  // FIXME: Lot of HP for testing.
+        //     player.username = packet.username.clone();
+        // });
+
+        let connection_id = self.get_connection_id_for_client(
+            client).ok_or("Failed to find connection id.")?;
+        autogen::autogen::handle_login(
+            connection_id,
+            InLoginPacket {
+            protocol_version: packet.protocol_version,
+            username: packet.username,
         });
 
-        let entity_id = world.world.spawn_entity(entity);
-        world.world.set_entity_player(entity_id, true);
+        Ok(())
+    }
+
+    pub fn handle_login_result(&mut self, connection_id: u32, new_player: &StdbServerPlayer) {
+        let client = self.get_client_for_connection_id(connection_id).unwrap();
+        // TODO(jdetter): Worlds in stdb are indexed starting at 1, however worlds in this context
+        //  are indexed starting at 0.
+        let world = self.worlds.get_mut(0).unwrap();
+        let entity = StdbEntity::find_by_entity_id(new_player.entity_id.clone()).unwrap();
+        let dvec3 : DVec3 = new_player.spawn_pos.clone().into();
+        // world.world.set_entity_player(entity_id, true);
 
         // Confirm the login by sending same packet in response.
         self.net.send(client, OutPacket::Login(proto::OutLoginPacket {
-            entity_id,
+            entity_id: entity.entity_id,
             random_seed: world.state.seed,
             dimension: match world.world.get_dimension() {
                 Dimension::Overworld => 0,
@@ -213,14 +247,15 @@ impl Server {
 
         // The standard server sends the spawn position just after login response.
         self.net.send(client, OutPacket::SpawnPosition(proto::SpawnPositionPacket {
-            pos: spawn_pos.as_ivec3(),
+            pos: dvec3.as_ivec3(),
         }));
 
         // Send the initial position for the client.
         self.net.send(client, OutPacket::PositionLook(proto::PositionLookPacket {
-            pos: offline_player.pos,
-            stance: offline_player.pos.y + 1.62,
-            look: offline_player.look,
+            pos: entity.pos.clone().into(),
+            // TODO: try putting the camera at the player's feet
+            stance: entity.pos.y + 1.62,
+            look: entity.look.into(),
             on_ground: false,
         }));
 
@@ -235,22 +270,50 @@ impl Server {
             }));
         }
 
+        // Get the offline player, if not existing we create a new one with the
+        let offline_player = self.offline_players.entry(new_player.username.clone())
+            .or_insert_with(|| {
+                let spawn_world = &self.worlds[0];
+                OfflinePlayer {
+                    world: spawn_world.state.name.clone(),
+                    pos: new_player.spawn_pos.clone().into(),
+                    look: Vec2::ZERO,
+                }
+            });
+
+        let (world_index, world) = self.worlds.iter_mut()
+            .enumerate()
+            .filter(|(_, world)| world.state.name == offline_player.world)
+            .next()
+            .expect("invalid offline player world name");
+
+        // TODO(jdetter): Add support for this when we add entities
+        // let entity = e::Human::new_with(|base, living, player| {
+        //     base.pos = offline_player.pos;
+        //     base.look = offline_player.look;
+        //     base.persistent = false;
+        //     base.can_pickup = true;
+        //     living.artificial = true;
+        //     living.health = 200;  // FIXME: Lot of HP for testing.
+        //     player.username = new_player.username.clone();
+        // });
+
         // Finally insert the player tracker.
-        let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
+        let server_player = ServerPlayer::new(&self.net, client, entity.entity_id,
+                                              new_player.username.clone(), &offline_player);
         let player_index = world.handle_player_join(server_player);
 
-        // Replace the previous state with a playing state containing the world and 
+        // Replace the previous state with a playing state containing the world and
         // player indices, used to get to the player instance.
         let previous_state = self.clients.insert(client, ClientState::Playing {
-            world_index,
+            world_index: 0,
             player_index,
         });
 
         // Just a sanity check...
-        debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
+        // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
 
         // TODO: Broadcast chat joining chat message.
-
     }
 
     /// Send disconnect (a.k.a. kick) to a client.

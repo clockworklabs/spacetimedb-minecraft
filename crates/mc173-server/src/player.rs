@@ -1,11 +1,11 @@
 //! Server player tracker.
 
 use std::collections::HashSet;
-
+use std::ops::Index;
 use glam::{DVec3, Vec2, IVec3};
 
 use tracing::warn;
-
+use autogen::autogen::{StdbDVec3, StdbEntity, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 use mc173::world::{World, BlockEntityStorage, BlockEntityEvent, Event, BlockEntityProgress, EntityEvent};
 use mc173::world::interact::Interaction;
 
@@ -36,9 +36,9 @@ pub struct ServerPlayer {
     /// The username of that player.
     pub username: String,
     /// Last position sent by the client.
-    pub pos: DVec3,
+    // pub pos: DVec3,
     /// Last look sent by the client.
-    pub look: Vec2,
+    // pub look: Vec2,
     /// Set of chunks that are already sent to the player.
     pub tracked_chunks: HashSet<(i32, i32)>,
     /// Set of tracked entities by this player, all entity ids in this set are considered
@@ -125,8 +125,8 @@ impl ServerPlayer {
             client,
             entity_id,
             username,
-            pos: offline.pos,
-            look: offline.look,
+            // pos: offline.pos,
+            // look: offline.look,
             tracked_chunks: HashSet::new(),
             tracked_entities: HashSet::new(),
             main_inv: Box::new([ItemStack::EMPTY; 36]),
@@ -209,44 +209,72 @@ impl ServerPlayer {
 
     /// Handle a position packet.
     fn handle_position(&mut self, world: &mut World, packet: proto::PositionPacket) {
-        self.handle_position_look_inner(world, Some(packet.pos), None, packet.on_ground);
+        // self.handle_position_look_inner(world, Some(packet.pos), None, packet.on_ground);
+        autogen::autogen::handle_position(self.entity_id, StdbPositionPacket {
+            pos: packet.pos.into(),
+            stance: packet.stance,
+            on_ground: packet.on_ground,
+        });
+
+        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+        world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: entity.pos.into() } });
+        self.update_chunks(world);
     }
 
     /// Handle a look packet.
     fn handle_look(&mut self, world: &mut World, packet: proto::LookPacket) {
-        self.handle_position_look_inner(world, None, Some(packet.look), packet.on_ground);
+        // self.handle_position_look_inner(world, None, Some(packet.look), packet.on_ground);
+        autogen::autogen::handle_look(self.entity_id, StdbLookPacket {
+            look: packet.look.into(),
+            on_ground: packet.on_ground,
+        });
+
+        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+        world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Look { look: entity.look.into() } });
     }
 
     /// Handle a position and look packet.
     fn handle_position_look(&mut self, world: &mut World, packet: proto::PositionLookPacket) {
-        self.handle_position_look_inner(world, Some(packet.pos), Some(packet.look), packet.on_ground);
+        // self.handle_position_look_inner(world, Some(packet.pos), Some(packet.look), packet.on_ground);
+        autogen::autogen::handle_position_look(self.entity_id, StdbPositionLookPacket {
+            pos: packet.pos.into(),
+            stance: packet.stance,
+            look: packet.look.into(),
+            on_ground: packet.on_ground,
+        });
+
+        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+        world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: entity.pos.into() } });
+        world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Look { look: entity.look.into() } });
+        self.update_chunks(world);
     }
 
-    fn handle_position_look_inner(&mut self, world: &mut World, pos: Option<DVec3>, look: Option<Vec2>, on_ground: bool) {
-
-        let entity = world.get_entity_mut(self.entity_id).expect("incoherent player entity");
-        entity.0.on_ground = on_ground;
-
-        if let Some(pos) = pos {
-            self.pos = pos;
-            entity.teleport(pos);
-        }
-
-        if let Some(look) = look {
-            self.look = Vec2::new(look.x.to_radians(), look.y.to_radians());
-            entity.0.look = self.look;
-        }
-
-        if pos.is_some() {
-            world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: self.pos } });
-            self.update_chunks(world);
-        }
-
-        if look.is_some() {
-            world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Look { look: self.look } });
-        }
-
-    }
+    // fn handle_position_look_inner(&mut self, world: &mut World, pos: Option<DVec3>, look: Option<Vec2>, on_ground: bool) {
+    //
+    //     let entity = world.get_entity_mut(self.entity_id).expect("incoherent player entity");
+    //     entity.0.on_ground = on_ground;
+    //
+    //     if let Some(pos) = pos {
+    //         self.pos = pos;
+    //         TODO(jdetter): Add support for updating bounding boxes in stdb
+    //         entity.teleport(pos);
+    //     }
+    //
+    //     if let Some(look) = look {
+    //         self.look = Vec2::new(look.x.to_radians(), look.y.to_radians());
+    //         entity.0.look = self.look;
+    //     }
+    //
+    //     if pos.is_some() {
+    //         world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: self.pos } });
+    //         self.update_chunks(world);
+    //     }
+    //
+    //     if look.is_some() {
+    //         world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Look { look: self.look } });
+    //     }
+    //
+    // }
 
     fn handle_break_block(&mut self, packet: proto::BreakBlockPacket) {
         autogen::autogen::handle_break_block(self.entity_id, packet.into());
@@ -903,7 +931,8 @@ impl ServerPlayer {
 
     /// Handle an entity interaction.
     fn handle_interact(&mut self, world: &mut World, packet: proto::InteractPacket) {
-        
+        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+
         if self.entity_id != packet.player_entity_id {
             warn!("from {}, incoherent interact entity: {}, expected: {}", self.username, packet.player_entity_id, self.entity_id);
         }
@@ -913,7 +942,7 @@ impl ServerPlayer {
             return;
         };
 
-        if self.pos.distance_squared(target_base.pos) >= 36.0 {
+        if entity.pos.as_dvec3().distance_squared(target_base.pos) >= 36.0 {
             warn!("from {}, incoherent interact entity distance", self.username);
             return;
         }
@@ -1377,7 +1406,8 @@ impl ServerPlayer {
     /// Update the chunks sent to this player.
     pub fn update_chunks(&mut self, world: &World) {
 
-        let (ocx, ocz) = chunk::calc_entity_chunk_pos(self.pos);
+        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+        let (ocx, ocz) = chunk::calc_entity_chunk_pos(entity.pos.into());
         let view_range = 20;
 
         for cx in (ocx - view_range)..(ocx + view_range) {

@@ -23,3 +23,5 @@ pub mod storage;
 pub mod gen;
 pub mod stdb;
 pub mod ivec3;
+pub mod dvec3;
+pub mod vec2;

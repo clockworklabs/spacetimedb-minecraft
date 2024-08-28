@@ -3,7 +3,7 @@
 use std::ops::{Mul, Div};
 
 use glam::{DVec3, Vec2, IVec3};
-
+use autogen::autogen::{StdbDVec3, StdbEntity};
 use mc173::entity::{self as e, Entity, EntityKind, BaseKind, ProjectileKind, LivingKind};
 use mc173::world::World;
 use mc173::block;
@@ -259,13 +259,14 @@ impl EntityTracker {
     /// Update a player to track or untrack this entity. The correct packet is sent if
     /// the entity needs to appear or disappear on the client side.
     pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
-        
         // A player cannot track its own entity.
         if player.entity_id == self.id {
             return;
         }
 
-        let delta = player.pos - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
+        let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+
+        let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
         if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
             if player.tracked_entities.insert(self.id) {
                 self.spawn_entity(player, world);

@@ -29,6 +29,11 @@ pub mod dimension;
 pub mod generate_chunk_reducer;
 pub mod generate_chunks_reducer;
 pub mod handle_break_block_reducer;
+pub mod handle_login_reducer;
+pub mod handle_look_reducer;
+pub mod handle_position_look_reducer;
+pub mod handle_position_reducer;
+pub mod in_login_packet;
 pub mod java_random;
 pub mod light_kind;
 pub mod light_update;
@@ -37,11 +42,18 @@ pub mod stdb_breaking_block;
 pub mod stdb_chunk;
 pub mod stdb_chunk_event;
 pub mod stdb_chunk_populated;
+pub mod stdb_d_vec_3;
+pub mod stdb_entity;
 pub mod stdb_i_vec_3;
+pub mod stdb_look_packet;
+pub mod stdb_position_look_packet;
+pub mod stdb_position_packet;
 pub mod stdb_rand;
+pub mod stdb_server_player;
 pub mod stdb_server_world_state;
 pub mod stdb_set_block_event;
 pub mod stdb_time;
+pub mod stdb_vec_2;
 pub mod stdb_weather;
 pub mod stdb_world;
 pub mod tick_mode;
@@ -58,6 +70,11 @@ pub use dimension::*;
 pub use generate_chunk_reducer::*;
 pub use generate_chunks_reducer::*;
 pub use handle_break_block_reducer::*;
+pub use handle_login_reducer::*;
+pub use handle_look_reducer::*;
+pub use handle_position_look_reducer::*;
+pub use handle_position_reducer::*;
+pub use in_login_packet::*;
 pub use java_random::*;
 pub use light_kind::*;
 pub use light_update::*;
@@ -66,11 +83,18 @@ pub use stdb_breaking_block::*;
 pub use stdb_chunk::*;
 pub use stdb_chunk_event::*;
 pub use stdb_chunk_populated::*;
+pub use stdb_d_vec_3::*;
+pub use stdb_entity::*;
 pub use stdb_i_vec_3::*;
+pub use stdb_look_packet::*;
+pub use stdb_position_look_packet::*;
+pub use stdb_position_packet::*;
 pub use stdb_rand::*;
+pub use stdb_server_player::*;
 pub use stdb_server_world_state::*;
 pub use stdb_set_block_event::*;
 pub use stdb_time::*;
+pub use stdb_vec_2::*;
 pub use stdb_weather::*;
 pub use stdb_world::*;
 pub use tick_mode::*;
@@ -84,6 +108,10 @@ pub enum ReducerEvent {
     GenerateChunk(generate_chunk_reducer::GenerateChunkArgs),
     GenerateChunks(generate_chunks_reducer::GenerateChunksArgs),
     HandleBreakBlock(handle_break_block_reducer::HandleBreakBlockArgs),
+    HandleLogin(handle_login_reducer::HandleLoginArgs),
+    HandleLook(handle_look_reducer::HandleLookArgs),
+    HandlePosition(handle_position_reducer::HandlePositionArgs),
+    HandlePositionLook(handle_position_look_reducer::HandlePositionLookArgs),
     Tick(tick_reducer::TickArgs),
 }
 
@@ -102,7 +130,9 @@ impl SpacetimeModule for Module {
 			"StdbChunk" => client_cache.handle_table_update_with_primary_key::<stdb_chunk::StdbChunk>(callbacks, table_update),
 			"StdbChunkEvent" => client_cache.handle_table_update_no_primary_key::<stdb_chunk_event::StdbChunkEvent>(callbacks, table_update),
 			"StdbChunkPopulated" => client_cache.handle_table_update_with_primary_key::<stdb_chunk_populated::StdbChunkPopulated>(callbacks, table_update),
+			"StdbEntity" => client_cache.handle_table_update_with_primary_key::<stdb_entity::StdbEntity>(callbacks, table_update),
 			"StdbRand" => client_cache.handle_table_update_no_primary_key::<stdb_rand::StdbRand>(callbacks, table_update),
+			"StdbServerPlayer" => client_cache.handle_table_update_no_primary_key::<stdb_server_player::StdbServerPlayer>(callbacks, table_update),
 			"StdbServerWorldState" => client_cache.handle_table_update_with_primary_key::<stdb_server_world_state::StdbServerWorldState>(callbacks, table_update),
 			"StdbSetBlockEvent" => client_cache.handle_table_update_no_primary_key::<stdb_set_block_event::StdbSetBlockEvent>(callbacks, table_update),
 			"StdbTime" => client_cache.handle_table_update_no_primary_key::<stdb_time::StdbTime>(callbacks, table_update),
@@ -134,7 +164,13 @@ impl SpacetimeModule for Module {
             &reducer_event,
             state,
         );
+        reminders.invoke_callbacks::<stdb_entity::StdbEntity>(worker, &reducer_event, state);
         reminders.invoke_callbacks::<stdb_rand::StdbRand>(worker, &reducer_event, state);
+        reminders.invoke_callbacks::<stdb_server_player::StdbServerPlayer>(
+            worker,
+            &reducer_event,
+            state,
+        );
         reminders.invoke_callbacks::<stdb_server_world_state::StdbServerWorldState>(
             worker,
             &reducer_event,
@@ -164,6 +200,10 @@ match &function_call.reducer[..] {
 						"generate_chunk" => _reducer_callbacks.handle_event_of_type::<generate_chunk_reducer::GenerateChunkArgs, ReducerEvent>(event, _state, ReducerEvent::GenerateChunk),
 			"generate_chunks" => _reducer_callbacks.handle_event_of_type::<generate_chunks_reducer::GenerateChunksArgs, ReducerEvent>(event, _state, ReducerEvent::GenerateChunks),
 			"handle_break_block" => _reducer_callbacks.handle_event_of_type::<handle_break_block_reducer::HandleBreakBlockArgs, ReducerEvent>(event, _state, ReducerEvent::HandleBreakBlock),
+			"handle_login" => _reducer_callbacks.handle_event_of_type::<handle_login_reducer::HandleLoginArgs, ReducerEvent>(event, _state, ReducerEvent::HandleLogin),
+			"handle_look" => _reducer_callbacks.handle_event_of_type::<handle_look_reducer::HandleLookArgs, ReducerEvent>(event, _state, ReducerEvent::HandleLook),
+			"handle_position" => _reducer_callbacks.handle_event_of_type::<handle_position_reducer::HandlePositionArgs, ReducerEvent>(event, _state, ReducerEvent::HandlePosition),
+			"handle_position_look" => _reducer_callbacks.handle_event_of_type::<handle_position_look_reducer::HandlePositionLookArgs, ReducerEvent>(event, _state, ReducerEvent::HandlePositionLook),
 			"tick" => _reducer_callbacks.handle_event_of_type::<tick_reducer::TickArgs, ReducerEvent>(event, _state, ReducerEvent::Tick),
 			unknown => { spacetimedb_sdk::log::error!("Event on an unknown reducer: {:?}", unknown); None }
 }
@@ -190,9 +230,15 @@ match &function_call.reducer[..] {
                 .handle_resubscribe_for_type::<stdb_chunk_populated::StdbChunkPopulated>(
                     callbacks, new_subs,
                 ),
+            "StdbEntity" => client_cache
+                .handle_resubscribe_for_type::<stdb_entity::StdbEntity>(callbacks, new_subs),
             "StdbRand" => {
                 client_cache.handle_resubscribe_for_type::<stdb_rand::StdbRand>(callbacks, new_subs)
             }
+            "StdbServerPlayer" => client_cache
+                .handle_resubscribe_for_type::<stdb_server_player::StdbServerPlayer>(
+                    callbacks, new_subs,
+                ),
             "StdbServerWorldState" => client_cache
                 .handle_resubscribe_for_type::<stdb_server_world_state::StdbServerWorldState>(
                     callbacks, new_subs,

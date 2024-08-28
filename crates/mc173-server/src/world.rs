@@ -330,7 +330,7 @@ impl ServerWorld {
         let mut player = self.players.swap_remove(player_index);
         
         // Kill the entity associated to the player.
-        self.world.remove_entity(player.entity_id, "server player leave");
+        self.world.remove_entity(player.entity_id, "server player left");
 
         // If player has not lost connection but it's just leaving the world, we just
         // send it untrack packets.
