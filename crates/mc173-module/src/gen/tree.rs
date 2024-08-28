@@ -3,7 +3,7 @@
 use glam::IVec3;
 
 use crate::rand::JavaRandom;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
 use super::FeatureGenerator;
@@ -41,7 +41,7 @@ impl SimpleTreeGenerator {
 
 impl FeatureGenerator for SimpleTreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(3) + self.min_height as i32;
 
@@ -107,7 +107,7 @@ pub struct BigTreeGenerator {
 
 impl FeatureGenerator for BigTreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let mut rand = JavaRandom::new(rand.next_long());
         let mut height = rand.next_int_bounded(self.height_range) + 5;
@@ -249,7 +249,7 @@ impl BigTreeGenerator {
     }
 
     /// Grow a big tree leaf ball of leaves.
-    fn place_big_tree_leaf(&self, world: &mut World, pos: IVec3, cache: &mut ChunkCache) {
+    fn place_big_tree_leaf(&self, world: &mut StdbWorld, pos: IVec3, cache: &mut ChunkCache) {
         for dy in 0..self.branch_delta_height {
             let radius = if dy != 0 && dy != self.branch_delta_height - 1 { 3.0 } else { 2.0 };
             self.place_big_tree_leaf_layer(world, pos + IVec3::new(0, dy, 0), radius, cache);
@@ -257,7 +257,7 @@ impl BigTreeGenerator {
     }
 
     /// Grow a single horizontal layer of leaves of given radius.
-    fn place_big_tree_leaf_layer(&self, world: &mut World, pos: IVec3, radius: f32, cache: &mut ChunkCache) {
+    fn place_big_tree_leaf_layer(&self, world: &mut StdbWorld, pos: IVec3, radius: f32, cache: &mut ChunkCache) {
 
         let block_radius = (radius + 0.618) as i32;
 
@@ -276,7 +276,7 @@ impl BigTreeGenerator {
     }
 
     /// Place a branch from a position to another one.
-    fn place_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3, cache: &mut ChunkCache) {
+    fn place_big_tree_branch(&self, world: &mut StdbWorld, from: IVec3, to: IVec3, cache: &mut ChunkCache) {
         for pos in BlockLineIter::new(from, to) {
             world.set_block(pos, block::LOG, 0, cache);
         }
@@ -285,7 +285,7 @@ impl BigTreeGenerator {
     /// Check a big tree branch, this function returns the first position on the line 
     /// that is not valid for growing a branch.
     /// If none is returned then the branch is fully valid.
-    fn check_big_tree_branch(&self, world: &mut World, from: IVec3, to: IVec3, cache: &mut ChunkCache) -> Option<IVec3> {
+    fn check_big_tree_branch(&self, world: &mut StdbWorld, from: IVec3, to: IVec3, cache: &mut ChunkCache) -> Option<IVec3> {
 
         for pos in BlockLineIter::new(from, to) {
             if !matches!(world.get_block(pos, cache), Some((block::AIR | block::LEAVES, _))) {
@@ -337,7 +337,7 @@ impl Spruce1TreeGenerator {
 
 impl FeatureGenerator for Spruce1TreeGenerator {
     
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(5) + 7;
         let leaves_offset = height - rand.next_int_bounded(2) - 3;
@@ -411,7 +411,7 @@ impl Spruce2TreeGenerator {
 
 impl FeatureGenerator for Spruce2TreeGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let height = rand.next_int_bounded(4) + 6;
         let leaves_offset = rand.next_int_bounded(2) + 1;
@@ -523,7 +523,7 @@ impl TreeGenerator {
 
 impl FeatureGenerator for TreeGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         match self {
             TreeGenerator::Simple(gen) => gen.generate(world, pos, rand, cache),
             TreeGenerator::Big(gen) => gen.generate(world, pos, rand, cache),
@@ -539,7 +539,7 @@ impl TreeGenerator {
     // Special function for generating a tree from its sapling, this ensure that the
     // sapling remains is the generation fails. This implementation also pass world
     // random for the the randomization of tree.
-    pub fn generate_from_sapling(&mut self, world: &mut World, pos: IVec3, cache: &mut ChunkCache) -> bool {
+    pub fn generate_from_sapling(&mut self, world: &mut StdbWorld, pos: IVec3, cache: &mut ChunkCache) -> bool {
         
         let Some((prev_id, prev_metadata)) = world.set_block(pos, block::AIR, 0, cache) else {
             return false
@@ -563,8 +563,8 @@ impl TreeGenerator {
 
 /// Check if a tree can grow based on some common properties.
 fn check_tree(
-    world: &mut World, 
-    pos: IVec3, 
+    world: &mut StdbWorld,
+    pos: IVec3,
     height: i32,
     check_radius: impl Fn(i32) -> i32,
     cache: &mut ChunkCache

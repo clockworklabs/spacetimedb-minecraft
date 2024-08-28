@@ -4,7 +4,7 @@ use glam::IVec3;
 
 use crate::block::material::Material;
 use crate::rand::JavaRandom;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::geom::Face;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
@@ -50,7 +50,7 @@ impl PlantGenerator {
 
 impl FeatureGenerator for PlantGenerator {
 
-    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         if self.find_ground {
             while pos.y > 0 {
@@ -95,7 +95,7 @@ impl SugarCanesGenerator {
 
 impl FeatureGenerator for SugarCanesGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..20 {
 
@@ -146,7 +146,7 @@ impl PumpkinGenerator {
 
 impl FeatureGenerator for PumpkinGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..64 {
             
@@ -182,7 +182,7 @@ impl CactusGenerator {
 
 impl FeatureGenerator for CactusGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         for _ in 0..10 {
 

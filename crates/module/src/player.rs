@@ -15,12 +15,11 @@
 use std::collections::HashSet;
 
 use glam::{DVec3, Vec2, IVec3};
-use spacetimedb::spacetimedb;
+use spacetimedb::{spacetimedb, SpacetimeType};
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::ivec3::StdbIVec3;
 use mc173_module::vec2::StdbVec2;
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
-use crate::StdbEntity;
 
 /// A server player is an actual
 #[spacetimedb(table)]
@@ -31,15 +30,16 @@ pub struct StdbServerPlayer {
     /// The network client used to send packets through the network to that player.
     // pub client: NetworkClient,
     /// The entity id this player is controlling.
-    #[unique]
+    #[primarykey]
+    #[autoinc]
     pub entity_id: u32,
+    #[unique]
+    pub connection_id: u64,
     /// The username of that player.
     pub username: String,
 
     // TODO: possibly remove this later if we don't need it. For now this connection ID is used
     //  by the translation layer to associate a StdbServerPlayer with a physical network connection.
-    pub connection_id: u32,
-    pub dimension: u32,
     pub spawn_pos: StdbDVec3,
     //// Set of chunks that are already sent to the player.
     // pub tracked_chunks: HashSet<(i32, i32)>,
@@ -70,6 +70,64 @@ pub struct StdbServerPlayer {
     // craft_tracker: CraftTracker,
     //// If the player is breaking a block, this record the breaking state.
     // breaking_block: Option<BreakingBlock>,
+}
+
+#[spacetimedb(table)]
+pub struct StdbOfflineServerPlayer {
+    #[primarykey]
+    pub username: String,
+    pub player: StdbServerPlayer,
+}
+
+#[spacetimedb(table(public))]
+pub struct StdbTrackedPlayer {
+    #[primarykey]
+    #[autoinc]
+    pub track_id: u32,
+    // The entity ID of the player who is tracking
+    pub from_id: u32,
+    // The entity ID of the player who is being tracked
+    pub to_id: u32,
+}
+
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StdbClientState {
+    /// This client is not yet connected to the world.
+    Handshaking,
+    /// This client is actually playing into a world.
+    Playing(StdbPlayingState),
+}
+
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StdbPlayingState {
+    /// Index of the world this player is in.
+    pub dimension_id: i32,
+    /// Index of the player within the server world.
+    pub player_index: u32,
+}
+
+#[spacetimedb(table)]
+pub struct StdbConnectionStatus {
+    #[unique]
+    pub connection_id: u64,
+    pub status: StdbClientState,
+}
+
+// TODO(jdetter): This will be removed when we actually implement entities
+#[spacetimedb(table)]
+#[derive(Clone)]
+pub struct StdbEntity {
+    #[autoinc]
+    #[primarykey]
+    pub entity_id: u32,
+    pub world_id: i32,
+    // TODO: This should be part of proper entities
+    pub on_ground: bool,
+    /// Last position sent by the client.
+    pub pos: StdbDVec3,
+    /// Last look sent by the client.
+    pub look: StdbVec2,
+    pub dimension: i32,
 }
 
 /// Describe an opened window and how to handle clicks into it.

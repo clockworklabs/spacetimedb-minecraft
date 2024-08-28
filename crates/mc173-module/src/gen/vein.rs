@@ -3,7 +3,7 @@
 use glam::{IVec3, DVec3};
 
 use crate::rand::JavaRandom;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
 use super::math::MinecraftMath;
@@ -42,7 +42,7 @@ impl VeinGenerator {
 
 impl FeatureGenerator for VeinGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
 
         let angle = rand.next_float() * f32::MC_PI;
         let (angle_sin, angle_cos) = angle.mc_sin_cos();

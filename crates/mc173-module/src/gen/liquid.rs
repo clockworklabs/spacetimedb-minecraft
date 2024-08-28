@@ -3,7 +3,7 @@
 use glam::{IVec3, DVec3};
 
 use crate::rand::JavaRandom;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::geom::Face;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
@@ -27,7 +27,7 @@ impl LakeGenerator {
 
 impl FeatureGenerator for LakeGenerator {
 
-    fn generate(&mut self, world: &mut World, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, mut pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
 
         // Lake have a maximum size of 16x8x16, so we subtract half.
         pos -= IVec3::new(8, 0, 8);
@@ -169,7 +169,7 @@ impl LiquidGenerator {
 
 impl FeatureGenerator for LiquidGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, _rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, _rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         if !world.is_block(pos + IVec3::Y, block::STONE, cache) {
             return false;

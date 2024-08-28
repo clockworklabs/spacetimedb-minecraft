@@ -3,7 +3,7 @@
 use glam::{Vec3Swizzles, DVec3};
 
 use crate::entity::{Hurt, Arrow};
-use crate::world::World;
+use crate::world::StdbWorld;
 
 use super::{Entity, BaseKind, LivingKind};
 use super::common::{self, let_expect};

@@ -14,11 +14,11 @@ use crate::{block, item};
 use crate::chunk_cache::ChunkCache;
 use crate::stdb::weather::StdbWeather;
 
-use super::{World, Dimension, Weather};
+use super::{StdbWorld, Weather};
 
 
 /// Methods related to block scheduled ticking and random ticking.
-impl World {
+impl StdbWorld {
 
     // /// Tick a block in the world. The random boolean indicates if it's a random tick.
     // /// This function is unchecked because the caller should ensure that the given id

@@ -119,7 +119,8 @@ impl ServerPlayer {
 
     /// Construct a new player with a configured network, an associated entity id and with
     /// initial position and look given from its offline serialized data.
-    pub fn new(net: &Network, client: NetworkClient, entity_id: u32, username: String, offline: &OfflinePlayer) -> Self {
+    pub fn new(net: &Network, client: NetworkClient, entity_id: u32, username: String) -> Self {
+
         Self {
             net: net.clone(),
             client,

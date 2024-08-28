@@ -10,7 +10,7 @@ use crate::geom::{BoundingBox, Face};
 use crate::block;
 use crate::chunk::Chunk;
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 
 
 const PIXEL: f64 = 1.0 / 16.0;
@@ -19,7 +19,7 @@ const PIXEL_3: f64 = 3.0 / 16.0;
 
 
 /// Methods related to block collisions and overlay bounds and also for ray tracing.
-impl World {
+impl StdbWorld {
 
     /// Get the colliding boxes for a block, the colliding box will be offset to the
     /// block's position as needed. Not to confuse with overlay boxes, which are just used

@@ -10,12 +10,12 @@ use crate::item::{ItemStack, self};
 use crate::geom::Face;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 use super::bound::RayTraceKind;
 
 
 /// Methods related to item usage in the world.
-impl World {
+impl StdbWorld {
 
     /// Use an item stack on a given block, this is basically the action of left click. 
     /// This function returns the item stack after, if used, this may return an item stack

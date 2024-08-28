@@ -13,9 +13,8 @@ use std::sync::Arc;
 use std::thread;
 
 // use crate::world::{ChunkSnapshot, World};
-use crate::world::{StdbWorld, World};
+use crate::world::StdbWorld;
 use crate::gen::{ChunkGenerator, OverworldGenerator};
-use crate::world::Dimension;
 use crate::chunk::Chunk;
 use crate::chunk_cache::ChunkCache;
 use crate::gen::overworld::OverworldState;
@@ -53,7 +52,7 @@ struct StorageWorker<G: ChunkGenerator> {
     /// The non-shared state of the generator.
     state: G::State,
     /// An internal world used to generate features after terrain generation of chunks.
-    world: World,
+    world: StdbWorld,
     /// Populated status of chunks.
     chunks_populated: HashMap<(i32, i32), u8>,
     // /// The region directory to try loading required chunks.
@@ -409,7 +408,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
 
         // Set the chunk in the world.
         // let chunk_id = self.world.set_chunk(cx, cz, chunk);
-        let chunk_id = world.world.set_chunk(cx, cz, chunk, cache);
+        let chunk_id = world.set_chunk(cx, cz, chunk, cache);
 
         // For each chunk around the current chunk, check if it exists. Component order 
         // is [X][Z]. Using this temporary array avoids too much calls to contains_chunk.
@@ -423,7 +422,7 @@ impl<G: ChunkGenerator> StorageWorker<G> {
                 // chunk is contained in the world, it also implies that it has a state
                 // in the local "chunks_state" map.
                 if (dcx, dcz) != (1, 1) {
-                    if world.world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1, cache) {
+                    if world.contains_chunk(cx + dcx as i32 - 1, cz + dcz as i32 - 1, cache) {
                         // NOTE: Array access should be heavily optimized by compiler.
                         contains[dcx][dcz] = true;
                     }

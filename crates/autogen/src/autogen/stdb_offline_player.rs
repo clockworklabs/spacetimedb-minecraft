@@ -3,6 +3,7 @@
 
 #![allow(unused_imports)]
 use super::stdb_d_vec_3::StdbDVec3;
+use super::stdb_vec_2::StdbVec2;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -14,44 +15,30 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct StdbServerPlayer {
+pub struct StdbOfflinePlayer {
     pub entity_id: u32,
-    pub connection_id: u64,
     pub username: String,
-    pub spawn_pos: StdbDVec3,
+    pub world: String,
+    pub pos: StdbDVec3,
+    pub look: StdbVec2,
 }
 
-impl TableType for StdbServerPlayer {
-    const TABLE_NAME: &'static str = "StdbServerPlayer";
+impl TableType for StdbOfflinePlayer {
+    const TABLE_NAME: &'static str = "StdbOfflinePlayer";
     type ReducerEvent = super::ReducerEvent;
 }
 
-impl TableWithPrimaryKey for StdbServerPlayer {
-    type PrimaryKey = u32;
-    fn primary_key(&self) -> &Self::PrimaryKey {
-        &self.entity_id
-    }
-}
-
-impl StdbServerPlayer {
+impl StdbOfflinePlayer {
     #[allow(unused)]
     pub fn filter_by_entity_id(entity_id: u32) -> TableIter<Self> {
         Self::filter(|row| row.entity_id == entity_id)
     }
     #[allow(unused)]
-    pub fn find_by_entity_id(entity_id: u32) -> Option<Self> {
-        Self::find(|row| row.entity_id == entity_id)
-    }
-    #[allow(unused)]
-    pub fn filter_by_connection_id(connection_id: u64) -> TableIter<Self> {
-        Self::filter(|row| row.connection_id == connection_id)
-    }
-    #[allow(unused)]
-    pub fn find_by_connection_id(connection_id: u64) -> Option<Self> {
-        Self::find(|row| row.connection_id == connection_id)
-    }
-    #[allow(unused)]
     pub fn filter_by_username(username: String) -> TableIter<Self> {
         Self::filter(|row| row.username == username)
+    }
+    #[allow(unused)]
+    pub fn filter_by_world(world: String) -> TableIter<Self> {
+        Self::filter(|row| row.world == world)
     }
 }

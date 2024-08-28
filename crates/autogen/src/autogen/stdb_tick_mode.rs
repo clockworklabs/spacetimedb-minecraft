@@ -13,7 +13,8 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct InLoginPacket {
-    pub protocol_version: i32,
-    pub username: String,
+pub enum StdbTickMode {
+    Auto,
+
+    Manual,
 }

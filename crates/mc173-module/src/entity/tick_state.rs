@@ -5,7 +5,7 @@ use std::ops::Add;
 use glam::DVec3;
 
 use crate::entity::{Hurt, LivingKind, ProjectileKind};
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::block::material::Material;
 use crate::item::{self, ItemStack};
 use crate::block;

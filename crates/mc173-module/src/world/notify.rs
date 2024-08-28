@@ -8,11 +8,11 @@ use glam::IVec3;
 use crate::geom::{Face, FaceSet};
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use super::{StdbSetBlockEvent, World};
+use super::{StdbSetBlockEvent, StdbWorld};
 
 
 /// Methods related to block self and neighbor notifications.
-impl World {
+impl StdbWorld {
 
     /// Notify all blocks around the position, the notification origin block id is given.
     pub fn notify_blocks_around(&mut self, pos: IVec3, origin_id: u8, cache: &mut ChunkCache) {

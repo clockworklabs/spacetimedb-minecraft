@@ -2,7 +2,7 @@
 
 use glam::IVec3;
 
-use crate::world::World;
+use crate::world::StdbWorld;
 
 pub mod chest;
 pub mod furnace;

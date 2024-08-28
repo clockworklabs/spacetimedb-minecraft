@@ -2,6 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
+use super::stdb_playing_state::StdbPlayingState;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -13,8 +14,8 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum Dimension {
-    Overworld,
+pub enum StdbClientState {
+    Handshaking,
 
-    Nether,
+    Playing(StdbPlayingState),
 }

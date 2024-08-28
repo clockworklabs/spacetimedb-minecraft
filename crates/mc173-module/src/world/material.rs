@@ -5,11 +5,11 @@ use glam::IVec3;
 use crate::block::material::Material;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 
 
 /// Shortcut methods for directly querying and checking a block material and properties.
-impl World {
+impl StdbWorld {
 
     /// Get the block material at given position, defaults to air if no chunk.
     pub fn get_block_material(&self, pos: IVec3, cache: &mut ChunkCache) -> Material {

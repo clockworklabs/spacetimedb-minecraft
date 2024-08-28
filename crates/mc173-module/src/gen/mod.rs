@@ -10,7 +10,7 @@ use glam::IVec3;
 
 use crate::rand::JavaRandom;
 use crate::chunk::Chunk;
-use crate::world::{StdbWorld, World};
+use crate::world::StdbWorld;
 
 // World gen-specific mathematic functions.
 pub mod math;
@@ -61,6 +61,6 @@ pub trait ChunkGenerator {
 pub trait FeatureGenerator {
 
     /// Generate the feature at the given position in the world with given RNG.
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool;
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool;
 
 }

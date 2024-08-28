@@ -8,11 +8,11 @@ use crate::util::default as def;
 use crate::geom::Face;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to block placing.
-impl World {
+impl StdbWorld {
 
     /// This function checks if the given block id can be placed at a particular position in
     /// the world, the given face indicates toward which face this block should be oriented.

@@ -122,28 +122,30 @@ thread_local! {
 /// # Roadmap
 /// 
 /// - Make a diagram to better explain the world structure with entity caching.
-#[derive(Clone, SpacetimeType)]
-pub struct World {
+#[spacetimedb(table)]
+pub struct StdbWorld {
     /// When enabled, this contains the list of events that happened in the world since
     /// it was last swapped. This swap behavior is really useful in order to avoid 
     /// borrowing issues, by temporarily taking ownership of events, the caller can get
     /// a mutable reference to that world at the same time.
     // events: Option<Vec<Event>>,
     /// The dimension
-    dimension: Dimension,
+    // dimension: Dimension,
+    #[primarykey]
+    pub dimension_id: i32,
     /// The world time, increasing on each tick. This is used for day/night cycle but 
     /// also for registering scheduled ticks.
-    time: u64,
+    pub time: u64,
     /// The world's global random number generator, it is used everywhere to randomize
     /// events in the world, such as plant grow.
-    rand: JavaRandom,
+    pub rand: JavaRandom,
     /// The mapping of world chunks, with optional world components linked to them, such
     /// as chunk data, entities and block entities. Every world component must be linked
     /// to a world chunk.
     // chunks: HashMap<(i32, i32), ChunkComponent>,
     /// Total entities count spawned since the world is running. Also used to give 
     /// entities a unique id.
-    entities_count: u32,
+    pub entities_count: u32,
     /// The internal list of all loaded entities.
     // entities: TickVec<EntityComponent>,
     //// Entities' index mapping from their unique id.
@@ -163,9 +165,9 @@ pub struct World {
     // block_ticks_states: HashSet<BlockTickState>,
     /// Queue of pending light updates to be processed.
     // light_updates: VecDeque<LightUpdate>,
-    light_updates: Vec<LightUpdate>,
+    pub light_updates: Vec<LightUpdate>,
     /// This is the wrapping seed used by random ticks to compute random block positions.
-    random_ticks_seed: i32,
+    pub random_ticks_seed: i32,
     /// The current weather in that world, note that the Notchian server do not work like
     /// this, but rather store two independent state for rain and thunder, but we simplify
     /// the logic in this implementation since it is not strictly needed to be on parity.
@@ -175,15 +177,7 @@ pub struct World {
     /// The current sky light level, depending on the current time. This value is used
     /// when subtracted from a chunk sky light level.
     // TODO: Move this into its own table
-    sky_light_subtracted: u8,
-}
-
-#[spacetimedb(table(public))]
-pub struct StdbWorld {
-    #[primarykey]
-    #[autoinc]
-    pub id: i32,
-    pub world: World
+    pub sky_light_subtracted: u8,
 }
 
 #[spacetimedb(table(public))]
@@ -203,14 +197,14 @@ pub struct StdbChunkEvent {
 }
 
 /// Core methods for worlds.
-impl World {
+impl StdbWorld {
 
     /// Create a new world of the given dimension with no events queue by default, so
     /// events are disabled.
-    pub fn new(dimension: Dimension, nano_time: u128) -> Self {
+    pub fn new(dimension_id: i32, nano_time: u128) -> Self {
         Self {
             // events: None,
-            dimension,
+            dimension_id,
             time: 0,
             rand: JavaRandom::new_seeded(nano_time),
             // chunks: HashMap::new(),
@@ -234,9 +228,9 @@ impl World {
 
     /// Pops a light update and updates the StdbWorld row with the new value.
     pub fn pop_light_update() -> Option<LightUpdate> {
-        let mut world = StdbWorld::filter_by_id(&1).unwrap();
-        let result = world.world.pop_light_update_inner();
-        StdbWorld::update_by_id(&0, world);
+        let mut world = StdbWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
+        let result = world.pop_light_update_inner();
+        StdbWorld::update_by_dimension_id(&DIMENSION_OVERWORLD, world);
         result
     }
 
@@ -285,8 +279,8 @@ impl World {
     /// and also for celestial angle on the server side for sky light calculation. This
     /// has not direct relation with the actual world generation that is providing this
     /// world with chunks and entities.
-    pub fn get_dimension(&self) -> Dimension {
-        self.dimension
+    pub fn get_dimension(&self) -> i32 {
+        self.dimension_id
     }
 
     /// Get the world time, in ticks.
@@ -1147,7 +1141,7 @@ impl World {
     fn tick_weather(&mut self) {
 
         // No weather in the nether.
-        if self.dimension == Dimension::Nether {
+        if self.dimension_id == DIMENSION_NETHER {
             return;
         }
 
@@ -1379,8 +1373,8 @@ impl World {
             half_turn -= 1.0;
         }
 
-        let celestial_angle = match self.dimension {
-            Dimension::Nether => 0.5,
+        let celestial_angle = match self.dimension_id {
+            DIMENSION_NETHER => 0.5,
             _ => half_turn + (1.0 - ((half_turn * std::f32::consts::PI).cos() + 1.0) / 2.0 - half_turn) / 3.0,
         };
 
@@ -1651,14 +1645,19 @@ impl World {
 }
 
 
-/// Types of dimensions, used for ambient effects in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SpacetimeType)]
-pub enum Dimension {
-    /// The overworld dimension with a blue sky and day cycles.
-    Overworld,
-    /// The creepy nether dimension.
-    Nether,
-}
+///// Types of dimensions, used for ambient effects in the world.
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SpacetimeType)]
+// pub enum Dimension {
+//     /// The overworld dimension with a blue sky and day cycles.
+//     Overworld,
+//     /// The creepy nether dimension.
+//     Nether,
+// }
+
+/// The overworld dimension with a blue sky and day cycles.
+pub const DIMENSION_OVERWORLD: i32 = 0;
+/// The creepy nether dimension.
+pub const DIMENSION_NETHER: i32 = -1;
 
 /// Type of weather currently in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SpacetimeType)]
@@ -2031,7 +2030,7 @@ struct EntityComponent {
 
 /// A light update to apply to the world.
 #[derive(Clone, SpacetimeType)]
-struct LightUpdate {
+pub struct LightUpdate {
     /// Light kind targeted by this update, the update only applies to one of the kind.
     kind: LightKind,
     /// The position of the light update.
@@ -2341,7 +2340,7 @@ impl<'a, T> Iterator for TickIterMut<'a, T> {
 /// This yields the block position, id and metadata.
 pub struct BlocksInIter<'a> {
     /// Back-reference to the containing world.
-    world: &'a World,
+    world: &'a StdbWorld,
     /// This contains a temporary reference to the chunk being analyzed. This is used to
     /// avoid repeatedly fetching chunks' map.
     chunk: Option<StdbChunk>,
@@ -2358,7 +2357,7 @@ pub struct BlocksInIter<'a> {
 impl<'a> BlocksInIter<'a> {
 
     #[inline]
-    fn new(world: &'a World, mut start: IVec3, mut end: IVec3, cache: &'a mut ChunkCache) -> Self {
+    fn new(world: &'a StdbWorld, mut start: IVec3, mut end: IVec3, cache: &'a mut ChunkCache) -> Self {
 
         debug_assert!(start.x <= end.x && start.y <= end.y && start.z <= end.z);
 
@@ -2447,7 +2446,7 @@ pub struct BlocksInChunkIter {
 impl BlocksInChunkIter {
 
     #[inline]
-    fn new(world: &World, cx: i32, cz: i32, cache: &mut ChunkCache) -> Self {
+    fn new(world: &StdbWorld, cx: i32, cz: i32, cache: &mut ChunkCache) -> Self {
         Self {
             chunk: world.get_chunk(cx, cz, cache),
             cursor: IVec3::new(cx * CHUNK_WIDTH as i32, 0, cz * CHUNK_WIDTH as i32),

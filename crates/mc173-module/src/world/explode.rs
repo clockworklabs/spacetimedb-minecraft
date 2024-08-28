@@ -11,11 +11,11 @@ use crate::world::bound::RayTraceKind;
 use crate::entity::{Entity, Hurt};
 use crate::block;
 
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to explosions.
-impl World {
+impl StdbWorld {
 
     // /// Make an explosion in the world at the given position and size. The explosion can
     // /// optionally propagate flames around.

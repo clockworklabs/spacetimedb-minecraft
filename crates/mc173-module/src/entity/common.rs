@@ -8,7 +8,7 @@ use glam::{DVec3, IVec3, Vec2, Vec3Swizzles};
 use crate::world::bound::RayTraceKind;
 use crate::block::material::Material;
 use crate::geom::{Face, BoundingBox};
-use crate::world::{World, Light};
+use crate::world::{StdbWorld, Light};
 use crate::block;
 
 use super::{Entity, LivingKind, Base};
@@ -43,7 +43,7 @@ pub fn calc_eye_pos(base: &Base) -> DVec3 {
 }
 
 /// Return true if the given bounding box is colliding with any fluid (given material).
-pub fn has_fluids_colliding(world: &World, bb: BoundingBox, material: Material, cache: &mut ChunkCache) -> bool {
+pub fn has_fluids_colliding(world: &StdbWorld, bb: BoundingBox, material: Material, cache: &mut ChunkCache) -> bool {
     debug_assert!(material.is_fluid());
     world.iter_blocks_in_box(bb, cache)
         .filter(|&(_, block, _)| block::material::get_material(block) == material)
@@ -58,7 +58,7 @@ pub fn has_fluids_colliding(world: &World, bb: BoundingBox, material: Material, 
 /// This calculation will only take the given material into account, this material should
 /// be a fluid material (water/lava), and the given metadata should be the one of the
 /// current block the the position.
-pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u8, cache: &mut ChunkCache) -> DVec3 {
+pub fn calc_fluid_vel(world: &StdbWorld, pos: IVec3, material: Material, metadata: u8, cache: &mut ChunkCache) -> DVec3 {
 
     debug_assert!(material.is_fluid());
 
@@ -96,7 +96,7 @@ pub fn calc_fluid_vel(world: &World, pos: IVec3, material: Material, metadata: u
 }
 
 /// Calculate the light levels for an entity given its base component.
-pub fn get_entity_light(world: &World, base: &Base, cache: &mut ChunkCache) -> Light {
+pub fn get_entity_light(world: &StdbWorld, base: &Base, cache: &mut ChunkCache) -> Light {
     let mut check_pos = base.pos;
     check_pos.y += (base.size.height * 0.66 - base.size.center) as f64;
     world.get_light(check_pos.floor().as_ivec3(), cache)
@@ -178,14 +178,14 @@ pub fn update_knock_back(base: &mut Base, dir: DVec3) {
 }
 
 /// Return true if the entity can eye track the target entity, this use ray tracing.
-pub fn can_eye_track(world: &World, base: &Base, target_base: &Base, cache: &mut ChunkCache) -> bool {
+pub fn can_eye_track(world: &StdbWorld, base: &Base, target_base: &Base, cache: &mut ChunkCache) -> bool {
     let origin = calc_eye_pos(base);
     let ray = calc_eye_pos(target_base) - origin;
     world.ray_trace_blocks(origin, ray, RayTraceKind::Overlay, cache).is_none()
 }
 
 /// Get the path weight function for the given living entity kind.
-pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3, &mut ChunkCache) -> f32 {
+pub fn path_weight_func(living_kind: &LivingKind) -> fn(&StdbWorld, IVec3, &mut ChunkCache) -> f32 {
     match living_kind {
         LivingKind::Pig(_) |
         LivingKind::Chicken(_) |
@@ -204,7 +204,7 @@ pub fn path_weight_func(living_kind: &LivingKind) -> fn(&World, IVec3, &mut Chun
 }
 
 /// Path weight function for animals.
-fn path_weight_animal(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+fn path_weight_animal(world: &StdbWorld, pos: IVec3, cache: &mut ChunkCache) -> f32 {
     if world.is_block(pos - IVec3::Y, block::GRASS, cache) {
         10.0
     } else {
@@ -213,16 +213,16 @@ fn path_weight_animal(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 
 }
 
 /// Path weight function for mobs.
-fn path_weight_mob(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+fn path_weight_mob(world: &StdbWorld, pos: IVec3, cache: &mut ChunkCache) -> f32 {
     0.5 - world.get_light(pos, cache).brightness()
 }
 
 /// Path weight function for Giant.
-fn path_weight_giant(world: &World, pos: IVec3, cache: &mut ChunkCache) -> f32 {
+fn path_weight_giant(world: &StdbWorld, pos: IVec3, cache: &mut ChunkCache) -> f32 {
     world.get_light(pos, cache).brightness() - 0.5
 }
 
 /// Path weight function by default.
-fn path_weight_default(_world: &World, _pos: IVec3, cache: &mut ChunkCache) -> f32 {
+fn path_weight_default(_world: &StdbWorld, _pos: IVec3, cache: &mut ChunkCache) -> f32 {
     0.0
 }

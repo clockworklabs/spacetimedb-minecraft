@@ -2,7 +2,7 @@
 
 use glam::IVec3;
 
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::geom::Face;
 
 
@@ -34,7 +34,7 @@ impl Default for PistonBlockEntity {
 
 impl PistonBlockEntity {
 
-    pub fn tick(&mut self, world: &mut World, pos: IVec3) {
+    pub fn tick(&mut self, world: &mut StdbWorld, pos: IVec3) {
         let _ = (world, pos);
         // TODO:
     }

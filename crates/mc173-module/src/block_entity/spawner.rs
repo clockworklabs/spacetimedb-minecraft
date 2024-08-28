@@ -6,7 +6,7 @@ use tracing::trace;
 
 use crate::entity::{EntityKind, Entity};
 use crate::geom::BoundingBox;
-use crate::world::World;
+use crate::world::StdbWorld;
 
 
 // #[derive(Debug, Clone)]

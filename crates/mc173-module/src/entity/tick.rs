@@ -14,7 +14,7 @@ use tracing::trace;
 
 use crate::block::material::Material;
 use crate::world::bound::RayTraceKind;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::entity::Chicken;
 use crate::item::ItemStack;
 use crate::geom::{Face, BoundingBox};

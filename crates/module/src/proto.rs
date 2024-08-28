@@ -22,7 +22,7 @@ pub enum InPacket {
     /// Used for TCP keep alive.
     KeepAlive,
     /// A login request from the client.
-    Login(InLoginPacket),
+    Login(StdbInLoginPacket),
     /// Sent by the client to handshake.
     Handshake(InHandshakePacket),
     /// A chat message.
@@ -170,8 +170,8 @@ pub enum OutPacket {
 }
 
 /// Packet 1 (server-bound)
-#[derive(Debug, Clone, SpacetimeType)]
-pub struct InLoginPacket {
+#[derive(SpacetimeType, Debug, Clone)]
+pub struct StdbInLoginPacket {
     /// Current protocol version, should be 14 for this version.
     pub protocol_version: i32,
     /// The username of the player that connects.

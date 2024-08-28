@@ -8,7 +8,7 @@ use std::io;
 use glam::{DVec3, Vec2};
 
 use tracing::{warn, info};
-use autogen::autogen::{InLoginPacket, StdbEntity, StdbServerPlayer};
+use autogen::autogen::{handle_connect, stdb_handle_accept, stdb_handle_connect, stdb_handle_disconnect, stdb_handle_lost, InLoginPacket, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer};
 use mc173::world::{Dimension, Weather};
 use mc173::entity::{self as e};
 
@@ -29,9 +29,7 @@ pub struct Server {
     /// Packet server handle.
     net: Network,
     /// Clients of this server, these structures track the network state of each client.
-    clients: HashMap<NetworkClient, ClientState>,
-    pub client_ids: Vec<(u32, NetworkClient)>,
-    pub next_client_id: u32,
+    clients: HashMap<u64, NetworkClient>,
     /// Worlds list.
     pub worlds: Vec<ServerWorld>,
     /// Offline players
@@ -47,23 +45,13 @@ impl Server {
 
         Ok(Self {
             net: Network::bind(addr)?,
-            clients: HashMap::new(),
-            client_ids: Vec::<(u32,NetworkClient)>::new(),
-            next_client_id: 1,
+            clients: HashMap::<u64, NetworkClient>::new(),
             worlds: vec![
                 ServerWorld::new("overworld"),
             ],
             offline_players: HashMap::new(),
         })
 
-    }
-
-    pub fn get_connection_id_for_client(&self, client: NetworkClient) -> Option<u32> {
-        self.client_ids.iter().find(|x| x.1 == client).map(|x| x.0)
-    }
-
-    pub fn get_client_for_connection_id(&self, connection_id: u32) -> Option<NetworkClient> {
-        self.client_ids.iter().find(|x| x.0 == connection_id).map(|x| x.1)
     }
 
     /// Force save this server and block waiting for all resources to be saved.
@@ -112,32 +100,25 @@ impl Server {
     /// Handle new client accepted by the network.
     fn handle_accept(&mut self, client: NetworkClient) {
         info!("accept client #{}", client.id());
-        self.clients.insert(client, ClientState::Handshaking);
-        let client_id = self.next_client_id;
-        self.next_client_id += 1;
-        self.client_ids.push((client_id, client));
+        self.clients.push(client);
+        stdb_handle_accept(client.id());
     }
 
     /// Handle a lost client.
     fn handle_lost(&mut self, client: NetworkClient, error: Option<io::Error>) {
-
         info!("lost client #{}: {:?}", client.id(), error);
-        
-        let state = self.clients.remove(&client).unwrap();
-        self.client_ids.retain(|x| x.1 != client);
-        
-        if let ClientState::Playing { world_index, player_index } = state {
-            // If the client was playing, remove it from its world.
-            let world = &mut self.worlds[world_index];
-            if let Some(swapped_player) = world.handle_player_leave(player_index, true) {
-                // If a player has been swapped in place of the removed one, update the 
-                // swapped one to point to its new index (and same world).
-                let state = self.clients.get_mut(&swapped_player.client)
-                    .expect("swapped player should be existing");
-                *state = ClientState::Playing { world_index, player_index };
-            }
-        }
-
+        stdb_handle_lost(client.id());
+        // if let StdbClientState::Playing(playing_state) = StdbConnectionStatus::find_by_connection_id(client.id()) {
+        //     // If the client was playing, remove it from its world.
+        //     let world = &mut self.worlds[playing_state.world_index];
+        //     if let Some(swapped_player) = world.handle_player_leave(player_index, true) {
+        //         // If a player has been swapped in place of the removed one, update the
+        //         // swapped one to point to its new index (and same world).
+        //         let state = self.clients.get_mut(&swapped_player.client)
+        //             .expect("swapped player should be existing");
+        //         *state = ClientState::Playing { world_index, player_index };
+        //     }
+        // }
     }
 
     fn handle_packet(&mut self, client: NetworkClient, packet: InPacket) {
@@ -184,7 +165,6 @@ impl Server {
             return Err("Protocol version mismatch!".to_string());
         }
 
-
         // let spawn_pos = config::SPAWN_POS;
 
         // Get the offline player, if not existing we create a new one with the 
@@ -214,22 +194,19 @@ impl Server {
         //     player.username = packet.username.clone();
         // });
 
-        let connection_id = self.get_connection_id_for_client(
-            client).ok_or("Failed to find connection id.")?;
         autogen::autogen::handle_login(
-            connection_id,
-            InLoginPacket {
-            protocol_version: packet.protocol_version,
-            username: packet.username,
-        });
+            client.id(),
+            StdbInLoginPacket {
+                protocol_version: packet.protocol_version,
+                username: packet.username,
+            }
+        );
 
         Ok(())
     }
 
-    pub fn handle_login_result(&mut self, connection_id: u32, new_player: &StdbServerPlayer) {
-        let client = self.get_client_for_connection_id(connection_id).unwrap();
-        // TODO(jdetter): Worlds in stdb are indexed starting at 1, however worlds in this context
-        //  are indexed starting at 0.
+    pub fn handle_login_result(&mut self, connection_id: u64, new_player: &StdbServerPlayer) {
+        let client = self.clients.get(&connection_id).unwrap().clone();
         let world = self.worlds.get_mut(0).unwrap();
         let entity = StdbEntity::find_by_entity_id(new_player.entity_id.clone()).unwrap();
         let dvec3 : DVec3 = new_player.spawn_pos.clone().into();
@@ -271,21 +248,21 @@ impl Server {
         }
 
         // Get the offline player, if not existing we create a new one with the
-        let offline_player = self.offline_players.entry(new_player.username.clone())
-            .or_insert_with(|| {
-                let spawn_world = &self.worlds[0];
-                OfflinePlayer {
-                    world: spawn_world.state.name.clone(),
-                    pos: new_player.spawn_pos.clone().into(),
-                    look: Vec2::ZERO,
-                }
-            });
+        // let offline_player = self.offline_players.entry(new_player.username.clone())
+        //     .or_insert_with(|| {
+        //         let spawn_world = &self.worlds[0];
+        //         OfflinePlayer {
+        //             world: spawn_world.state.name.clone(),
+        //             pos: new_player.spawn_pos.clone().into(),
+        //             look: Vec2::ZERO,
+        //         }
+        //     });
 
-        let (world_index, world) = self.worlds.iter_mut()
-            .enumerate()
-            .filter(|(_, world)| world.state.name == offline_player.world)
-            .next()
-            .expect("invalid offline player world name");
+        // let (world_index, world) = self.worlds.iter_mut()
+        //     .enumerate()
+        //     .filter(|(_, world)| world.state.name == offline_player.world)
+        //     .next()
+        //     .expect("invalid offline player world name");
 
         // TODO(jdetter): Add support for this when we add entities
         // let entity = e::Human::new_with(|base, living, player| {
@@ -305,10 +282,10 @@ impl Server {
 
         // Replace the previous state with a playing state containing the world and
         // player indices, used to get to the player instance.
-        let previous_state = self.clients.insert(client, ClientState::Playing {
-            world_index: 0,
-            player_index,
-        });
+        // let previous_state = self.clients.insert(client, ClientState::Playing {
+        //     world_index: 0,
+        //     player_index,
+        // });
 
         // Just a sanity check...
         // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));

@@ -21,6 +21,7 @@ pub struct StdbEntity {
     pub on_ground: bool,
     pub pos: StdbDVec3,
     pub look: StdbVec2,
+    pub dimension: i32,
 }
 
 impl TableType for StdbEntity {
@@ -51,5 +52,9 @@ impl StdbEntity {
     #[allow(unused)]
     pub fn filter_by_on_ground(on_ground: bool) -> TableIter<Self> {
         Self::filter(|row| row.on_ground == on_ground)
+    }
+    #[allow(unused)]
+    pub fn filter_by_dimension(dimension: i32) -> TableIter<Self> {
+        Self::filter(|row| row.dimension == dimension)
     }
 }

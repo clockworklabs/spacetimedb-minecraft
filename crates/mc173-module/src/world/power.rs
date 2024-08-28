@@ -6,11 +6,11 @@ use glam::IVec3;
 use crate::geom::{Face, FaceSet};
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to redstone power calculation in the world.
-impl World {
+impl StdbWorld {
 
     /// Check if the given block position get any active power from surrounding faces.
     #[inline]

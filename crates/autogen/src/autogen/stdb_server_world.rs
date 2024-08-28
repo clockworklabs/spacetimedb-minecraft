@@ -2,7 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
-use super::tick_mode::TickMode;
+use super::stdb_tick_mode::StdbTickMode;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -14,35 +14,35 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct StdbServerWorldState {
-    pub world_id: i32,
+pub struct StdbServerWorld {
+    pub dimension_id: i32,
     pub name: String,
     pub seed: i64,
     pub time: u64,
-    pub tick_mode: TickMode,
+    pub tick_mode: StdbTickMode,
     pub tick_mode_manual: u32,
 }
 
-impl TableType for StdbServerWorldState {
-    const TABLE_NAME: &'static str = "StdbServerWorldState";
+impl TableType for StdbServerWorld {
+    const TABLE_NAME: &'static str = "StdbServerWorld";
     type ReducerEvent = super::ReducerEvent;
 }
 
-impl TableWithPrimaryKey for StdbServerWorldState {
+impl TableWithPrimaryKey for StdbServerWorld {
     type PrimaryKey = i32;
     fn primary_key(&self) -> &Self::PrimaryKey {
-        &self.world_id
+        &self.dimension_id
     }
 }
 
-impl StdbServerWorldState {
+impl StdbServerWorld {
     #[allow(unused)]
-    pub fn filter_by_world_id(world_id: i32) -> TableIter<Self> {
-        Self::filter(|row| row.world_id == world_id)
+    pub fn filter_by_dimension_id(dimension_id: i32) -> TableIter<Self> {
+        Self::filter(|row| row.dimension_id == dimension_id)
     }
     #[allow(unused)]
-    pub fn find_by_world_id(world_id: i32) -> Option<Self> {
-        Self::find(|row| row.world_id == world_id)
+    pub fn find_by_dimension_id(dimension_id: i32) -> Option<Self> {
+        Self::find(|row| row.dimension_id == dimension_id)
     }
     #[allow(unused)]
     pub fn filter_by_name(name: String) -> TableIter<Self> {

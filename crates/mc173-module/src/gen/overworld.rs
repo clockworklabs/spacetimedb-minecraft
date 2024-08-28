@@ -26,7 +26,7 @@ use crate::chunk::{Chunk, CHUNK_WIDTH, CHUNK_HEIGHT};
 use crate::block::material::Material;
 use crate::rand::JavaRandom;
 use crate::biome::Biome;
-use crate::world::{StdbWorld, World};
+use crate::world::StdbWorld;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
 use super::noise::{PerlinOctaveNoise, NoiseCube};
@@ -532,7 +532,7 @@ impl ChunkGenerator for OverworldGenerator {
 
     }
 
-    fn gen_features(&self, cx: i32, cz: i32, world: &mut StdbWorld, state: &mut Self::State, cache: &mut ChunkCache) {
+    fn gen_features(&self, cx: i32, cz: i32, mut world: &mut StdbWorld, state: &mut Self::State, cache: &mut ChunkCache) {
         let pos = IVec3::new(cx * 16, 0, cz * 16);
         let biome = self.get_biome(pos.x + 16, pos.z + 16);
 
@@ -566,7 +566,7 @@ impl ChunkGenerator for OverworldGenerator {
         // Water lakes...
         if rand.next_int_bounded(4) == 0 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            LakeGenerator::new(block::WATER_STILL).generate(&mut world.world, pos, &mut rand, cache);
+            LakeGenerator::new(block::WATER_STILL).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Lava lakes...
@@ -582,64 +582,64 @@ impl ChunkGenerator for OverworldGenerator {
             };
 
             if pos.y < 64 || rand.next_int_bounded(10) == 0 {
-                LakeGenerator::new(block::LAVA_STILL).generate(&mut world.world, pos, &mut rand, cache);
+                LakeGenerator::new(block::LAVA_STILL).generate(&mut world, pos, &mut rand, cache);
             }
         }
 
         // Mob dungeons...
         for _ in 0..8 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            DungeonGenerator::new().generate(&mut world.world, pos, &mut rand, cache);
+            DungeonGenerator::new().generate(&mut world, pos, &mut rand, cache);
         }
 
         // Clay veins (only in water).
         for _ in 0..10 {
             let pos = pos + next_offset(&mut rand, 128, 0);
-            if world.world.get_block_material(pos, cache) == Material::Water {
-                VeinGenerator::new_clay(32).generate(&mut world.world, pos, &mut rand, cache);
+            if world.get_block_material(pos, cache) == Material::Water {
+                VeinGenerator::new_clay(32).generate(&mut world, pos, &mut rand, cache);
             }
         }
 
         // Dirt veins.
         for _ in 0..20 {
             let pos = pos + next_offset(&mut rand, 128, 0);
-            VeinGenerator::new_ore(block::DIRT, 32).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::DIRT, 32).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Gravel veins.
         for _ in 0..10 {
             let pos = pos + next_offset(&mut rand, 128, 0);
-            VeinGenerator::new_ore(block::GRAVEL, 32).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::GRAVEL, 32).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Coal veins.
         for _ in 0..20 {
             let pos = pos + next_offset(&mut rand, 128, 0);
-            VeinGenerator::new_ore(block::COAL_ORE, 16).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::COAL_ORE, 16).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Iron veins.
         for _ in 0..20 {
             let pos = pos + next_offset(&mut rand, 64, 0);
-            VeinGenerator::new_ore(block::IRON_ORE, 8).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::IRON_ORE, 8).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Gold veins.
         for _ in 0..2 {
             let pos = pos + next_offset(&mut rand, 32, 0);
-            VeinGenerator::new_ore(block::GOLD_ORE, 8).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::GOLD_ORE, 8).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Redstone veins.
         for _ in 0..8 {
             let pos = pos + next_offset(&mut rand, 16, 0);
-            VeinGenerator::new_ore(block::REDSTONE_ORE, 7).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::REDSTONE_ORE, 7).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Diamond veins.
         for _ in 0..1 {
             let pos = pos + next_offset(&mut rand, 16, 0);
-            VeinGenerator::new_ore(block::DIAMOND_ORE, 7).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::DIAMOND_ORE, 7).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Lapis veins.
@@ -651,7 +651,7 @@ impl ChunkGenerator for OverworldGenerator {
                 z: rand.next_int_bounded(16),
             };
 
-            VeinGenerator::new_ore(block::LAPIS_ORE, 6).generate(&mut world.world, pos, &mut rand, cache);
+            VeinGenerator::new_ore(block::LAPIS_ORE, 6).generate(&mut world, pos, &mut rand, cache);
 
         }
 
@@ -688,7 +688,7 @@ impl ChunkGenerator for OverworldGenerator {
                     z: rand.next_int_bounded(16) + 8,
                 };
 
-                pos.y = world.world.get_height(pos, cache).unwrap() as i32;
+                pos.y = world.get_height(pos, cache).unwrap() as i32;
 
                 let mut gen = match biome {
                     Biome::Taiga => {
@@ -723,7 +723,7 @@ impl ChunkGenerator for OverworldGenerator {
                     }
                 };
 
-                gen.generate(&mut world.world, pos, &mut rand, cache);
+                gen.generate(&mut world, pos, &mut rand, cache);
                 
             }
         }
@@ -743,7 +743,7 @@ impl ChunkGenerator for OverworldGenerator {
 
         for _ in 0..dandelion_count {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PlantGenerator::new_flower(block::DANDELION).generate(&mut world.world, pos, &mut rand, cache);
+            PlantGenerator::new_flower(block::DANDELION).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Tall grass patches.
@@ -764,7 +764,7 @@ impl ChunkGenerator for OverworldGenerator {
             }
 
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PlantGenerator::new_tall_grass(metadata).generate(&mut world.world, pos, &mut rand, cache);
+            PlantGenerator::new_tall_grass(metadata).generate(&mut world, pos, &mut rand, cache);
 
         }
 
@@ -772,45 +772,45 @@ impl ChunkGenerator for OverworldGenerator {
         if biome == Biome::Desert {
             for _ in 0..2 {
                 let pos = pos + next_offset(&mut rand, 128, 8);
-                PlantGenerator::new_dead_bush().generate(&mut world.world, pos, &mut rand, cache);
+                PlantGenerator::new_dead_bush().generate(&mut world, pos, &mut rand, cache);
             }
         }
 
         // Poppy.
         if rand.next_int_bounded(2) == 0 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PlantGenerator::new_flower(block::POPPY).generate(&mut world.world, pos, &mut rand, cache);
+            PlantGenerator::new_flower(block::POPPY).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Brown mushroom.
         if rand.next_int_bounded(4) == 0 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PlantGenerator::new_flower(block::BROWN_MUSHROOM).generate(&mut world.world, pos, &mut rand, cache);
+            PlantGenerator::new_flower(block::BROWN_MUSHROOM).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Red mushroom.
         if rand.next_int_bounded(8) == 0 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PlantGenerator::new_flower(block::RED_MUSHROOM).generate(&mut world.world, pos, &mut rand, cache);
+            PlantGenerator::new_flower(block::RED_MUSHROOM).generate(&mut world, pos, &mut rand, cache);
         }
 
         // Sugar canes.
         for _ in 0..10 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            SugarCanesGenerator::new().generate(&mut world.world, pos, &mut rand, cache);
+            SugarCanesGenerator::new().generate(&mut world, pos, &mut rand, cache);
         }
 
         // Pumpkin.
         if rand.next_int_bounded(32) == 0 {
             let pos = pos + next_offset(&mut rand, 128, 8);
-            PumpkinGenerator::new().generate(&mut world.world, pos, &mut rand, cache);
+            PumpkinGenerator::new().generate(&mut world, pos, &mut rand, cache);
         }
 
         // Cactus.
         if biome == Biome::Desert {
             for _ in 0..10 {
                 let pos = pos + next_offset(&mut rand, 128, 8);
-                CactusGenerator::new().generate(&mut world.world, pos, &mut rand, cache);
+                CactusGenerator::new().generate(&mut world, pos, &mut rand, cache);
             }
         }
 
@@ -826,7 +826,7 @@ impl ChunkGenerator for OverworldGenerator {
                 z: rand.next_int_bounded(16) + 8,
             };
 
-            LiquidGenerator::new(block::WATER_MOVING).generate(&mut world.world, pos, &mut rand, cache);
+            LiquidGenerator::new(block::WATER_MOVING).generate(&mut world, pos, &mut rand, cache);
 
         }
 
@@ -843,7 +843,7 @@ impl ChunkGenerator for OverworldGenerator {
                 z: rand.next_int_bounded(16) + 8,
             };
 
-            LiquidGenerator::new(block::LAVA_MOVING).generate(&mut world.world, pos, &mut rand, cache);
+            LiquidGenerator::new(block::LAVA_MOVING).generate(&mut world, pos, &mut rand, cache);
 
         }
 
@@ -866,10 +866,10 @@ impl ChunkGenerator for OverworldGenerator {
                 // Find highest block and set pos.y.
 
                 let temp = temperature.get(dx, 0, dz) - (snow_pos.y - 64) as f64 / 64.0 * 0.3;
-                if temp < 0.5 && snow_pos.y > 0 && snow_pos.y < 128 &&  world.world.is_block_air(snow_pos, cache) {
-                    let material = world.world.get_block_material(snow_pos - IVec3::Y, cache);
+                if temp < 0.5 && snow_pos.y > 0 && snow_pos.y < 128 &&  world.is_block_air(snow_pos, cache) {
+                    let material = world.get_block_material(snow_pos - IVec3::Y, cache);
                     if material.is_solid() && material != Material::Ice {
-                        world.world.set_block(snow_pos, block::SNOW, 0, cache);
+                        world.set_block(snow_pos, block::SNOW, 0, cache);
                     }
                 }
 
@@ -879,7 +879,7 @@ impl ChunkGenerator for OverworldGenerator {
         // TODO: This is temporary code to avoid light bugs at generation, but this
         // considerably slows down the feature generation (that is currently 
         // single-threaded).
-        world.world.tick_light(usize::MAX, cache);
+        world.tick_light(usize::MAX, cache);
     }
 
 }

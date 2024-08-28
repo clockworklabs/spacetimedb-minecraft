@@ -8,7 +8,7 @@ use crate::block_entity::chest::ChestBlockEntity;
 use crate::item::{ItemStack, self};
 use crate::entity::EntityKind;
 use crate::rand::JavaRandom;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::geom::Face;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
@@ -62,7 +62,7 @@ impl DungeonGenerator {
 
 impl FeatureGenerator for DungeonGenerator {
 
-    fn generate(&mut self, world: &mut World, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
+    fn generate(&mut self, world: &mut StdbWorld, pos: IVec3, rand: &mut JavaRandom, cache: &mut ChunkCache) -> bool {
         
         let x_radius = rand.next_int_bounded(2) + 2;
         let z_radius = rand.next_int_bounded(2) + 2;

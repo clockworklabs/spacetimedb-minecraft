@@ -6,7 +6,7 @@ use glam::{Vec2, DVec3, IVec3};
 use tracing::trace;
 
 use crate::entity::{Fireball, Path, LookTarget};
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::path::PathFinder;
 
 use super::{Entity, BaseKind, LivingKind, EntityCategory};

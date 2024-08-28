@@ -92,6 +92,10 @@ fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>)
         .push_chunk_event(event.clone());
 }
 
+fn on_stdb_handle_login(&StdbHandle) {
+
+}
+
 fn on_stdb_server_player_inserted(player: &StdbServerPlayer, _reducer_event: Option<&ReducerEvent>) {
     println!("Player added to server: {}", player.username);
     let mut s = SERVER.lock().unwrap();

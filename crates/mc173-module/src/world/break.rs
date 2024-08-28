@@ -6,11 +6,11 @@ use glam::IVec3;
 use crate::block::material::Material;
 use crate::{block, item};
 use crate::chunk_cache::ChunkCache;
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to block breaking.
-impl World {
+impl StdbWorld {
 
     /// Break a block naturally and loot its items. This returns true if successful, false
     /// if the chunk/pos was not valid. It also notifies blocks around, this is basically

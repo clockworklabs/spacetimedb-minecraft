@@ -13,8 +13,7 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum TickMode {
-    Auto,
-
-    Manual,
+pub struct StdbPlayingState {
+    pub dimension_id: i32,
+    pub player_index: u32,
 }

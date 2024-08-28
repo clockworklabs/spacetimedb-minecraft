@@ -2,7 +2,8 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
-use super::world::World;
+use super::java_random::JavaRandom;
+use super::light_update::LightUpdate;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -15,8 +16,13 @@ use spacetimedb_sdk::{
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct StdbWorld {
-    pub id: i32,
-    pub world: World,
+    pub dimension_id: i32,
+    pub time: u64,
+    pub rand: JavaRandom,
+    pub entities_count: u32,
+    pub light_updates: Vec<LightUpdate>,
+    pub random_ticks_seed: i32,
+    pub sky_light_subtracted: u8,
 }
 
 impl TableType for StdbWorld {
@@ -27,17 +33,33 @@ impl TableType for StdbWorld {
 impl TableWithPrimaryKey for StdbWorld {
     type PrimaryKey = i32;
     fn primary_key(&self) -> &Self::PrimaryKey {
-        &self.id
+        &self.dimension_id
     }
 }
 
 impl StdbWorld {
     #[allow(unused)]
-    pub fn filter_by_id(id: i32) -> TableIter<Self> {
-        Self::filter(|row| row.id == id)
+    pub fn filter_by_dimension_id(dimension_id: i32) -> TableIter<Self> {
+        Self::filter(|row| row.dimension_id == dimension_id)
     }
     #[allow(unused)]
-    pub fn find_by_id(id: i32) -> Option<Self> {
-        Self::find(|row| row.id == id)
+    pub fn find_by_dimension_id(dimension_id: i32) -> Option<Self> {
+        Self::find(|row| row.dimension_id == dimension_id)
+    }
+    #[allow(unused)]
+    pub fn filter_by_time(time: u64) -> TableIter<Self> {
+        Self::filter(|row| row.time == time)
+    }
+    #[allow(unused)]
+    pub fn filter_by_entities_count(entities_count: u32) -> TableIter<Self> {
+        Self::filter(|row| row.entities_count == entities_count)
+    }
+    #[allow(unused)]
+    pub fn filter_by_random_ticks_seed(random_ticks_seed: i32) -> TableIter<Self> {
+        Self::filter(|row| row.random_ticks_seed == random_ticks_seed)
+    }
+    #[allow(unused)]
+    pub fn filter_by_sky_light_subtracted(sky_light_subtracted: u8) -> TableIter<Self> {
+        Self::filter(|row| row.sky_light_subtracted == sky_light_subtracted)
     }
 }

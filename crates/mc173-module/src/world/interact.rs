@@ -6,11 +6,11 @@ use glam::IVec3;
 use crate::geom::Face;
 use crate::block;
 
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to block interactions when client clicks on a block.
-impl World {
+impl StdbWorld {
 
     // /// Interact with a block at given position. This function returns true if an
     // /// interaction has been handled and some action happened to the world, which should

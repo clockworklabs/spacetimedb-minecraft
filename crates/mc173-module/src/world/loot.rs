@@ -8,11 +8,11 @@ use crate::entity::Item;
 use crate::item::ItemStack;
 use crate::{block, item};
 
-use super::World;
+use super::StdbWorld;
 
 
 /// Methods related to loot spawning in the world and block loot randomization.
-impl World {
+impl StdbWorld {
 
     // /// Spawn item entity in the world containing the given stack. The velocity of the
     // /// spawned item stack is random and the initial position depends on the given spread.

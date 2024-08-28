@@ -3,7 +3,7 @@
 use glam::IVec3;
 
 use crate::item::{self, ItemStack};
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::smelt;
 
 
@@ -60,7 +60,7 @@ impl FurnaceBlockEntity {
     }
 
     /// Tick the furnace block entity.
-    pub fn tick(&mut self, world: &mut World, pos: IVec3) {
+    pub fn tick(&mut self, world: &mut StdbWorld, pos: IVec3) {
 
         // If the input stack have changed since last update, get the new recipe.
         // TODO: Also update of output stack have changed.

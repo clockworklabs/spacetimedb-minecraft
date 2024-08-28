@@ -8,14 +8,14 @@ use glam::{IVec3, DVec3};
 
 use crate::block::material::Material;
 use crate::geom::BoundingBox;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
 
 /// A path finder on a world.
 pub struct PathFinder<'a> {
     /// Back-reference to the world.
-    world: &'a World,
+    world: &'a StdbWorld,
     /// The size of the entity (or whatever you want) that should go through the path.
     entity_size: IVec3,
     /// All points allocated by the path finder.
@@ -51,7 +51,7 @@ struct PathPoint {
 
 impl<'a> PathFinder<'a> {
 
-    pub fn new(world: &'a World, cache: &'a mut ChunkCache) -> Self {
+    pub fn new(world: &'a StdbWorld, cache: &'a mut ChunkCache) -> Self {
         Self {
             world,
             entity_size: IVec3::ONE,

@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::process::exit;
 use std::time::Duration;
 use glam::{DVec3, IVec3};
-use mc173_module::world::{Dimension, StdbWorld, World};
+use mc173_module::world::{StdbWorld, DIMENSION_OVERWORLD};
 use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
 use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
@@ -25,72 +26,21 @@ use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakin
 use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
 use mc173_module::vec2::StdbVec2;
-use crate::player::StdbServerPlayer;
+use crate::config::SPAWN_POS;
+use crate::offline::StdbOfflinePlayer;
+use crate::player::{StdbClientState, StdbConnectionStatus, StdbEntity, StdbOfflineServerPlayer, StdbServerPlayer};
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
+use crate::world::{StdbServerWorld, StdbTickMode};
 
 pub mod player;
+pub mod world;
 mod proto;
+mod offline;
+mod config;
+mod entity;
 
 /// Server world seed is currently hardcoded.
 pub const SEED: i64 = 9999;
-
-/// Represent the whole state of a world.
-#[spacetimedb(table(public))]
-pub struct StdbServerWorldState {
-    #[primarykey]
-    pub world_id: i32,
-    /// World name.
-    pub name: String,
-    /// The seed of this world, this is sent to the client in order to
-    pub seed: i64,
-    /// The server-side time, that is not necessarily in-sync with the world time in case
-    /// of tick freeze or stepping. This avoids running in socket timeout issues.
-    pub time: u64,
-    /// True when world ticking is frozen, events are still processed by the world no
-    /// longer runs.
-    pub tick_mode: TickMode,
-    pub tick_mode_manual: u32,
-    //// The chunk source used to load and save the world's chunk.
-    // storage: mc173_module::storage::ChunkStorage,
-    //// Chunks trackers used to send proper block changes packets.
-    // chunk_trackers: ChunkTrackers,
-    //// Entity tracker, each is associated to the entity id.
-    // entity_trackers: HashMap<u32, EntityTracker>,
-    //// Instant of the last tick.
-    // tick_last: Instant,
-    //// Fading average tick duration, in seconds.
-    // pub tick_duration: FadingAverage,
-    //// Fading average interval between two ticks.
-    // pub tick_interval: FadingAverage,
-    //// Fading average of events count on each tick.
-    // pub events_count: FadingAverage,
-}
-
-#[spacetimedb(table)]
-#[derive(Clone)]
-pub struct StdbEntity {
-    #[autoinc]
-    #[primarykey]
-    entity_id: u32,
-    world_id: i32,
-    // TODO: This should be part of proper entities
-    on_ground: bool,
-    /// Last position sent by the client.
-    pub pos: StdbDVec3,
-    /// Last look sent by the client.
-    pub look: StdbVec2,
-}
-
-/// Indicate the current mode for ticking the world.
-#[derive(SpacetimeType)]
-pub enum TickMode {
-    /// The world is ticked on each server tick (20 TPS).
-    Auto,
-    /// The world if ticked on each server tick (20 TPS), but the counter decrease and
-    /// it is no longer ticked when reaching 0.
-    // Manual(u32),
-    Manual
-}
 
 #[spacetimedb(init)]
 pub fn init(context: ReducerContext) {
@@ -101,17 +51,16 @@ pub fn init(context: ReducerContext) {
     // generate_chunks(-5, -5, 5, 5);
     // log::info!("Generation complete");
 
-    let new_world = StdbWorld::insert(StdbWorld {
-        id: 0,
-        world: World::new(Dimension::Overworld, nano_time),
-    }).unwrap();
+    let new_world = StdbWorld::insert(
+        StdbWorld::new(DIMENSION_OVERWORLD, nano_time)
+    ).unwrap();
 
-    StdbServerWorldState::insert(StdbServerWorldState {
-        world_id: new_world.id,
+    StdbServerWorld::insert(StdbServerWorld {
+        dimension_id: new_world.dimension_id,
         name: "Boppy's World".to_string(),
         seed: 9999,
         time: 0,
-        tick_mode: TickMode::Auto,
+        tick_mode: StdbTickMode::Auto,
         tick_mode_manual: 0,
     }).unwrap();
 
@@ -128,6 +77,159 @@ pub fn init(context: ReducerContext) {
     init_span.end();
 }
 
+#[spacetimedb(reducer)]
+pub fn stdb_handle_accept(connection_id: u64) {
+    let _ = StdbConnectionStatus::insert(StdbConnectionStatus {
+        connection_id,
+        status: StdbClientState::Handshaking,
+    });
+}
+
+#[spacetimedb(reducer)]
+fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
+    log::info!("New player logged in: {}", packet.username);
+
+    // This is checked by the translation layer
+    // if packet.protocol_version != 14 {
+    //     self.send_disconnect(client, format!("Protocol version mismatch!"));
+    //     return;
+    // }
+
+    let spawn_pos = SPAWN_POS;
+
+    // Get the offline player, if not existing we create a new one with the
+    // TODO(jdetter): Add support for offline players later
+    // let offline_player = self.offline_players.entry(packet.username.clone())
+    //     .or_insert_with(|| {
+    //         let spawn_world = &self.worlds[0];
+    //         OfflinePlayer {
+    //             world: spawn_world.state.name.clone(),
+    //             pos: spawn_pos,
+    //             look: Vec2::ZERO,
+    //         }
+    //     });
+
+    // let (world_index, world) = self.worlds.iter_mut()
+    //     .enumerate()
+    //     .filter(|(_, world)| world.state.name == offline_player.world)
+    //     .next()
+    //     .expect("invalid offline player world name");
+
+    if let Some(player) = StdbOfflineServerPlayer::filter_by_username(&packet.username) {
+        let existing_player = player.player;
+        StdbServerPlayer::insert(existing_player.clone()).unwrap();
+        StdbEntity::filter_by_entity_id(&existing_player.entity_id).unwrap()
+    } else {
+        let new_entity = StdbEntity::insert(StdbEntity {
+            entity_id: 0,
+            world_id: 1,
+            on_ground: false,
+            pos: std::convert::Into::<StdbDVec3>::into(spawn_pos).clone(),
+            look: StdbVec2 {
+                x: 1.0,
+                y: 0.0,
+            },
+            dimension: DIMENSION_OVERWORLD,
+        }).unwrap();
+
+        let _ = StdbServerPlayer::insert(StdbServerPlayer {
+            entity_id: new_entity.entity_id.clone(),
+            username: packet.username,
+            connection_id,
+            spawn_pos: spawn_pos.into(),
+        });
+        new_entity
+    };
+
+
+    // TODO(jdetter): Create an entity for this player
+    // let entity = e::Human::new_with(|base, living, player| {
+    //     base.pos = offline_player.pos;
+    //     base.look = offline_player.look;
+    //     base.persistent = false;
+    //     base.can_pickup = true;
+    //     living.artificial = true;
+    //     living.health = 200;  // FIXME: Lot of HP for testing.
+    //     player.username = packet.username.clone();
+    // });
+
+    // let entity_id = world.spawn_entity(entity);
+    // world.set_entity_player(entity_id, true);
+
+    // Confirm the login by sending same packet in response.
+    // self.net.send(client, OutPacket::Login(proto::OutLoginPacket {
+    //     entity_id,
+    //     random_seed: world.state.seed,
+    //     dimension: match world.get_dimension() {
+    //         Dimension::Overworld => 0,
+    //         Dimension::Nether => -1,
+    //     },
+    // }));
+
+    // The standard server sends the spawn position just after login response.
+    // self.net.send(client, OutPacket::SpawnPosition(proto::SpawnPositionPacket {
+    //     pos: spawn_pos.as_ivec3(),
+    // }));
+
+    // Send the initial position for the client.
+    // self.net.send(client, OutPacket::PositionLook(proto::PositionLookPacket {
+    //     pos: offline_player.pos,
+    //     stance: offline_player.pos.y + 1.62,
+    //     look: offline_player.look,
+    //     on_ground: false,
+    // }));
+
+    // Time must be sent once at login to conclude the login phase.
+    // self.net.send(client, OutPacket::UpdateTime(proto::UpdateTimePacket {
+    //     time: world.get_time(),
+    // }));
+
+    // if world.get_weather() != Weather::Clear {
+    //     self.net.send(client, OutPacket::Notification(proto::NotificationPacket {
+    //         reason: 1,
+    //     }));
+    // }
+
+    // Finally insert the player tracker.
+    // let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
+    // let player_index = world.handle_player_join(server_player);
+
+    // Replace the previous state with a playing state containing the world and
+    // player indices, used to get to the player instance.
+    // let previous_state = self.clients.insert(client, ClientState::Playing {
+    //     world_index,
+    //     player_index,
+    // });
+
+    // Just a sanity check...
+    // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
+
+    // TODO: Broadcast chat joining chat message.
+
+}
+
+#[spacetimedb(reducer)]
+pub fn stdb_handle_lost(connection_id: u64, lost: bool) -> Result<(), String> {
+    let player = StdbServerPlayer::filter_by_connection_id(&connection_id).ok_or(format!("Failed to find player with connection ID: {}", connection_id))?;
+    log::info!("lost client #{}", connection_id);
+    if let StdbClientState::Playing(playing_state) = StdbConnectionStatus::filter_by_connection_id(&connection_id).ok_or(
+        format!("Failed to find playing with connection ID: {}", connection_id))?.status {
+        // If the client was playing, remove it from its world.
+        let mut world = StdbServerWorld::filter_by_dimension_id(&playing_state.dimension_id).ok_or(
+            format!("Failed to find world with dimension ID: {}", &playing_state.dimension_id))?;
+        // let world = &mut self.worlds[playing_state.dimension_id];
+        world.handle_player_leave(player, lost);
+        // if let Some(swapped_player) = world.handle_player_leave(player_index, true) {
+        //     // If a player has been swapped in place of the removed one, update the
+        //     // swapped one to point to its new index (and same world).
+        //     let state = self.clients.get_mut(&swapped_player.client)
+        //         .expect("swapped player should be existing");
+        //     *state = ClientState::Playing { world_index, player_index };
+        // }
+    }
+
+    Ok(())
+}
 
 #[spacetimedb(reducer)]
 pub fn tick() {
@@ -142,16 +244,16 @@ pub fn tick_inner(cache: &mut ChunkCache) {
     // Do stuff...
     // Lastly, tick time
     for mut world in StdbWorld::iter() {
-        let mut state = StdbServerWorldState::filter_by_world_id(&world.id).unwrap();
+        let mut state = StdbServerWorld::filter_by_dimension_id(&world.dimension_id).unwrap();
         tick_world(&mut world, &mut state, cache);
-        let world_id = world.id;
-        StdbWorld::update_by_id(&world_id, world);
-        StdbServerWorldState::update_by_world_id(&world_id, state);
+        let dimension_id = world.dimension_id;
+        StdbWorld::update_by_dimension_id(&dimension_id, world);
+        StdbServerWorld::update_by_dimension_id(&dimension_id, state);
     }
 }
 
 /// Tick this world.
-pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState, cache: &mut ChunkCache) {
+pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorld, cache: &mut ChunkCache) {
 
     // Get server-side time.
     let time = state.time;
@@ -180,13 +282,13 @@ pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorldState, cache
 
     // Only run if no tick freeze.
     match state.tick_mode {
-        TickMode::Auto => {
-            world.world.tick(cache);
+        StdbTickMode::Auto => {
+            world.tick(cache);
         }
-        TickMode::Manual => {
+        StdbTickMode::Manual => {
             let mut n = state.tick_mode_manual;
             if n != 0 {
-                world.world.tick(cache);
+                world.tick(cache);
             }
             state.tick_mode_manual -= 1;
         }
@@ -318,7 +420,7 @@ fn init_world(world: &mut StdbWorld, cache: &mut ChunkCache) {
 pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
     let generate_chunks_span = spacetimedb::time_span::Span::start("Generate Chunks");
     let mut cache = ChunkCache::new();
-    let mut world = StdbWorld::filter_by_id(&1).unwrap();
+    let mut world = StdbWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
     for x in from_x..to_x {
         for z in from_z..to_z {
             let inner_handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
@@ -349,7 +451,7 @@ pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
 #[spacetimedb(reducer)]
 pub fn generate_chunk(x: i32, z: i32) {
     let mut cache = ChunkCache::new();
-    let mut world = StdbWorld::filter_by_id(&1).unwrap();
+    let mut world = StdbWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
     ChunkStorage::request_load(&mut world, x, z, &mut cache);
     log::info!("Chunk Generated: {}, {}", x, z);
     cache.apply();
@@ -421,7 +523,7 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     let username = "Boppy";
 
     // NOTE: Instead of just grabbing an arbirary world, we should use the world that the player is in
-    let mut world = StdbWorld::filter_by_id(&1).unwrap();
+    let mut world = StdbWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
 
     let face = match packet.face {
         0 => Face::NegY,
@@ -456,24 +558,24 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     if packet.status == 0 {
 
         // Special case to extinguish fire.
-        if world.world.is_block(pos + face.delta(), block::FIRE, &mut cache) {
-            world.world.set_block_notify(pos + face.delta(), block::AIR, 0, &mut cache);
+        if world.is_block(pos + face.delta(), block::FIRE, &mut cache) {
+            world.set_block_notify(pos + face.delta(), block::AIR, 0, &mut cache);
         }
 
         // We ignore any interaction result for the left click (break block) to
         // avoid opening an inventory when breaking a container.
         // NOTE: Interact before 'get_block': relevant for redstone_ore lit.
-        // world.world.interact_block(pos);
+        // world.interact_block(pos);
 
         // Start breaking a block, ignore if the position is invalid.
-        if let Some((id, _)) = world.world.get_block(pos, &mut cache) {
+        if let Some((id, _)) = world.get_block(pos, &mut cache) {
 
             // let break_duration = world.get_break_duration(stack.id, id, in_water, on_ground);
-            let break_duration = world.world.get_break_duration(hand_item, id, in_water, on_ground);
+            let break_duration = world.get_break_duration(hand_item, id, in_water, on_ground);
             if break_duration.is_infinite() {
                 // Do nothing, the block is unbreakable.
             } else if break_duration == 0.0 {
-                world.world.break_block(pos, &mut cache);
+                world.break_block(pos, &mut cache);
             } else {
                 // self.breaking_block = Some(BreakingBlock {
                 //     start_time: world.get_time(), // + (break_duration * 0.7) as u64,
@@ -483,7 +585,7 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
                 let new_breaking_block = StdbBreakingBlock {
                     entity_id: entity_id,
                     state: BreakingBlock {
-                        start_time: world.world.get_time(), // + (break_duration * 0.7) as u64,
+                        start_time: world.get_time(), // + (break_duration * 0.7) as u64,
                         pos: pos.into(),
                         id,
                     }
@@ -505,15 +607,15 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     } else if packet.status == 2 {
         // Block breaking should be finished.
         if let Some(some_breaking_block) = stdb_breaking_block.take() {
-            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.world.is_block(pos, some_breaking_block.state.id, &mut cache) {
-                // let break_duration = world.world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
-                let break_duration = world.world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
+            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.is_block(pos, some_breaking_block.state.id, &mut cache) {
+                // let break_duration = world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
+                let break_duration = world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
                 let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;
-                if world.world.get_time() >= min_time {
-                    world.world.break_block(pos, &mut cache);
+                if world.get_time() >= min_time {
+                    world.break_block(pos, &mut cache);
                 } else {
 
-                    log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.world.get_time());
+                    log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.get_time());
 
                 }
             } else {
@@ -540,120 +642,6 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     }
 
     cache.apply();
-}
-
-
-pub const SPAWN_POS: DVec3 = DVec3::new(0.0, 100.0, 0.0);
-#[spacetimedb(reducer)]
-fn handle_login(connection_id: u32, packet: proto::InLoginPacket) {
-    log::info!("New player logged in: {}", packet.username);
-
-    // if packet.protocol_version != 14 {
-    //     self.send_disconnect(client, format!("Protocol version mismatch!"));
-    //     return;
-    // }
-
-    let spawn_pos = SPAWN_POS;
-
-    // Get the offline player, if not existing we create a new one with the
-    // TODO(jdetter): Add support for offline players later
-    // let offline_player = self.offline_players.entry(packet.username.clone())
-    //     .or_insert_with(|| {
-    //         let spawn_world = &self.worlds[0];
-    //         OfflinePlayer {
-    //             world: spawn_world.state.name.clone(),
-    //             pos: spawn_pos,
-    //             look: Vec2::ZERO,
-    //         }
-    //     });
-
-    // let (world_index, world) = self.worlds.iter_mut()
-    //     .enumerate()
-    //     .filter(|(_, world)| world.state.name == offline_player.world)
-    //     .next()
-    //     .expect("invalid offline player world name");
-
-    // let entity = e::Human::new_with(|base, living, player| {
-    //     base.pos = offline_player.pos;
-    //     base.look = offline_player.look;
-    //     base.persistent = false;
-    //     base.can_pickup = true;
-    //     living.artificial = true;
-    //     living.health = 200;  // FIXME: Lot of HP for testing.
-    //     player.username = packet.username.clone();
-    // });
-
-    // let entity_id = world.world.spawn_entity(entity);
-    // world.world.set_entity_player(entity_id, true);
-    let new_entity = StdbEntity::insert(StdbEntity {
-        entity_id: 0,
-        world_id: 1,
-        on_ground: false,
-        pos: std::convert::Into::<StdbDVec3>::into(spawn_pos).clone(),
-        look: StdbVec2 {
-            x: 1.0,
-            y: 0.0,
-        },
-
-    }).unwrap();
-    let _ = StdbServerPlayer::insert(StdbServerPlayer {
-        entity_id: new_entity.entity_id.clone(),
-        username: packet.username,
-        connection_id,
-        dimension: 1,
-        spawn_pos: spawn_pos.into(),
-    });
-
-    // Confirm the login by sending same packet in response.
-    // self.net.send(client, OutPacket::Login(proto::OutLoginPacket {
-    //     entity_id,
-    //     random_seed: world.state.seed,
-    //     dimension: match world.world.get_dimension() {
-    //         Dimension::Overworld => 0,
-    //         Dimension::Nether => -1,
-    //     },
-    // }));
-
-    // The standard server sends the spawn position just after login response.
-    // self.net.send(client, OutPacket::SpawnPosition(proto::SpawnPositionPacket {
-    //     pos: spawn_pos.as_ivec3(),
-    // }));
-
-    // Send the initial position for the client.
-    // self.net.send(client, OutPacket::PositionLook(proto::PositionLookPacket {
-    //     pos: offline_player.pos,
-    //     stance: offline_player.pos.y + 1.62,
-    //     look: offline_player.look,
-    //     on_ground: false,
-    // }));
-
-    // Time must be sent once at login to conclude the login phase.
-    // self.net.send(client, OutPacket::UpdateTime(proto::UpdateTimePacket {
-    //     time: world.world.get_time(),
-    // }));
-
-    // if world.world.get_weather() != Weather::Clear {
-    //     self.net.send(client, OutPacket::Notification(proto::NotificationPacket {
-    //         reason: 1,
-    //     }));
-    // }
-
-    // Finally insert the player tracker.
-    // let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
-    // let player_index = world.handle_player_join(server_player);
-
-    // Replace the previous state with a playing state containing the world and
-    // player indices, used to get to the player instance.
-    // let previous_state = self.clients.insert(client, ClientState::Playing {
-    //     world_index,
-    //     player_index,
-    // });
-
-    // Just a sanity check...
-    // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
-
-    // TODO: Broadcast chat joining chat message.
-
 }
 
 #[spacetimedb(reducer)]

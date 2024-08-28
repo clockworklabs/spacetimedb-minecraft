@@ -7,7 +7,7 @@ use crate::util::default as def;
 use crate::geom::BoundingBox;
 use crate::rand::JavaRandom;
 use crate::item::ItemStack;
-use crate::world::World;
+use crate::world::StdbWorld;
 use crate::block;
 
 pub mod common;
@@ -714,7 +714,7 @@ impl Entity {
 
     /// Initialize this entity for natural spawn, for example this randomize the slime
     /// size or sheep color or make a spider with jokey.
-    pub fn init_natural_spawn(&mut self, _world: &mut World) {
+    pub fn init_natural_spawn(&mut self, _world: &mut StdbWorld) {
 
         let Entity(base, BaseKind::Living(_, living_kind)) = self else {
             // Non-living entities cannot naturally spawn.

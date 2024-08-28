@@ -2,9 +2,6 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
-use super::dimension::Dimension;
-use super::java_random::JavaRandom;
-use super::light_update::LightUpdate;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -16,12 +13,7 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct World {
-    pub dimension: Dimension,
-    pub time: u64,
-    pub rand: JavaRandom,
-    pub entities_count: u32,
-    pub light_updates: Vec<LightUpdate>,
-    pub random_ticks_seed: i32,
-    pub sky_light_subtracted: u8,
+pub struct StdbInLoginPacket {
+    pub protocol_version: i32,
+    pub username: String,
 }
