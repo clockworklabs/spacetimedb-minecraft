@@ -17,9 +17,9 @@ mod tick_state;
 mod tick_ai;
 mod tick_attack;
 
-use tick_state::tick_state;
-use tick_ai::tick_ai;
-use tick_attack::tick_attack;
+// use tick_state::tick_state;
+// use tick_ai::tick_ai;
+// use tick_attack::tick_attack;
 
 
 /// Kind of entity, without actual data. This enumeration can be used to construct a
@@ -561,13 +561,13 @@ impl Entity {
         self.kind().category()
     }
 
-    /// This this entity from its id in a world.
-    /// 
-    /// **This is really important to no change the entity kind when ticking the 
-    /// function.**
-    pub fn tick(&mut self, world: &mut World, id: u32) {
-        tick::tick(world, id, self);
-    }
+    // /// This this entity from its id in a world.
+    // ///
+    // /// **This is really important to no change the entity kind when ticking the
+    // /// function.**
+    // pub fn tick(&mut self, world: &mut World, id: u32) {
+    //     tick::tick(world, id, self);
+    // }
 
     /// Recompute this entity's size and recompute the bounding box from its position.
     pub fn resize(&mut self) {

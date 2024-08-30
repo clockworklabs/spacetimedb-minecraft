@@ -21,6 +21,7 @@ use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
 use mc173_module::chunk_cache::ChunkCache;
 use mc173_module::dvec3::StdbDVec3;
+use mc173_module::entity::StdbHuman;
 use mc173_module::geom::Face;
 use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime};
 use mc173_module::stdb::weather::StdbWeather;
@@ -98,7 +99,7 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     let spawn_pos = SPAWN_POS;
 
     // Get the offline player, if not existing we create a new one with the
-    // TODO(jdetter): Add support for offline players later
+    // NOTE(jdetter): support for this is below
     // let offline_player = self.offline_players.entry(packet.username.clone())
     //     .or_insert_with(|| {
     //         let spawn_world = &self.worlds[0];
@@ -133,10 +134,17 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
 
         let player = StdbServerPlayer::insert(StdbServerPlayer {
             entity_id: new_entity.entity_id.clone(),
-            username: packet.username,
+            username: packet.username.clone(),
             connection_id,
             spawn_pos: spawn_pos.into(),
         }).unwrap();
+
+        let _ = StdbHuman::insert(StdbHuman {
+            entity_id: new_entity.entity_id.clone(),
+            username: packet.username,
+            sleeping: false,
+            sneaking: false,
+        });
         (new_entity, player)
     };
 
@@ -152,6 +160,7 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     // });
 
     // let entity_id = world.spawn_entity(entity);
+    // NOTE(jdetter): We don't need to do this anymore
     // world.set_entity_player(entity_id, true);
 
     // Confirm the login by sending same packet in response.
@@ -205,7 +214,7 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     connection_status.status = StdbClientState::Playing {
         0: StdbPlayingState {
             dimension_id: entity.dimension_id,
-            player_index: entity.entity_id,
+            entity_id: entity.entity_id,
         },
     };
     StdbConnectionStatus::update_by_connection_id(&connection_id, connection_status);

@@ -35,7 +35,7 @@ impl BlockEntity {
             BlockEntity::Chest(_) => (),
             // BlockEntity::Furnace(furnace) => furnace.tick(world, pos),
             BlockEntity::Dispenser(_) => (),
-            BlockEntity::Spawner(spawner) => spawner.tick(world, pos),
+            // BlockEntity::Spawner(spawner) => spawner.tick(world, pos),
             BlockEntity::NoteBlock(_) => (),
             BlockEntity::Piston(piston) => piston.tick(world, pos),
             BlockEntity::Sign(_) => (),

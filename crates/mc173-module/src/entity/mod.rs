@@ -1,7 +1,7 @@
 //! Entities structures and logic implementation.
 
 use glam::{DVec3, Vec2, IVec3};
-
+use spacetimedb::spacetimedb;
 use crate::block::material::Material;
 use crate::util::default as def;
 use crate::geom::BoundingBox;
@@ -391,6 +391,20 @@ pub struct Snowball { }
 #[derive(Debug, Clone, Default)]
 pub struct Human {
     /// The player username.
+    pub username: String,
+    /// True when the player is sleeping.
+    pub sleeping: bool,
+    /// True when the player is sneaking.
+    pub sneaking: bool,
+}
+
+#[spacetimedb(table)]
+#[derive(Clone)]
+pub struct StdbHuman {
+    #[primarykey]
+    pub entity_id: u32,
+    /// The player username.
+    #[unique]
     pub username: String,
     /// True when the player is sleeping.
     pub sleeping: bool,

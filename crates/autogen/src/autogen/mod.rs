@@ -43,10 +43,16 @@ pub mod stdb_client_state;
 pub mod stdb_connection_status;
 pub mod stdb_d_vec_3;
 pub mod stdb_entity;
+pub mod stdb_entity_tracker;
+pub mod stdb_entity_tracker_update_type;
+pub mod stdb_entity_view;
 pub mod stdb_handle_accept_reducer;
 pub mod stdb_handle_login_reducer;
 pub mod stdb_handle_lost_reducer;
-pub mod stdb_i_vec_3;
+pub mod stdb_human;
+pub mod stdb_i_16_vec_3;
+pub mod stdb_i_32_vec_3;
+pub mod stdb_i_8_vec_2;
 pub mod stdb_in_login_packet;
 pub mod stdb_look_packet;
 pub mod stdb_offline_player;
@@ -90,10 +96,16 @@ pub use stdb_client_state::*;
 pub use stdb_connection_status::*;
 pub use stdb_d_vec_3::*;
 pub use stdb_entity::*;
+pub use stdb_entity_tracker::*;
+pub use stdb_entity_tracker_update_type::*;
+pub use stdb_entity_view::*;
 pub use stdb_handle_accept_reducer::*;
 pub use stdb_handle_login_reducer::*;
 pub use stdb_handle_lost_reducer::*;
-pub use stdb_i_vec_3::*;
+pub use stdb_human::*;
+pub use stdb_i_16_vec_3::*;
+pub use stdb_i_32_vec_3::*;
+pub use stdb_i_8_vec_2::*;
 pub use stdb_in_login_packet::*;
 pub use stdb_look_packet::*;
 pub use stdb_offline_player::*;
@@ -146,6 +158,9 @@ impl SpacetimeModule for Module {
 			"StdbChunkPopulated" => client_cache.handle_table_update_with_primary_key::<stdb_chunk_populated::StdbChunkPopulated>(callbacks, table_update),
 			"StdbConnectionStatus" => client_cache.handle_table_update_no_primary_key::<stdb_connection_status::StdbConnectionStatus>(callbacks, table_update),
 			"StdbEntity" => client_cache.handle_table_update_with_primary_key::<stdb_entity::StdbEntity>(callbacks, table_update),
+			"StdbEntityTracker" => client_cache.handle_table_update_with_primary_key::<stdb_entity_tracker::StdbEntityTracker>(callbacks, table_update),
+			"StdbEntityView" => client_cache.handle_table_update_with_primary_key::<stdb_entity_view::StdbEntityView>(callbacks, table_update),
+			"StdbHuman" => client_cache.handle_table_update_with_primary_key::<stdb_human::StdbHuman>(callbacks, table_update),
 			"StdbOfflinePlayer" => client_cache.handle_table_update_no_primary_key::<stdb_offline_player::StdbOfflinePlayer>(callbacks, table_update),
 			"StdbOfflineServerPlayer" => client_cache.handle_table_update_with_primary_key::<stdb_offline_server_player::StdbOfflineServerPlayer>(callbacks, table_update),
 			"StdbRand" => client_cache.handle_table_update_no_primary_key::<stdb_rand::StdbRand>(callbacks, table_update),
@@ -188,6 +203,17 @@ impl SpacetimeModule for Module {
             state,
         );
         reminders.invoke_callbacks::<stdb_entity::StdbEntity>(worker, &reducer_event, state);
+        reminders.invoke_callbacks::<stdb_entity_tracker::StdbEntityTracker>(
+            worker,
+            &reducer_event,
+            state,
+        );
+        reminders.invoke_callbacks::<stdb_entity_view::StdbEntityView>(
+            worker,
+            &reducer_event,
+            state,
+        );
+        reminders.invoke_callbacks::<stdb_human::StdbHuman>(worker, &reducer_event, state);
         reminders.invoke_callbacks::<stdb_offline_player::StdbOfflinePlayer>(
             worker,
             &reducer_event,
@@ -276,6 +302,16 @@ match &function_call.reducer[..] {
                 ),
             "StdbEntity" => client_cache
                 .handle_resubscribe_for_type::<stdb_entity::StdbEntity>(callbacks, new_subs),
+            "StdbEntityTracker" => client_cache
+                .handle_resubscribe_for_type::<stdb_entity_tracker::StdbEntityTracker>(
+                    callbacks, new_subs,
+                ),
+            "StdbEntityView" => client_cache
+                .handle_resubscribe_for_type::<stdb_entity_view::StdbEntityView>(
+                    callbacks, new_subs,
+                ),
+            "StdbHuman" => client_cache
+                .handle_resubscribe_for_type::<stdb_human::StdbHuman>(callbacks, new_subs),
             "StdbOfflinePlayer" => client_cache
                 .handle_resubscribe_for_type::<stdb_offline_player::StdbOfflinePlayer>(
                     callbacks, new_subs,

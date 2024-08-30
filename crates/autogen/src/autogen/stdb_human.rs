@@ -2,8 +2,6 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
-use super::stdb_d_vec_3::StdbDVec3;
-use super::stdb_vec_2::StdbVec2;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -15,27 +13,26 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct StdbEntity {
+pub struct StdbHuman {
     pub entity_id: u32,
-    pub on_ground: bool,
-    pub pos: StdbDVec3,
-    pub look: StdbVec2,
-    pub dimension_id: i32,
+    pub username: String,
+    pub sleeping: bool,
+    pub sneaking: bool,
 }
 
-impl TableType for StdbEntity {
-    const TABLE_NAME: &'static str = "StdbEntity";
+impl TableType for StdbHuman {
+    const TABLE_NAME: &'static str = "StdbHuman";
     type ReducerEvent = super::ReducerEvent;
 }
 
-impl TableWithPrimaryKey for StdbEntity {
+impl TableWithPrimaryKey for StdbHuman {
     type PrimaryKey = u32;
     fn primary_key(&self) -> &Self::PrimaryKey {
         &self.entity_id
     }
 }
 
-impl StdbEntity {
+impl StdbHuman {
     #[allow(unused)]
     pub fn filter_by_entity_id(entity_id: u32) -> TableIter<Self> {
         Self::filter(|row| row.entity_id == entity_id)
@@ -45,11 +42,19 @@ impl StdbEntity {
         Self::find(|row| row.entity_id == entity_id)
     }
     #[allow(unused)]
-    pub fn filter_by_on_ground(on_ground: bool) -> TableIter<Self> {
-        Self::filter(|row| row.on_ground == on_ground)
+    pub fn filter_by_username(username: String) -> TableIter<Self> {
+        Self::filter(|row| row.username == username)
     }
     #[allow(unused)]
-    pub fn filter_by_dimension_id(dimension_id: i32) -> TableIter<Self> {
-        Self::filter(|row| row.dimension_id == dimension_id)
+    pub fn find_by_username(username: String) -> Option<Self> {
+        Self::find(|row| row.username == username)
+    }
+    #[allow(unused)]
+    pub fn filter_by_sleeping(sleeping: bool) -> TableIter<Self> {
+        Self::filter(|row| row.sleeping == sleeping)
+    }
+    #[allow(unused)]
+    pub fn filter_by_sneaking(sneaking: bool) -> TableIter<Self> {
+        Self::filter(|row| row.sneaking == sneaking)
     }
 }

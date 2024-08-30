@@ -9,6 +9,12 @@ pub struct StdbDVec3 {
     pub z: f64,
 }
 
+impl StdbDVec3 {
+    pub fn as_dvec3(&self) -> DVec3 {
+        DVec3::new(self.x, self.y, self.z)
+    }
+}
+
 impl From<DVec3> for StdbDVec3 {
     fn from(value: DVec3) -> Self {
         StdbDVec3 {

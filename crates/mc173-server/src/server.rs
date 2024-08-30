@@ -8,7 +8,7 @@ use std::io;
 use glam::{DVec3, Vec2};
 
 use tracing::{warn, info};
-use autogen::autogen::{handle_connect, stdb_handle_accept, stdb_handle_connect, stdb_handle_disconnect, stdb_handle_lost, InLoginPacket, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer};
+use autogen::autogen::{handle_connect, stdb_handle_accept, stdb_handle_connect, stdb_handle_disconnect, stdb_handle_lost, InLoginPacket, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer, StdbServerWorld, StdbTime, StdbWeather, StdbWorld};
 use mc173::world::{Dimension, Weather};
 use mc173::entity::{self as e};
 
@@ -27,9 +27,9 @@ pub const TICK_DURATION: Duration = Duration::from_millis(50);
 /// to correct handlers.
 pub struct Server {
     /// Packet server handle.
-    net: Network,
+    pub net: Network,
     /// Clients of this server, these structures track the network state of each client.
-    clients: HashMap<u64, NetworkClient>,
+    pub clients: HashMap<u64, NetworkClient>,
     /// Worlds list.
     pub worlds: Vec<ServerWorld>,
     /// Offline players
@@ -124,15 +124,17 @@ impl Server {
     fn handle_packet(&mut self, client: NetworkClient, packet: InPacket) {
         
         // println!("[{client:?}] Packet: {packet:?}");
+        let status = StdbConnectionStatus::find_by_connection_id(client.id()).unwrap();
 
-        match *self.clients.get(&client).unwrap() {
-            ClientState::Handshaking => {
+        // match *self.clients.get(&client).unwrap() {
+        match status.status {
+            StdbClientState::Handshaking => {
                 self.handle_handshaking(client, packet);
             }
-            ClientState::Playing { world_index, player_index } => {
-                let world = &mut self.worlds[world_index];
-                let player = &mut world.players[player_index];
-                player.handle(&mut world.world, &mut world.state, packet);
+            StdbClientState::Playing(playing) => {
+                // let world = &mut self.worlds[playing.dimension_id];
+                // let player = &mut world.players[playing.player_index];
+                ServerPlayer::handle(&self, client.id());
             }
         }
     }
@@ -204,21 +206,24 @@ impl Server {
         Ok(())
     }
 
-    pub fn handle_login_result(&mut self, connection_id: u64, new_player: &StdbServerPlayer) {
+    pub fn handle_login_result(&mut self, connection_id: u64) {
+        let new_player = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
         let client = self.clients.get(&connection_id).unwrap().clone();
-        let world = self.worlds.get_mut(0).unwrap();
+        // let world = self.worlds.get_mut(0).unwrap();
         let entity = StdbEntity::find_by_entity_id(new_player.entity_id.clone()).unwrap();
+        let world = StdbWorld::find_by_dimension_id(entity.dimension_id).unwrap();
+        let server_world = StdbServerWorld::find_by_dimension_id(entity.dimension_id).unwrap();
         let dvec3 : DVec3 = new_player.spawn_pos.clone().into();
+
+        // NOTE(jdetter): I think this doesn't need to happen anymore
+        // world.spawn_entity(entity);
         // world.world.set_entity_player(entity_id, true);
 
         // Confirm the login by sending same packet in response.
         self.net.send(client, OutPacket::Login(proto::OutLoginPacket {
             entity_id: entity.entity_id,
-            random_seed: world.state.seed,
-            dimension: match world.world.get_dimension() {
-                Dimension::Overworld => 0,
-                Dimension::Nether => -1,
-            },
+            random_seed: server_world.seed,
+            dimension: world.dimension_id as i8,
         }));
 
         // The standard server sends the spawn position just after login response.
@@ -237,15 +242,18 @@ impl Server {
 
         // Time must be sent once at login to conclude the login phase.
         self.net.send(client, OutPacket::UpdateTime(proto::UpdateTimePacket {
-            time: world.world.get_time(),
+            // time: world.get_time(),
+            time: StdbTime::find_by_id(0).unwrap().time
         }));
 
-        if world.world.get_weather() != Weather::Clear {
+        if StdbWeather::find_by_id(0).unwrap().weather != autogen::autogen::Weather::Clear {
+        // if world.world.get_weather() != Weather::Clear {
             self.net.send(client, OutPacket::Notification(proto::NotificationPacket {
                 reason: 1,
             }));
         }
 
+        // NOTE(jdetter): This is done in stdb
         // Get the offline player, if not existing we create a new one with the
         // let offline_player = self.offline_players.entry(new_player.username.clone())
         //     .or_insert_with(|| {
@@ -257,6 +265,7 @@ impl Server {
         //         }
         //     });
 
+        // NOTE(jdetter): This is done in stdb
         // let (world_index, world) = self.worlds.iter_mut()
         //     .enumerate()
         //     .filter(|(_, world)| world.state.name == offline_player.world)
@@ -274,10 +283,10 @@ impl Server {
         //     player.username = new_player.username.clone();
         // });
 
+        // NOTE(jdetter): This is done in stdb
         // Finally insert the player tracker.
-        let server_player = ServerPlayer::new(&self.net, client, entity.entity_id,
-                                              new_player.username.clone(), &offline_player);
-        let player_index = world.handle_player_join(server_player);
+        // let server_player = ServerPlayer::new(&self.net, client, entity.entity_id, new_player.username.clone());
+        // let player_index = world.handle_player_join(server_player);
 
         // Replace the previous state with a playing state containing the world and
         // player indices, used to get to the player instance.

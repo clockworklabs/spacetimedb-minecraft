@@ -14,46 +14,46 @@ use super::World;
 /// Methods related to loot spawning in the world and block loot randomization.
 impl World {
 
-    /// Spawn item entity in the world containing the given stack. The velocity of the 
-    /// spawned item stack is random and the initial position depends on the given spread.
-    /// This item entity will be impossible to pickup for 10 ticks.
-    pub fn spawn_loot(&mut self, mut pos: DVec3, stack: ItemStack, spread: f32) {
-        
-        if spread != 0.0 {
-            pos += self.rand.next_float_vec()
-                .mul(spread)
-                .as_dvec3()
-                .sub(spread as f64 * 0.5);
-        }
+    // /// Spawn item entity in the world containing the given stack. The velocity of the
+    // /// spawned item stack is random and the initial position depends on the given spread.
+    // /// This item entity will be impossible to pickup for 10 ticks.
+    // pub fn spawn_loot(&mut self, mut pos: DVec3, stack: ItemStack, spread: f32) {
+    //
+    //     if spread != 0.0 {
+    //         pos += self.rand.next_float_vec()
+    //             .mul(spread)
+    //             .as_dvec3()
+    //             .sub(spread as f64 * 0.5);
+    //     }
+    //
+    //     let entity = Item::new_with(|base, item| {
+    //         base.persistent = true;
+    //         base.pos = pos;
+    //         base.vel.x = self.rand.next_double() * 0.2 - 0.1;
+    //         base.vel.y = 0.2;
+    //         base.vel.z = self.rand.next_double() * 0.2 - 0.1;
+    //         item.stack = stack;
+    //         item.frozen_time = 10;
+    //     });
+    //
+    //     self.spawn_entity(entity);
+    //
+    // }
 
-        let entity = Item::new_with(|base, item| {
-            base.persistent = true;
-            base.pos = pos;
-            base.vel.x = self.rand.next_double() * 0.2 - 0.1;
-            base.vel.y = 0.2;
-            base.vel.z = self.rand.next_double() * 0.2 - 0.1;
-            item.stack = stack;
-            item.frozen_time = 10;
-        });
-
-        self.spawn_entity(entity);
-
-    }
-
-    /// Spawn item entities in the world depending on the loot of the given block id and
-    /// metadata. Each block has a different random try count and loots, the given chance
-    /// if looting is checked on each try, typically used for explosions.
-    pub fn spawn_block_loot(&mut self, pos: IVec3, id: u8, metadata: u8, chance: f32) {
-        let tries = self.get_block_loot_tries(id, metadata);
-        for try_num in 0..tries {
-            if self.rand.next_float() <= self.get_block_loot_chance(id, metadata, try_num, chance) {
-                let stack = self.get_block_loot_stack(id, metadata, try_num);
-                if !stack.is_empty() {
-                    self.spawn_loot(pos.as_dvec3() + 0.5, stack, 0.7);
-                }
-            }
-        }
-    }
+    // /// Spawn item entities in the world depending on the loot of the given block id and
+    // /// metadata. Each block has a different random try count and loots, the given chance
+    // /// if looting is checked on each try, typically used for explosions.
+    // pub fn spawn_block_loot(&mut self, pos: IVec3, id: u8, metadata: u8, chance: f32) {
+    //     let tries = self.get_block_loot_tries(id, metadata);
+    //     for try_num in 0..tries {
+    //         if self.rand.next_float() <= self.get_block_loot_chance(id, metadata, try_num, chance) {
+    //             let stack = self.get_block_loot_stack(id, metadata, try_num);
+    //             if !stack.is_empty() {
+    //                 self.spawn_loot(pos.as_dvec3() + 0.5, stack, 0.7);
+    //             }
+    //         }
+    //     }
+    // }
 
     /// Get the tries count from a block and metadata.
     fn get_block_loot_tries(&mut self, id: u8, _metadata: u8) -> u8 {

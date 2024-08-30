@@ -14,6 +14,7 @@ categories = ["games"]
 
 [dependencies]
 autogen = { path = "../autogen" }
+spacetimedb-sdk = "0.10"
 crossbeam-channel = "0.5"
 byteorder = "1.5"
 indexmap = "2.0"

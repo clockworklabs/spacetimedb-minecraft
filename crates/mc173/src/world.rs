@@ -15,7 +15,8 @@ use glam::{IVec3, Vec2, DVec3};
 use indexmap::IndexMap;
 
 use tracing::trace;
-use autogen::autogen::{StdbChunkEvent, StdbSetBlockEvent, StdbTime, StdbWeather};
+use spacetimedb_sdk::table::TableType;
+use autogen::autogen::{StdbChunkEvent, StdbServerPlayer, StdbSetBlockEvent, StdbTime, StdbWeather};
 
 use crate::entity::{Entity, EntityCategory, EntityKind};
 use crate::block_entity::BlockEntity;
@@ -266,23 +267,23 @@ impl World {
     //   CHUNK SNAPSHOTS   //
     // =================== //
 
-    /// Insert a chunk snapshot into this world at its position with all entities and 
-    /// block entities attached to it.
-    pub fn insert_chunk_snapshot(&mut self, snapshot: ChunkSnapshot) {
-        
-        self.set_chunk(snapshot.cx, snapshot.cz, snapshot.chunk);
-        
-        for entity in snapshot.entities {
-            debug_assert_eq!(calc_entity_chunk_pos(entity.0.pos), (snapshot.cx, snapshot.cz), "incoherent entity in chunk snapshot");
-            self.spawn_entity_inner(entity);
-        }
-
-        for (pos, block_entity) in snapshot.block_entities {
-            debug_assert_eq!(calc_chunk_pos_unchecked(pos), (snapshot.cx, snapshot.cz), "incoherent block entity in chunk snapshot");
-            self.set_block_entity_inner(pos, block_entity);
-        }
-
-    }
+    // /// Insert a chunk snapshot into this world at its position with all entities and
+    // /// block entities attached to it.
+    // pub fn insert_chunk_snapshot(&mut self, snapshot: ChunkSnapshot) {
+    //
+    //     self.set_chunk(snapshot.cx, snapshot.cz, snapshot.chunk);
+    //
+    //     for entity in snapshot.entities {
+    //         debug_assert_eq!(calc_entity_chunk_pos(entity.0.pos), (snapshot.cx, snapshot.cz), "incoherent entity in chunk snapshot");
+    //         self.spawn_entity_inner(entity);
+    //     }
+    //
+    //     for (pos, block_entity) in snapshot.block_entities {
+    //         debug_assert_eq!(calc_chunk_pos_unchecked(pos), (snapshot.cx, snapshot.cz), "incoherent block entity in chunk snapshot");
+    //         self.set_block_entity_inner(pos, block_entity);
+    //     }
+    //
+    // }
 
     /// Create a snapshot of a chunk's content, this only works if chunk data is existing.
     /// This operation can be costly depending on the number of entities in the chunk, but
@@ -573,48 +574,55 @@ impl World {
 
     /// Internal function to ensure monomorphization and reduce bloat of the 
     /// generic [`spawn_entity`].
-    #[inline(never)]
-    fn spawn_entity_inner(&mut self, entity: Box<Entity>) -> u32 {
-
-        // Get the next unique entity id.
-        let id = self.entities_count;
-        self.entities_count = self.entities_count.checked_add(1)
-            .expect("entity count overflow");
-
-        let kind = entity.kind();
-        trace!("spawn entity #{id} ({:?})", kind);
-
-        let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
-        let chunk_comp = self.chunks.entry((cx, cz)).or_default();
-        let entity_index = self.entities.push(EntityComponent {
-            inner: Some(entity),
-            id,
-            cx,
-            cz,
-            loaded: chunk_comp.data.is_some(),
-            kind,
-        });
-
-        chunk_comp.entities.insert(id, entity_index);
-        self.entities_id_map.insert(id, entity_index);
-        
-        self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
-        self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
-
-        id
-
-    }
+    ///
+    /// NOTE(jdetter):
+    ///  - We give the entity an ID
+    ///  - we calculate the chunk position of the entity and save that in the EntityComponent.
+    // #[inline(never)]
+    // fn spawn_entity_inner(&mut self, entity: Box<Entity>) -> u32 {
+    //
+    //     // Get the next unique entity id.
+    //     let id = self.entities_count;
+    //     self.entities_count = self.entities_count.checked_add(1)
+    //         .expect("entity count overflow");
+    //
+    //     let kind = entity.kind();
+    //     trace!("spawn entity #{id} ({:?})", kind);
+    //
+    //     let (cx, cz) = calc_entity_chunk_pos(entity.0.pos);
+    //     let chunk_comp = self.chunks.entry((cx, cz)).or_default();
+    //     let entity_index = self.entities.push(EntityComponent {
+    //         inner: Some(entity),
+    //         id,
+    //         cx,
+    //         cz,
+    //         loaded: chunk_comp.data.is_some(),
+    //         kind,
+    //     });
+    //
+    //     chunk_comp.entities.insert(id, entity_index);
+    //     self.entities_id_map.insert(id, entity_index);
+    //
+    //
+    //     // NOTE(jdetter): This will cause player trackers to be setup for this entity.
+    //     self.push_event(Event::Entity { id, inner: EntityEvent::Spawn });
+    //     // NOTE(jdetter): This just has to do with saving chunks and can safely be disabled
+    //     // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+    //
+    //     id
+    //
+    // }
 
     /// Spawn an entity in this world, this function gives it a unique id and ensure 
     /// coherency with chunks cache.
     /// 
     /// **This function is legal to call from ticking entities, but such entities will be
     /// ticked once in the same cycle as the currently ticking entity.**
-    #[inline(always)]
-    pub fn spawn_entity(&mut self, entity: impl Into<Box<Entity>>) -> u32 {
+    // #[inline(always)]
+    // pub fn spawn_entity(&mut self, entity: impl Into<Box<Entity>>) -> u32 {
         // NOTE: This method is just a wrapper to erase generics.
-        self.spawn_entity_inner(entity.into())
-    }
+        // self.spawn_entity_inner(entity.into())
+    // }
 
     /// Return true if an entity is present from its id.
     pub fn contains_entity(&self, id: u32) -> bool {
@@ -722,26 +730,29 @@ impl World {
     /// despawning when players are too far away, or for looking at players.
     /// 
     /// This methods returns true if the property has been successfully set.
-    pub fn set_entity_player(&mut self, id: u32, player: bool) -> bool {
-        let Some(&index) = self.entities_id_map.get(&id) else { return false };
-        if player {
-            self.entities_player_map.insert(id, index);
-        } else {
-            self.entities_player_map.remove(&id);
-        }
-        true
-    }
+    /// Note(jdetter): spacetimedb keeps track of this for us, I don't think we need this
+    // pub fn set_entity_player(&mut self, id: u32, player: bool) -> bool {
+    //     let Some(&index) = self.entities_id_map.get(&id) else { return false };
+    //     if player {
+    //         self.entities_player_map.insert(id, index);
+    //     } else {
+    //         self.entities_player_map.remove(&id);
+    //     }
+    //     true
+    // }
 
     /// Returns true if the given entity by its id is a player entity. This also returns
     /// false if the entity isn't existing.
     pub fn is_entity_player(&mut self, id: u32) -> bool {
-        self.entities_player_map.contains_key(&id)
+        StdbServerPlayer::find_by_entity_id(id).is_some()
+        // self.entities_player_map.contains_key(&id)
     }
 
     /// Returns the number of player entities in the world, loaded or not.
     #[inline]
     pub fn get_entity_player_count(&self) -> usize {
-        self.entities_player_map.len()
+        // self.entities_player_map.len()
+        StdbServerPlayer::iter().count()
     }
 
     // =================== //
@@ -1045,7 +1056,7 @@ impl World {
         // self.tick_weather();
         // TODO: Wake up all sleeping player if day time.
         
-        self.tick_natural_spawn();
+        // self.tick_natural_spawn();
 
         self.tick_sky_light();
 
@@ -1053,8 +1064,8 @@ impl World {
 
         // TODO: Move this to SpacetimeDB
         // self.tick_blocks();
-        self.tick_entities();
-        self.tick_block_entities();
+        // self.tick_entities();
+        // self.tick_block_entities();
 
         self.tick_light(1000);
         
@@ -1088,197 +1099,197 @@ impl World {
     //
     // }
 
-    /// Do natural animal and mob spawning in the world.
-    fn tick_natural_spawn(&mut self) {
-
-        /// The maximum manhattan distance a chunk can be loaded.
-        const CHUNK_MAX_DIST: u32 = 8;
-        /// The minimum distance required from any player entity to spawn.
-        const SPAWN_MIN_DIST_SQUARED: f64 = 24.0 * 24.0;
-
-        // Categories of entities to spawn, also used to count how many are currently 
-        // loaded in the world. We have 4 slots in this array because there are 4
-        // entity categories.
-        let mut categories_count = [0; EntityCategory::ALL.len()];
-
-        // Count every entity category.
-        for comp in self.entities.iter() {
-            if comp.loaded {
-                if let Some(entity) = comp.inner.as_deref() {
-                    categories_count[entity.category() as usize] += 1;
-                }
-            }
-        }
-
-        // Temporary list of chunks loaded by data and players in range.
-        let mut loaded_chunks = LOADED_CHUNKS.take();
-        loaded_chunks.clear();
-        loaded_chunks.extend(self.chunks.iter()
-            .filter_map(|(&pos, comp)| comp.data.is_some().then_some(pos)));
-        loaded_chunks.retain(|&(cx, cz)| {
-            self.entities_player_map.values()
-                .map(|&index| self.entities.get(index).unwrap())
-                .any(|comp| comp.cx.abs_diff(cx) <= CHUNK_MAX_DIST && comp.cz.abs_diff(cz) <= CHUNK_MAX_DIST)
-        });
-
-        for category in EntityCategory::ALL {
-
-            let max_world_count = category.natural_spawn_max_world_count();
-
-            // Skip the category if it cannot spawn.
-            if max_world_count == 0 {
-                continue;
-            }
-            // Skip the category if it already has enough loaded entities.
-            if categories_count[category as usize] > max_world_count * self.chunks.len() / 256 {
-                continue;
-            }
-
-            for &(cx, cz) in &loaded_chunks {
-
-                // Temporary borrowing of chunk data to query biome and block.
-                let chunk = self.chunks.get(&(cx, cz)).unwrap();
-                let chunk_data = chunk.data.as_deref().unwrap();
-
-                let biome = chunk_data.get_biome(IVec3::ZERO);
-                let kinds = biome.natural_entity_kinds(category);
-
-                // Ignore this chunk is its biome cannot spawn any entity.
-                if kinds.is_empty() {
-                    continue;
-                }
-
-                // Next we pick a random spawn position within the chunk and check it.
-                let center_pos = IVec3 {
-                    x: cx * 16 + self.rand.next_int_bounded(16),
-                    y: self.rand.next_int_bounded(128),
-                    z: cz * 16 + self.rand.next_int_bounded(16),
-                };
-
-                // If the block is not valid to spawn the category in, skip chunk.
-                let (block, _) = chunk_data.get_block(center_pos);
-                if block::material::get_material(block) != category.natural_spawn_material() {
-                    continue;
-                }
-
-                let chance_sum = kinds.iter().map(|kind| kind.chance).sum::<u16>();
-                let index = self.rand.next_int_bounded(chance_sum as i32) as u16;
-                let mut chance_acc = 0;
-                let mut kind = kinds[0].kind;
-
-                for test_kind in kinds {
-                    chance_acc += test_kind.chance;
-                    if index < chance_acc {
-                        kind = test_kind.kind;
-                        break;
-                    }
-                }
-
-                // Keep the maximum chunk count to compare with spawn count.
-                let max_chunk_count = kind.natural_spawn_max_chunk_count();
-
-                // Keep track of the total number of entity spawned in that chunk.
-                let mut spawn_count = 0usize;
-
-                'pack: for _ in 0..3 {
-
-                    let mut spawn_pos = center_pos;
-
-                    'chain: for _ in 0..4 {
-
-                        spawn_pos += IVec3 {
-                            x: self.rand.next_int_bounded(6) - self.rand.next_int_bounded(6),
-                            y: self.rand.next_int_bounded(1) - self.rand.next_int_bounded(1),
-                            z: self.rand.next_int_bounded(6) - self.rand.next_int_bounded(6),
-                        };
-
-                        // Preliminary check if the block position is valid.
-                        if category == EntityCategory::WaterAnimal {
-
-                            // Water animals can only spawn in liquid.
-                            if !self.get_block_material(spawn_pos).is_fluid() {
-                                continue;
-                            }
-
-                            // Water animals cannot spawn if above block is opaque.
-                            if self.is_block_opaque_cube(spawn_pos + IVec3::Y) {
-                                continue;
-                            }
-
-                        } else {
-                            
-                            // The 2 block column should not be opaque cube.
-                            if self.is_block_opaque_cube(spawn_pos) || self.is_block_opaque_cube(spawn_pos + IVec3::Y) {
-                                continue;
-                            }
-
-                            // Block below should be opaque.
-                            if !self.is_block_opaque_cube(spawn_pos - IVec3::Y) {
-                                continue;
-                            }
-
-                            // PARITY: We don't do the fluid block check because it would
-                            // be redundant with the check in 'can_natural_spawn'.
-
-                        }
-
-                        let spawn_pos = spawn_pos.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
-
-                        // PARITY: We check that this entity would be in the 128.0 block 
-                        // no-despawn range of at least one player. This avoid entities
-                        // to be instantly removed after spawning.
-                        let mut close_player = false;
-                        for (_, Entity(player_base, _)) in self.iter_player_entities() {
-                            // If there is a player too close to that spawn point, abort.
-                            let player_dist_sq = player_base.pos.distance_squared(spawn_pos);
-                            if player_dist_sq < SPAWN_MIN_DIST_SQUARED {
-                                continue 'chain;
-                            } else if player_dist_sq <= 128.0 * 128.0 {
-                                close_player = true;
-                            }
-                        }
-
-                        // Skip if no player is in range to keep this natural entity.
-                        if !close_player {
-                            continue;
-                        }
-
-                        // TODO: Do not spawn inside spawn chunks
-
-                        let mut entity = kind.new_default(spawn_pos);
-                        entity.0.persistent = true;
-                        entity.0.look.x = self.rand.next_float() * std::f32::consts::TAU;
-
-                        // Important to init natural spawn before checking if it can spawn
-                        // because slime may be resized, so this can change the bb.
-                        entity.init_natural_spawn(self);
-
-                        // Skip if the entity cannot be spawned.
-                        if !entity.can_natural_spawn(self) {
-                            continue;
-                        }
-
-                        // TODO: Spawning spider has 1% chance of being spider jockey.
-                        // TODO: Random sheep wool color.
-
-                        self.spawn_entity(entity);
-                        spawn_count += 1;
-                        if spawn_count >= max_chunk_count {
-                            break 'pack;
-                        }
-
-                    }
-
-                }
-
-            }
-
-        }
-
-        // To avoid too short allocation...
-        LOADED_CHUNKS.set(loaded_chunks);
-
-    }
+    // /// Do natural animal and mob spawning in the world.
+    // fn tick_natural_spawn(&mut self) {
+    //
+    //     /// The maximum manhattan distance a chunk can be loaded.
+    //     const CHUNK_MAX_DIST: u32 = 8;
+    //     /// The minimum distance required from any player entity to spawn.
+    //     const SPAWN_MIN_DIST_SQUARED: f64 = 24.0 * 24.0;
+    //
+    //     // Categories of entities to spawn, also used to count how many are currently
+    //     // loaded in the world. We have 4 slots in this array because there are 4
+    //     // entity categories.
+    //     let mut categories_count = [0; EntityCategory::ALL.len()];
+    //
+    //     // Count every entity category.
+    //     for comp in self.entities.iter() {
+    //         if comp.loaded {
+    //             if let Some(entity) = comp.inner.as_deref() {
+    //                 categories_count[entity.category() as usize] += 1;
+    //             }
+    //         }
+    //     }
+    //
+    //     // Temporary list of chunks loaded by data and players in range.
+    //     let mut loaded_chunks = LOADED_CHUNKS.take();
+    //     loaded_chunks.clear();
+    //     loaded_chunks.extend(self.chunks.iter()
+    //         .filter_map(|(&pos, comp)| comp.data.is_some().then_some(pos)));
+    //     loaded_chunks.retain(|&(cx, cz)| {
+    //         self.entities_player_map.values()
+    //             .map(|&index| self.entities.get(index).unwrap())
+    //             .any(|comp| comp.cx.abs_diff(cx) <= CHUNK_MAX_DIST && comp.cz.abs_diff(cz) <= CHUNK_MAX_DIST)
+    //     });
+    //
+    //     for category in EntityCategory::ALL {
+    //
+    //         let max_world_count = category.natural_spawn_max_world_count();
+    //
+    //         // Skip the category if it cannot spawn.
+    //         if max_world_count == 0 {
+    //             continue;
+    //         }
+    //         // Skip the category if it already has enough loaded entities.
+    //         if categories_count[category as usize] > max_world_count * self.chunks.len() / 256 {
+    //             continue;
+    //         }
+    //
+    //         for &(cx, cz) in &loaded_chunks {
+    //
+    //             // Temporary borrowing of chunk data to query biome and block.
+    //             let chunk = self.chunks.get(&(cx, cz)).unwrap();
+    //             let chunk_data = chunk.data.as_deref().unwrap();
+    //
+    //             let biome = chunk_data.get_biome(IVec3::ZERO);
+    //             let kinds = biome.natural_entity_kinds(category);
+    //
+    //             // Ignore this chunk is its biome cannot spawn any entity.
+    //             if kinds.is_empty() {
+    //                 continue;
+    //             }
+    //
+    //             // Next we pick a random spawn position within the chunk and check it.
+    //             let center_pos = IVec3 {
+    //                 x: cx * 16 + self.rand.next_int_bounded(16),
+    //                 y: self.rand.next_int_bounded(128),
+    //                 z: cz * 16 + self.rand.next_int_bounded(16),
+    //             };
+    //
+    //             // If the block is not valid to spawn the category in, skip chunk.
+    //             let (block, _) = chunk_data.get_block(center_pos);
+    //             if block::material::get_material(block) != category.natural_spawn_material() {
+    //                 continue;
+    //             }
+    //
+    //             let chance_sum = kinds.iter().map(|kind| kind.chance).sum::<u16>();
+    //             let index = self.rand.next_int_bounded(chance_sum as i32) as u16;
+    //             let mut chance_acc = 0;
+    //             let mut kind = kinds[0].kind;
+    //
+    //             for test_kind in kinds {
+    //                 chance_acc += test_kind.chance;
+    //                 if index < chance_acc {
+    //                     kind = test_kind.kind;
+    //                     break;
+    //                 }
+    //             }
+    //
+    //             // Keep the maximum chunk count to compare with spawn count.
+    //             let max_chunk_count = kind.natural_spawn_max_chunk_count();
+    //
+    //             // Keep track of the total number of entity spawned in that chunk.
+    //             let mut spawn_count = 0usize;
+    //
+    //             'pack: for _ in 0..3 {
+    //
+    //                 let mut spawn_pos = center_pos;
+    //
+    //                 'chain: for _ in 0..4 {
+    //
+    //                     spawn_pos += IVec3 {
+    //                         x: self.rand.next_int_bounded(6) - self.rand.next_int_bounded(6),
+    //                         y: self.rand.next_int_bounded(1) - self.rand.next_int_bounded(1),
+    //                         z: self.rand.next_int_bounded(6) - self.rand.next_int_bounded(6),
+    //                     };
+    //
+    //                     // Preliminary check if the block position is valid.
+    //                     if category == EntityCategory::WaterAnimal {
+    //
+    //                         // Water animals can only spawn in liquid.
+    //                         if !self.get_block_material(spawn_pos).is_fluid() {
+    //                             continue;
+    //                         }
+    //
+    //                         // Water animals cannot spawn if above block is opaque.
+    //                         if self.is_block_opaque_cube(spawn_pos + IVec3::Y) {
+    //                             continue;
+    //                         }
+    //
+    //                     } else {
+    //
+    //                         // The 2 block column should not be opaque cube.
+    //                         if self.is_block_opaque_cube(spawn_pos) || self.is_block_opaque_cube(spawn_pos + IVec3::Y) {
+    //                             continue;
+    //                         }
+    //
+    //                         // Block below should be opaque.
+    //                         if !self.is_block_opaque_cube(spawn_pos - IVec3::Y) {
+    //                             continue;
+    //                         }
+    //
+    //                         // PARITY: We don't do the fluid block check because it would
+    //                         // be redundant with the check in 'can_natural_spawn'.
+    //
+    //                     }
+    //
+    //                     let spawn_pos = spawn_pos.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
+    //
+    //                     // PARITY: We check that this entity would be in the 128.0 block
+    //                     // no-despawn range of at least one player. This avoid entities
+    //                     // to be instantly removed after spawning.
+    //                     let mut close_player = false;
+    //                     for (_, Entity(player_base, _)) in self.iter_player_entities() {
+    //                         // If there is a player too close to that spawn point, abort.
+    //                         let player_dist_sq = player_base.pos.distance_squared(spawn_pos);
+    //                         if player_dist_sq < SPAWN_MIN_DIST_SQUARED {
+    //                             continue 'chain;
+    //                         } else if player_dist_sq <= 128.0 * 128.0 {
+    //                             close_player = true;
+    //                         }
+    //                     }
+    //
+    //                     // Skip if no player is in range to keep this natural entity.
+    //                     if !close_player {
+    //                         continue;
+    //                     }
+    //
+    //                     // TODO: Do not spawn inside spawn chunks
+    //
+    //                     let mut entity = kind.new_default(spawn_pos);
+    //                     entity.0.persistent = true;
+    //                     entity.0.look.x = self.rand.next_float() * std::f32::consts::TAU;
+    //
+    //                     // Important to init natural spawn before checking if it can spawn
+    //                     // because slime may be resized, so this can change the bb.
+    //                     entity.init_natural_spawn(self);
+    //
+    //                     // Skip if the entity cannot be spawned.
+    //                     if !entity.can_natural_spawn(self) {
+    //                         continue;
+    //                     }
+    //
+    //                     // TODO: Spawning spider has 1% chance of being spider jockey.
+    //                     // TODO: Random sheep wool color.
+    //
+    //                     self.spawn_entity(entity);
+    //                     spawn_count += 1;
+    //                     if spawn_count >= max_chunk_count {
+    //                         break 'pack;
+    //                     }
+    //
+    //                 }
+    //
+    //             }
+    //
+    //         }
+    //
+    //     }
+    //
+    //     // To avoid too short allocation...
+    //     LOADED_CHUNKS.set(loaded_chunks);
+    //
+    // }
 
     /// Update the sky light value depending on the current time, it is then used to get
     /// the real light value of blocks.
@@ -1372,69 +1383,69 @@ impl World {
     //
     // }
 
-    /// Internal function to tick all entities.
-    fn tick_entities(&mut self) {
-
-        self.entities.reset();
-
-        while let Some((_, comp)) = self.entities.current_mut() {
-
-            if !comp.loaded {
-                self.entities.advance();
-                continue;
-            }
-
-            let mut entity = comp.inner.take()
-                .expect("entity was already being updated");
-
-            let id = comp.id;
-            let (prev_cx, prev_cz) = (comp.cx, comp.cz);
-            entity.tick(&mut *self, id);
-
-            // Get the component again, the entity may have been removed.
-            if let Some((index, comp)) = self.entities.current_mut() {
-
-                debug_assert_eq!(comp.id, id, "entity id incoherent");
-
-                // Check if the entity moved to another chunk...
-                let (new_cx, new_cz) = calc_entity_chunk_pos(entity.0.pos);
-                comp.inner = Some(entity);
-
-                if (prev_cx, prev_cz) != (new_cx, new_cz) {
-
-                    // NOTE: This part is really critical as this ensures Memory Safety
-                    // in iterators and therefore avoids Undefined Behaviors. Each entity
-                    // really needs to be in a single chunk at a time.
-                    
-                    let removed_index = self.chunks.get_mut(&(prev_cx, prev_cz))
-                        .expect("entity previous chunk is missing")
-                        .entities.remove(&id);
-                    debug_assert_eq!(removed_index, Some(index), "entity is incoherent in its previous chunk");
-
-                    // Update the world entity to its new chunk and orphan state.
-                    comp.cx = new_cx;
-                    comp.cz = new_cz;
-
-                    // Insert the entity in its new chunk.
-                    let new_chunk_comp = self.chunks.entry((new_cx, new_cz)).or_default();
-                    let insert_success = new_chunk_comp.entities.insert(id, index).is_none();
-                    debug_assert!(insert_success, "entity was already present in its new chunk");
-                    // Update the loaded flag of the entity depending on the new chunk
-                    // being loaded or not.
-                    comp.loaded = new_chunk_comp.data.is_some();
-
-                    self.push_event(Event::Chunk { cx: prev_cx, cz: prev_cz, inner: ChunkEvent::Dirty });
-                    self.push_event(Event::Chunk { cx: new_cx, cz: new_cz, inner: ChunkEvent::Dirty });
-
-                }
-
-            }
-
-            self.entities.advance();
-
-        }
-
-    }
+    // /// Internal function to tick all entities.
+    // fn tick_entities(&mut self) {
+    //
+    //     self.entities.reset();
+    //
+    //     while let Some((_, comp)) = self.entities.current_mut() {
+    //
+    //         if !comp.loaded {
+    //             self.entities.advance();
+    //             continue;
+    //         }
+    //
+    //         let mut entity = comp.inner.take()
+    //             .expect("entity was already being updated");
+    //
+    //         let id = comp.id;
+    //         let (prev_cx, prev_cz) = (comp.cx, comp.cz);
+    //         entity.tick(&mut *self, id);
+    //
+    //         // Get the component again, the entity may have been removed.
+    //         if let Some((index, comp)) = self.entities.current_mut() {
+    //
+    //             debug_assert_eq!(comp.id, id, "entity id incoherent");
+    //
+    //             // Check if the entity moved to another chunk...
+    //             let (new_cx, new_cz) = calc_entity_chunk_pos(entity.0.pos);
+    //             comp.inner = Some(entity);
+    //
+    //             if (prev_cx, prev_cz) != (new_cx, new_cz) {
+    //
+    //                 // NOTE: This part is really critical as this ensures Memory Safety
+    //                 // in iterators and therefore avoids Undefined Behaviors. Each entity
+    //                 // really needs to be in a single chunk at a time.
+    //
+    //                 let removed_index = self.chunks.get_mut(&(prev_cx, prev_cz))
+    //                     .expect("entity previous chunk is missing")
+    //                     .entities.remove(&id);
+    //                 debug_assert_eq!(removed_index, Some(index), "entity is incoherent in its previous chunk");
+    //
+    //                 // Update the world entity to its new chunk and orphan state.
+    //                 comp.cx = new_cx;
+    //                 comp.cz = new_cz;
+    //
+    //                 // Insert the entity in its new chunk.
+    //                 let new_chunk_comp = self.chunks.entry((new_cx, new_cz)).or_default();
+    //                 let insert_success = new_chunk_comp.entities.insert(id, index).is_none();
+    //                 debug_assert!(insert_success, "entity was already present in its new chunk");
+    //                 // Update the loaded flag of the entity depending on the new chunk
+    //                 // being loaded or not.
+    //                 comp.loaded = new_chunk_comp.data.is_some();
+    //
+    //                 self.push_event(Event::Chunk { cx: prev_cx, cz: prev_cz, inner: ChunkEvent::Dirty });
+    //                 self.push_event(Event::Chunk { cx: new_cx, cz: new_cz, inner: ChunkEvent::Dirty });
+    //
+    //             }
+    //
+    //         }
+    //
+    //         self.entities.advance();
+    //
+    //     }
+    //
+    // }
 
     fn tick_block_entities(&mut self) {
 
@@ -1721,17 +1732,17 @@ pub enum EntityEvent {
     /// The entity has been removed. The last chunk position is given.
     Remove,
     /// The entity changed its position.
-    Position {
-        pos: DVec3,
-    },
+    // Position {
+    //     pos: DVec3,
+    // },
     /// The entity changed its look.
-    Look {
-        look: Vec2,
-    },
+    // Look {
+    //     look: Vec2,
+    // },
     /// The entity changed its velocity.
-    Velocity {
-        vel: DVec3,
-    },
+    // Velocity {
+    //     vel: DVec3,
+    // },
     /// The entity has picked up another entity, such as arrow or item. Note that the
     /// target entity is not removed by this event, it's only a hint that this happened
     /// just before the entity may be removed.

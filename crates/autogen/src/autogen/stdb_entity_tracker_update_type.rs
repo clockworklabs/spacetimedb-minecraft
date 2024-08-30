@@ -13,8 +13,14 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct StdbIVec3 {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
+pub enum StdbEntityTrackerUpdateType {
+    None,
+
+    EntityMove,
+
+    EntityLook,
+
+    EntityMoveAndLook,
+
+    EntityPositionAndLook,
 }

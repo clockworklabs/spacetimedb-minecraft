@@ -3,7 +3,7 @@
 
 #![allow(unused_imports)]
 use super::light_kind::LightKind;
-use super::stdb_i_vec_3::StdbIVec3;
+use super::stdb_i_32_vec_3::StdbI32Vec3;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -17,6 +17,6 @@ use spacetimedb_sdk::{
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct LightUpdate {
     pub kind: LightKind,
-    pub pos: StdbIVec3,
+    pub pos: StdbI32Vec3,
     pub credit: u8,
 }

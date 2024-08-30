@@ -14,6 +14,15 @@ pub struct StdbChunk {
     pub chunk: Chunk,
 }
 
+#[spacetimedb(table(public))]
+pub struct StdbChunkView {
+    #[primarykey]
+    #[autoinc]
+    pub view_id: u32,
+    pub chunk_id: u32,
+    pub observer_id: u32,
+}
+
 impl StdbChunk {
     pub fn xz_to_chunk_id(x: i32, z: i32) -> u32 {
         // bounds check x and z, which must both fit in an i16

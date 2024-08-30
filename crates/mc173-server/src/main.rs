@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_handle_break_block, on_handle_login, on_handle_look, on_handle_position, on_handle_position_look, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
+use autogen::autogen::{connect, on_handle_break_block, on_handle_login, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_login, stdb_handle_login, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbEntityView, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::warn;
 use mc173::world::Event;
+use crate::entity::{stdb_kill_entity, stdb_spawn_entity_human};
 use crate::proto::{InLoginPacket, OutPacket};
 
 // The common configuration of the server.
@@ -92,14 +93,32 @@ fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>)
         .push_chunk_event(event.clone());
 }
 
-fn on_stdb_handle_login(&StdbHandle) {
-
+fn on_entity_view_inserted(
+    new_view: &StdbEntityView,
+    _reducer_event: Option<&ReducerEvent>,
+) {
+    println!("New entity tracked! observer_id: {} target_id: {}",
+    new_view.observer_id, new_view.target_id);
+    let mut s = SERVER.lock().unwrap();
+    let server = s.as_mut().unwrap();
+    stdb_spawn_entity_human(server, new_view.observer_id, new_view.target_id);
 }
 
-fn on_stdb_server_player_inserted(player: &StdbServerPlayer, _reducer_event: Option<&ReducerEvent>) {
-    println!("Player added to server: {}", player.username);
+fn on_entity_view_deleted(
+    new_view: &StdbEntityView,
+    _reducer_event: Option<&ReducerEvent>,
+) {
+    println!("Entity no longer tracked! observer_id: {} target_id: {}",
+             new_view.observer_id, new_view.target_id);
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().handle_login_result(player.connection_id, player);
+    let server = s.as_mut().unwrap();
+    stdb_kill_entity(server, new_view.observer_id, new_view.target_id);
+}
+
+fn on_handle_login_callback(ident: &Identity, _: Option<Address>, _: &Status, connection_id: &u64, packet: &StdbInLoginPacket) {
+    let mut s = SERVER.lock().unwrap();
+    let server = s.as_mut().unwrap();
+    server.handle_login_result(connection_id.clone());
 }
 
 fn on_handle_position_callback(ident: &Identity, _addr: Option<Address>, status: &Status,
@@ -156,10 +175,13 @@ pub fn main() {
     StdbWeather::on_update(on_weather_updated);
     on_subscription_applied(on_subscription_applied_callback);
     StdbSetBlockEvent::on_insert(on_set_block_event_insert);
-    StdbServerPlayer::on_insert(on_stdb_server_player_inserted);
+    // StdbServerPlayer::on_insert(on_stdb_server_player_inserted);
     on_handle_position(on_handle_position_callback);
     on_handle_position_look(on_handle_position_look_callback);
     on_handle_look(on_handle_look_callback);
+    on_stdb_handle_login(on_handle_login_callback);
+    StdbEntityView::on_insert(on_entity_view_inserted);
+    StdbEntityView::on_delete(on_entity_view_deleted);
     connect(server, module, None).expect("Failed to connect");
     subscribe(&["SELECT * FROM *"]).unwrap();
     println!("Connected to SpacetimeDB");

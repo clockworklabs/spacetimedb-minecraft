@@ -2,7 +2,6 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN RUST INSTEAD.
 
 #![allow(unused_imports)]
-use super::stdb_i_32_vec_3::StdbI32Vec3;
 use spacetimedb_sdk::{
     anyhow::{anyhow, Result},
     identity::Identity,
@@ -14,8 +13,7 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct BreakingBlock {
-    pub start_time: u64,
-    pub pos: StdbI32Vec3,
-    pub id: u8,
+pub struct StdbI8Vec2 {
+    pub x: i8,
+    pub y: i8,
 }

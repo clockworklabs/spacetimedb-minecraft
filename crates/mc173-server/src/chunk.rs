@@ -57,12 +57,12 @@ impl ChunkTrackers {
     }
 
     /// Mark a chunk dirty, to be saved later.
-    pub fn set_dirty(&mut self, cx: i32, cz: i32) {
-        let tracker = self.inner.entry((cx, cz)).or_default();
-        if let Some(instant) = tracker.set_dirty() {
-            self.schedule_save(cx, cz, instant);
-        }
-    }
+    // pub fn set_dirty(&mut self, cx: i32, cz: i32) {
+    //     let tracker = self.inner.entry((cx, cz)).or_default();
+    //     if let Some(instant) = tracker.set_dirty() {
+    //         self.schedule_save(cx, cz, instant);
+    //     }
+    // }
 
     /// Internal method to schedule a save in the future at given timestamp, this will
     /// be sorted into the scheduled save queue.

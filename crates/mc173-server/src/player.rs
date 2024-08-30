@@ -5,7 +5,7 @@ use std::ops::Index;
 use glam::{DVec3, Vec2, IVec3};
 
 use tracing::warn;
-use autogen::autogen::{StdbDVec3, StdbEntity, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
+use autogen::autogen::{StdbDVec3, StdbEntity, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer};
 use mc173::world::{World, BlockEntityStorage, BlockEntityEvent, Event, BlockEntityProgress, EntityEvent};
 use mc173::world::interact::Interaction;
 
@@ -23,16 +23,16 @@ use crate::command::{self, CommandContext};
 use crate::chunk::new_chunk_data_packet;
 use crate::world::ServerWorldState;
 use crate::offline::OfflinePlayer;
+use crate::server::Server;
 
-
-/// A server player is an actual 
+/// A server player is an actual
 pub struct ServerPlayer {
     /// The network handle for the network server.
     net: Network,
     /// The network client used to send packets through the network to that player.
     pub client: NetworkClient,
     /// The entity id this player is controlling.
-    pub entity_id: u32, 
+    pub entity_id: u32,
     /// The username of that player.
     pub username: String,
     /// Last position sent by the client.
@@ -44,7 +44,7 @@ pub struct ServerPlayer {
     /// Set of tracked entities by this entity, all entity ids in this set are considered
     /// known and rendered by the client, when the entity will disappear, a kill packet
     /// should be sent.
-    pub tracked_entities: HashSet<u32>,
+    // pub tracked_entities: HashSet<u32>,
     /// The main player inventory including the hotbar in the first 9 slots.
     main_inv: Box<[ItemStack; 36]>,
     /// The armor player inventory.
@@ -129,7 +129,7 @@ impl ServerPlayer {
             // pos: offline.pos,
             // look: offline.look,
             tracked_chunks: HashSet::new(),
-            tracked_entities: HashSet::new(),
+            // tracked_entities: HashSet::new(),
             main_inv: Box::new([ItemStack::EMPTY; 36]),
             armor_inv: Box::new([ItemStack::EMPTY; 4]),
             craft_inv: Box::new([ItemStack::EMPTY; 9]),
@@ -154,17 +154,18 @@ impl ServerPlayer {
     }
 
     /// Handle an incoming packet from this player.
-    pub fn handle(&mut self, world: &mut World, state: &mut ServerWorldState, packet: InPacket) {
+    pub fn handle(server: &Server, connection_id: u64, packet: InPacket) {
         
         match packet {
             InPacket::KeepAlive => {}
             InPacket::Flying(_) => {}, // Ignore because it doesn't update anything.
             InPacket::Disconnect(_) =>
-                self.handle_disconnect(),
-            InPacket::Chat(packet) =>
-                self.handle_chat(world, state, packet.message),
+                ServerPlayer::handle_disconnect(server, connection_id),
+            // TODO(jdetter): Add support for chat!
+            // InPacket::Chat(packet) =>
+                // ServerPlayer::handle_chat(world, state, packet.message),
             InPacket::Position(packet) => 
-                self.handle_position(world, packet),
+                ServerPlayer::handle_position(world, packet),
             InPacket::Look(packet) => 
                 self.handle_look(world, packet),
             InPacket::PositionLook(packet) => 
@@ -191,8 +192,12 @@ impl ServerPlayer {
     }
 
     /// Just disconnect itself, this will produce a lost event from the network.
-    fn handle_disconnect(&mut self) {
-        self.net.disconnect(self.client);
+    fn handle_disconnect(server: &Server, connection_id: u64) {
+        let client = server.clients.get(&connection_id).unwrap();
+        server.net.disconnect(client.clone());
+        // server.clients[]
+        // server.net.disconnect()
+        // self.net.disconnect(self.client);
     }
 
     /// Handle a chat message packet.
@@ -218,7 +223,8 @@ impl ServerPlayer {
         });
 
         let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
-        world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: entity.pos.into() } });
+        // This just updates entity tracking
+        // world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: entity.pos.into() } });
         self.update_chunks(world);
     }
 
@@ -1404,44 +1410,44 @@ impl ServerPlayer {
 
     }
 
-    /// Update the chunks sent to this player.
-    pub fn update_chunks(&mut self, world: &World) {
-
-        let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
-        let (ocx, ocz) = chunk::calc_entity_chunk_pos(entity.pos.into());
-        let view_range = 20;
-
-        for cx in (ocx - view_range)..(ocx + view_range) {
-            for cz in (ocz - view_range)..(ocz + view_range) {
-
-                if let Some(chunk) = world.get_chunk(cx, cz) {
-                    if self.tracked_chunks.insert((cx, cz)) {
-
-                        self.send(OutPacket::ChunkState(proto::ChunkStatePacket {
-                            cx, cz, init: true
-                        }));
-
-                        let from = IVec3 {
-                            x: cx * 16,
-                            y: 0,
-                            z: cz * 16,
-                        };
-
-                        let size = IVec3 { 
-                            x: 16, 
-                            y: 128, 
-                            z: 16,
-                        };
-
-                        self.send(OutPacket::ChunkData(new_chunk_data_packet(chunk, from, size)));
-
-                    }
-                }
-
-            }
-        }
-
-    }
+    // /// Update the chunks sent to this player.
+    // pub fn update_chunks(server: &Server) {
+    //
+    //     let entity = StdbEntity::find_by_entity_id(self.entity_id).unwrap();
+    //     let (ocx, ocz) = chunk::calc_entity_chunk_pos(entity.pos.into());
+    //     let view_range = 20;
+    //
+    //     for cx in (ocx - view_range)..(ocx + view_range) {
+    //         for cz in (ocz - view_range)..(ocz + view_range) {
+    //
+    //             if let Some(chunk) = world.get_chunk(cx, cz) {
+    //                 if self.tracked_chunks.insert((cx, cz)) {
+    //
+    //                     self.send(OutPacket::ChunkState(proto::ChunkStatePacket {
+    //                         cx, cz, init: true
+    //                     }));
+    //
+    //                     let from = IVec3 {
+    //                         x: cx * 16,
+    //                         y: 0,
+    //                         z: cz * 16,
+    //                     };
+    //
+    //                     let size = IVec3 {
+    //                         x: 16,
+    //                         y: 128,
+    //                         z: 16,
+    //                     };
+    //
+    //                     self.send(OutPacket::ChunkData(new_chunk_data_packet(chunk, from, size)));
+    //
+    //                 }
+    //             }
+    //
+    //         }
+    //     }
+    //
+    // }
 
     /// Make this player pickup an item stack, the stack and its size is modified 
     /// regarding the amount actually picked up.

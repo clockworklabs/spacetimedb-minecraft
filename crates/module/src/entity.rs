@@ -3,17 +3,18 @@
 use std::ops::{Mul, Div};
 
 use glam::{DVec3, Vec2, IVec3};
-use spacetimedb::{spacetimedb, SpacetimeType};
+use spacetimedb::{query, spacetimedb, SpacetimeType};
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::entity::{Entity, EntityKind};
 use mc173_module::i16vec3::StdbI16Vec3;
 use mc173_module::i32vec3::StdbI32Vec3;
 use mc173_module::i8vec3::StdbI8Vec2;
+use mc173_module::world::StdbWorld;
 use crate::proto::{OutPacket, self};
 use crate::config;
+use crate::player::{StdbEntity, StdbServerPlayer};
 
-
-/// This structure tracks every entity spawned in the world and save their previous 
+/// This structure tracks every entity spawned in the world and save their previous
 /// position/look (and motion for some entities). It handle allows sending the right
 /// packets to the right players when these properties are changed.
 #[derive(Debug, Clone)]
@@ -52,6 +53,17 @@ pub struct StdbEntityTracker {
     pub was_velocity_update: bool,
 }
 
+#[spacetimedb(table(public))]
+pub struct StdbEntityView {
+    #[primarykey]
+    #[autoinc]
+    pub view_id: u32,
+    // The entity that is tracking the entity
+    pub observer_id: u32,
+    // The entity that is being tracked
+    pub target_id: u32,
+}
+
 #[derive(SpacetimeType, Debug, Clone)]
 pub enum StdbEntityTrackerUpdateType {
     None,
@@ -60,8 +72,6 @@ pub enum StdbEntityTrackerUpdateType {
     EntityMoveAndLook,
     EntityPositionAndLook,
 }
-
-
 
 impl StdbEntityTracker {
 
@@ -320,24 +330,38 @@ impl StdbEntityTracker {
 
     // /// Update a player to track or untrack this entity. The correct packet is sent if
     // /// the entity needs to appear or disappear on the client side.
-    // pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
-    //     // A player cannot track its own entity.
-    //     if player.entity_id == self.entity_id {
-    //         return;
-    //     }
-    //
-    //     let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
-    //
-    //     let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
-    //     if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
-    //         if player.tracked_entities.insert(self.entity_id) {
-    //             self.spawn_entity(player, world);
-    //         }
-    //     } else if player.tracked_entities.remove(&self.entity_id) {
-    //         self.kill_entity(player);
-    //     }
-    //
-    // }
+    pub fn update_tracking_player(&self, player: &StdbServerPlayer) {
+        // A player cannot track its own entity.
+        if player.entity_id == self.entity_id {
+            return;
+        }
+
+        let entity = StdbEntity::filter_by_entity_id(&player.entity_id).unwrap();
+
+        let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.x, self.pos.y, self.pos.z).as_dvec3() / 32.0;
+        if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
+            // if player.tracked_entities.insert(self.entity_id) {
+            if StdbEntityView::insert(StdbEntityView {
+                view_id: 0,
+                target_id: self.entity_id,
+                observer_id: player.entity_id,
+            }).is_ok() {
+                // TODO(jdetter): This needs to happen in the translation layer!
+                // self.spawn_entity(player, world);
+            }
+        } else {
+            let existing_view = query!(|view: StdbEntityView|
+                view.target_id == self.entity_id && view.observer_id == player.entity_id).next();
+            if let Some(existing_view) = existing_view {
+                StdbEntityView::delete_by_view_id(&existing_view.view_id);
+                // TODO(jdetter): This needs to happen in the translation layer!
+                // self.kill_entity(player);
+            }
+        // } else if player.tracked_entities.remove(&self.entity_id) {
+            // self.kill_entity(player);
+        }
+
+    }
 
     // /// Force untrack this entity to this player if the player is already tracking it.
     // pub fn untrack_player(&self, player: &mut ServerPlayer) {

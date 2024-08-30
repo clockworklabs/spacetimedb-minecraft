@@ -3,7 +3,7 @@
 use std::ops::{Mul, Div};
 
 use glam::{DVec3, Vec2, IVec3};
-use autogen::autogen::{StdbDVec3, StdbEntity};
+use autogen::autogen::{StdbConnectionStatus, StdbDVec3, StdbEntity, StdbEntityTracker, StdbHuman, StdbServerPlayer, StdbTrackedPlayer};
 use mc173::entity::{self as e, Entity, EntityKind, BaseKind, ProjectileKind, LivingKind};
 use mc173::world::World;
 use mc173::block;
@@ -11,6 +11,47 @@ use mc173::block;
 use crate::proto::{OutPacket, self};
 use crate::player::ServerPlayer;
 use crate::config;
+use crate::server::Server;
+
+/// Kill the entity on the player side.
+pub fn stdb_kill_entity(server: &Server, player_observer_id: u32, human_target_id: u32) {
+    let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
+    let client = server.clients[observer.connection_id];
+
+    server.net.send(client, OutPacket::EntityKill(proto::EntityKillPacket {
+        entity_id: human_target_id
+    }));
+}
+
+
+pub fn stdb_spawn_entity_human(server: &Server, player_observer_id: u32, human_target_id: u32) {
+    let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
+    let tracker = StdbEntityTracker::find_by_entity_id(human_target_id).unwrap();
+    let client = server.clients[observer.connection_id];
+    let human = StdbHuman::find_by_entity_id(human_target_id).unwrap();
+    let metadata = vec![
+        proto::Metadata::new_byte(0, (human.sneaking as i8) << 1),
+    ];
+    server.net.send(client, OutPacket::HumanSpawn(proto::HumanSpawnPacket {
+        entity_id: human.entity_id,
+        username: human.username.clone(),
+        x: tracker.sent_pos.x,
+        y: tracker.sent_pos.y,
+        z: tracker.sent_pos.z,
+        yaw: tracker.sent_look.x,
+        pitch: tracker.sent_look.y,
+        // Is this the item they're holding?
+        current_item: 0, // TODO:
+    }));
+
+    server.net.send(client, OutPacket::EntityMetadata(proto::EntityMetadataPacket {
+        entity_id: human.entity_id,
+        metadata,
+    }));
+
+}
+
+
 
 
 /// This structure tracks every entity spawned in the world and save their previous 

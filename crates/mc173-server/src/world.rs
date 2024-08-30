@@ -197,12 +197,12 @@ impl ServerWorld {
                         self.handle_entity_spawn(id),
                     EntityEvent::Remove => 
                         self.handle_entity_remove(id),
-                    EntityEvent::Position { pos } => 
-                        self.handle_entity_position(id, pos),
-                    EntityEvent::Look { look } => 
-                        self.handle_entity_look(id, look),
-                    EntityEvent::Velocity { vel } => 
-                        self.handle_entity_velocity(id, vel),
+                    // EntityEvent::Position { pos } =>
+                    //     self.handle_entity_position(id, pos),
+                    // EntityEvent::Look { look } =>
+                    //     self.handle_entity_look(id, look),
+                    // EntityEvent::Velocity { vel } =>
+                    //     self.handle_entity_velocity(id, vel),
                     EntityEvent::Pickup { target_id } => 
                         self.handle_entity_pickup(id, target_id),
                     EntityEvent::Damage => 
@@ -418,26 +418,26 @@ impl ServerWorld {
         };
     }
 
-    /// Handle an entity position world event.
-    fn handle_entity_position(&mut self, id: u32, pos: DVec3) {
-        if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
-            tracker.set_pos(pos);
-        }
-    }
+    // /// Handle an entity position world event.
+    // fn handle_entity_position(&mut self, id: u32, pos: DVec3) {
+    //     if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
+    //         tracker.set_pos(pos);
+    //     }
+    // }
 
-    /// Handle an entity look world event.
-    fn handle_entity_look(&mut self, id: u32, look: Vec2) {
-        if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
-            tracker.set_look(look);
-        }
-    }
+    // /// Handle an entity look world event.
+    // fn handle_entity_look(&mut self, id: u32, look: Vec2) {
+    //     if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
+    //         tracker.set_look(look);
+    //     }
+    // }
 
-    /// Handle an entity look world event.
-    fn handle_entity_velocity(&mut self, id: u32, vel: DVec3) {
-        if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
-            tracker.set_vel(vel);
-        }
-    }
+    // /// Handle an entity look world event.
+    // fn handle_entity_velocity(&mut self, id: u32, vel: DVec3) {
+    //     if let Some(tracker) = self.state.entity_trackers.get_mut(&id) {
+    //         tracker.set_vel(vel);
+    //     }
+    // }
 
     /// Handle an entity pickup world event.
     fn handle_entity_pickup(&mut self, id: u32, target_id: u32) {

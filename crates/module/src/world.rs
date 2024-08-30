@@ -288,11 +288,11 @@ impl StdbServerWorld {
     // }
 
     /// Handle a player joining this world.
-    pub fn handle_player_join(&mut self, mut player: StdbServerPlayer) {
+    pub fn handle_player_join(&mut self, player: StdbServerPlayer) {
 
         // Initial tracked entities.
         for tracker in StdbEntityTracker::iter() {
-
+            tracker.update_tracking_player(&player);
         }
         // for tracker in self.state.entity_trackers.values() {
         //     tracker.update_tracking_player(&mut player, &self.world);
