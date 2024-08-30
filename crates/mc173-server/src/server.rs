@@ -100,7 +100,7 @@ impl Server {
     /// Handle new client accepted by the network.
     fn handle_accept(&mut self, client: NetworkClient) {
         info!("accept client #{}", client.id());
-        self.clients.push(client);
+        self.clients.insert(client.id(), client);
         stdb_handle_accept(client.id());
     }
 
@@ -159,7 +159,6 @@ impl Server {
 
     /// Handle a login after handshake.
     fn handle_login(&mut self, client: NetworkClient, packet: proto::InLoginPacket) -> Result<(), String> {
-
         if packet.protocol_version != 14 {
             self.send_disconnect(client, format!("Protocol version mismatch!"));
             return Err("Protocol version mismatch!".to_string());
@@ -194,7 +193,7 @@ impl Server {
         //     player.username = packet.username.clone();
         // });
 
-        autogen::autogen::handle_login(
+        autogen::autogen::stdb_handle_login(
             client.id(),
             StdbInLoginPacket {
                 protocol_version: packet.protocol_version,

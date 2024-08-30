@@ -274,7 +274,6 @@ impl EntityTracker {
         } else if player.tracked_entities.remove(&self.id) {
             self.kill_entity(player);
         }
-
     }
 
     /// Force untrack this entity to this player if the player is already tracking it.
@@ -302,48 +301,54 @@ impl EntityTracker {
         let Entity(base, base_kind) = entity;
 
         match base_kind {
-            BaseKind::Item(item) => self.spawn_entity_item(player, base, item),
-            BaseKind::Painting(_) => todo!(),  // TODO:
-            BaseKind::Boat(_) => self.spawn_entity_object(player, 1, false),
-            BaseKind::Minecart(e::Minecart::Normal) => self.spawn_entity_object(player, 10, false),
-            BaseKind::Minecart(e::Minecart::Chest { .. }) => self.spawn_entity_object(player, 11, false),
-            BaseKind::Minecart(e::Minecart::Furnace { .. }) => self.spawn_entity_object(player, 12, false),
-            BaseKind::LightningBolt(_) => (),
-            BaseKind::FallingBlock(falling_block) => {
-                // NOTE: We use sand for any block id that is unsupported.
-                match falling_block.block_id {
-                    block::GRAVEL => self.spawn_entity_object(player, 71, false),
-                    _ => self.spawn_entity_object(player, 70, false),
-                }
-            }
-            BaseKind::Tnt(_) => self.spawn_entity_object(player, 50, false),
-            BaseKind::Projectile(_, projectile_kind) => {
-                match projectile_kind {
-                    ProjectileKind::Arrow(_) => self.spawn_entity_object(player, 60, true),
-                    ProjectileKind::Egg(_) => self.spawn_entity_object(player, 62, true),
-                    ProjectileKind::Fireball(_) => self.spawn_entity_object(player, 63, true),
-                    ProjectileKind::Snowball(_) => self.spawn_entity_object(player, 61, true),
-                    ProjectileKind::Bobber(_) => self.spawn_entity_object(player, 90, true),
-                }
-            }
+            // BaseKind::Item(item) => self.spawn_entity_item(player, base, item),
+            // BaseKind::Painting(_) => todo!(),  // TODO:
+            // BaseKind::Boat(_) => self.spawn_entity_object(player, 1, false),
+            // BaseKind::Minecart(e::Minecart::Normal) => self.spawn_entity_object(player, 10, false),
+            // BaseKind::Minecart(e::Minecart::Chest { .. }) => self.spawn_entity_object(player, 11, false),
+            // BaseKind::Minecart(e::Minecart::Furnace { .. }) => self.spawn_entity_object(player, 12, false),
+            // BaseKind::LightningBolt(_) => (),
+            // BaseKind::FallingBlock(falling_block) => {
+            //     // NOTE: We use sand for any block id that is unsupported.
+            //     match falling_block.block_id {
+            //         block::GRAVEL => self.spawn_entity_object(player, 71, false),
+            //         _ => self.spawn_entity_object(player, 70, false),
+            //     }
+            // }
+            // BaseKind::Tnt(_) => self.spawn_entity_object(player, 50, false),
+            // BaseKind::Projectile(_, projectile_kind) => {
+            //     match projectile_kind {
+            //         ProjectileKind::Arrow(_) => self.spawn_entity_object(player, 60, true),
+            //         ProjectileKind::Egg(_) => self.spawn_entity_object(player, 62, true),
+            //         ProjectileKind::Fireball(_) => self.spawn_entity_object(player, 63, true),
+            //         ProjectileKind::Snowball(_) => self.spawn_entity_object(player, 61, true),
+            //         ProjectileKind::Bobber(_) => self.spawn_entity_object(player, 90, true),
+            //     }
+            // }
             BaseKind::Living(_, living_kind) => {
                 match living_kind {
                     LivingKind::Human(pl) => self.spawn_entity_human(player, pl, metadata),
-                    LivingKind::Ghast(_) => self.spawn_entity_mob(player, 56, metadata),
-                    LivingKind::Slime(_) => self.spawn_entity_mob(player, 55, metadata),
-                    LivingKind::Pig(_) => self.spawn_entity_mob(player, 90, metadata),
-                    LivingKind::Chicken(_) => self.spawn_entity_mob(player, 93, metadata),
-                    LivingKind::Cow(_) => self.spawn_entity_mob(player, 92, metadata),
-                    LivingKind::Sheep(_) => self.spawn_entity_mob(player, 91, metadata),
-                    LivingKind::Squid(_) => self.spawn_entity_mob(player, 94, metadata),
-                    LivingKind::Wolf(_) => self.spawn_entity_mob(player, 95, metadata),
-                    LivingKind::Creeper(_) => self.spawn_entity_mob(player, 50, metadata),
-                    LivingKind::Giant(_) => self.spawn_entity_mob(player, 53, metadata),
-                    LivingKind::PigZombie(_) => self.spawn_entity_mob(player, 57, metadata),
-                    LivingKind::Skeleton(_) => self.spawn_entity_mob(player, 51, metadata),
-                    LivingKind::Spider(_) => self.spawn_entity_mob(player, 52, metadata),
-                    LivingKind::Zombie(_) => self.spawn_entity_mob(player, 54, metadata),
+                    // LivingKind::Ghast(_) => self.spawn_entity_mob(player, 56, metadata),
+                    // LivingKind::Slime(_) => self.spawn_entity_mob(player, 55, metadata),
+                    // LivingKind::Pig(_) => self.spawn_entity_mob(player, 90, metadata),
+                    // LivingKind::Chicken(_) => self.spawn_entity_mob(player, 93, metadata),
+                    // LivingKind::Cow(_) => self.spawn_entity_mob(player, 92, metadata),
+                    // LivingKind::Sheep(_) => self.spawn_entity_mob(player, 91, metadata),
+                    // LivingKind::Squid(_) => self.spawn_entity_mob(player, 94, metadata),
+                    // LivingKind::Wolf(_) => self.spawn_entity_mob(player, 95, metadata),
+                    // LivingKind::Creeper(_) => self.spawn_entity_mob(player, 50, metadata),
+                    // LivingKind::Giant(_) => self.spawn_entity_mob(player, 53, metadata),
+                    // LivingKind::PigZombie(_) => self.spawn_entity_mob(player, 57, metadata),
+                    // LivingKind::Skeleton(_) => self.spawn_entity_mob(player, 51, metadata),
+                    // LivingKind::Spider(_) => self.spawn_entity_mob(player, 52, metadata),
+                    // LivingKind::Zombie(_) => self.spawn_entity_mob(player, 54, metadata),
+                    _ => {
+
+                    }
                 }
+            }
+            _ => {
+                panic!("Unsupported entity type (for now)");
             }
         }
 

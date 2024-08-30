@@ -8,6 +8,7 @@ use spacetimedb::{query, spacetimedb, SpacetimeType};
 use mc173_module::world::StdbWorld;
 use crate::proto::{self, OutPacket};
 use crate::config;
+use crate::entity::StdbEntityTracker;
 use crate::player::{StdbConnectionStatus, StdbServerPlayer, StdbTrackedPlayer};
 /// A single world in the server, this structure keep tracks of players and entities
 /// tracked by players.
@@ -286,21 +287,24 @@ impl StdbServerWorld {
     //
     // }
 
-    // /// Handle a player joining this world.
-    // pub fn handle_player_join(&mut self, mut player: ServerPlayer) -> usize {
-    //
-    //     // Initial tracked entities.
-    //     for tracker in self.state.entity_trackers.values() {
-    //         tracker.update_tracking_player(&mut player, &self.world);
-    //     }
-    //
-    //     player.update_chunks(&self.world);
-    //
-    //     let player_index = self.players.len();
-    //     self.players.push(player);
-    //     player_index
-    //
-    // }
+    /// Handle a player joining this world.
+    pub fn handle_player_join(&mut self, mut player: StdbServerPlayer) {
+
+        // Initial tracked entities.
+        for tracker in StdbEntityTracker::iter() {
+
+        }
+        // for tracker in self.state.entity_trackers.values() {
+        //     tracker.update_tracking_player(&mut player, &self.world);
+        // }
+        //
+        // player.update_chunks(&self.world);
+        //
+        // let player_index = self.players.len();
+        // self.players.push(player);
+        // player_index
+
+    }
 
     /// Handle a player leaving this world, this should remove its entity. The `lost`
     /// argument indicates if the player is leaving because of a lost connection or not.

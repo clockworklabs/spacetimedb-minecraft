@@ -41,7 +41,7 @@ pub struct ServerPlayer {
     // pub look: Vec2,
     /// Set of chunks that are already sent to the player.
     pub tracked_chunks: HashSet<(i32, i32)>,
-    /// Set of tracked entities by this player, all entity ids in this set are considered
+    /// Set of tracked entities by this entity, all entity ids in this set are considered
     /// known and rendered by the client, when the entity will disappear, a kill packet
     /// should be sent.
     pub tracked_entities: HashSet<u32>,

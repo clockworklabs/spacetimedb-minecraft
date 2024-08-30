@@ -22,6 +22,10 @@ pub mod world;
 pub mod storage;
 pub mod gen;
 pub mod stdb;
-pub mod ivec3;
+pub mod i8vec3;
+
+pub mod i16vec3;
+pub mod i32vec3;
 pub mod dvec3;
 pub mod vec2;
+

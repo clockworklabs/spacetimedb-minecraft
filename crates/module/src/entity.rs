@@ -3,25 +3,25 @@
 use std::ops::{Mul, Div};
 
 use glam::{DVec3, Vec2, IVec3};
-use spacetimedb::SpacetimeType;
-use autogen::autogen::{StdbDVec3, StdbEntity};
-use mc173::entity::{self as e, Entity, EntityKind, BaseKind, ProjectileKind, LivingKind};
-use mc173::world::World;
-use mc173::block;
+use spacetimedb::{spacetimedb, SpacetimeType};
+use mc173_module::dvec3::StdbDVec3;
 use mc173_module::entity::{Entity, EntityKind};
+use mc173_module::i16vec3::StdbI16Vec3;
+use mc173_module::i32vec3::StdbI32Vec3;
+use mc173_module::i8vec3::StdbI8Vec2;
 use crate::proto::{OutPacket, self};
-use crate::player::ServerPlayer;
 use crate::config;
 
 
 /// This structure tracks every entity spawned in the world and save their previous 
 /// position/look (and motion for some entities). It handle allows sending the right
 /// packets to the right players when these properties are changed.
-#[derive(Debug)]
-#[spacetimedb(table)]
+#[derive(Debug, Clone)]
+#[spacetimedb(table(public))]
 pub struct StdbEntityTracker {
     /// The entity id.
-    pub id: u32,
+    #[primarykey]
+    pub entity_id: u32,
     /// Maximum tracking distance for this type of entity.
     pub distance: u16,
     /// Update interval for this type of entity.
@@ -34,29 +34,34 @@ pub struct StdbEntityTracker {
     /// True when the velocity must be sent when changing.
     pub vel_enable: bool,
     /// Last known position of the entity.
-    pub pos: (i32, i32, i32),
+    pub pos: StdbI32Vec3,
     /// Last known velocity of the entity.
-    pub vel: (i16, i16, i16),
+    pub vel: StdbI16Vec3,
     /// Last known look of the entity.
-    pub look: (i8, i8),
+    pub look: StdbI8Vec2,
     /// Last encoded position sent to clients.
-    pub sent_pos: (i32, i32, i32),
+    pub sent_pos: StdbI32Vec3,
     /// Last encoded velocity sent to clients.
-    pub sent_vel: (i16, i16, i16),
+    pub sent_vel: StdbI16Vec3,
     /// Last encoded look sent to clients.
-    pub sent_look: (i8, i8),
-    // The type of the last update that was applied to this tracker
+    pub sent_look: StdbI8Vec2,
+    /// The type of the last update that was applied to this tracker
     pub last_update_type: StdbEntityTrackerUpdateType,
+    /// Whether or not the last update included a velocity update. This is not mutually exclusive
+    ///  with last_update_type.
+    pub was_velocity_update: bool,
 }
 
-#[derive(SpacetimeType, Debug)]
-enum StdbEntityTrackerUpdateType {
+#[derive(SpacetimeType, Debug, Clone)]
+pub enum StdbEntityTrackerUpdateType {
     None,
     EntityMove,
     EntityLook,
     EntityMoveAndLook,
     EntityPositionAndLook,
 }
+
+
 
 impl StdbEntityTracker {
 
@@ -85,19 +90,42 @@ impl StdbEntityTracker {
         };
 
         let mut tracker = Self {
-            id,
+            entity_id: id,
             distance,
             interval,
             time: 0,
             absolute_countdown_time: 0,
             vel_enable,
-            pos: (0, 0, 0),
-            look: (0, 0),
-            vel: (0, 0, 0),
-            sent_pos: (0, 0, 0),
-            sent_vel: (0, 0, 0),
-            sent_look: (0, 0),
+            pos: StdbI32Vec3 {
+                x: 0,
+                y: 0,
+                z: 0,
+            },
+            look: StdbI8Vec2 {
+                x: 0,
+                y: 0,
+            },
+            vel: StdbI16Vec3 {
+                x: 0,
+                y: 0,
+                z: 0,
+            },
+            sent_pos: StdbI32Vec3 {
+                x: 0,
+                y: 0,
+                z: 0,
+            },
+            sent_vel: StdbI16Vec3 {
+                x: 0,
+                y: 0,
+                z: 0,
+            },
+            sent_look: StdbI8Vec2 {
+                x: 0,
+                y: 0,
+            },
             last_update_type: StdbEntityTrackerUpdateType::None,
+            was_velocity_update: false
         };
 
         // If fast entity tracking is enabled and interval is not disabled, set interval
@@ -105,7 +133,7 @@ impl StdbEntityTracker {
         if config::fast_entity() && tracker.interval != 0 {
             tracker.interval = 1;
         }
-        
+
         tracker.set_pos(entity.0.pos);
         tracker.set_look(entity.0.look);
         tracker.set_vel(entity.0.vel);
@@ -117,26 +145,40 @@ impl StdbEntityTracker {
     } 
 
     /// Update the last known position of this tracked entity.
+    /// /// TODO(jdetter): redo this impl - we need to write this data back to stdb
     pub fn set_pos(&mut self, pos: DVec3) {
         let scaled = pos.mul(32.0).floor().as_ivec3();
-        self.pos = (scaled.x, scaled.y, scaled.z);
+        self.pos = StdbI32Vec3 {
+            x: scaled.x,
+            y: scaled.y,
+            z: scaled.z,
+        }
     }
 
     /// Update the last known look of this tracked entity.
+    /// /// TODO(jdetter): redo this impl - we need to write this data back to stdb
     pub fn set_look(&mut self, look: Vec2) {
-        // Rebase 0..2PI to 0..256. 
+        // Rebase 0..2PI to 0..256.
         let scaled = look.mul(256.0).div(std::f32::consts::TAU);
         // We can cast to i8, this will take the low 8 bits and wrap around.
         // We need to cast to i32 first because float to int cast is saturated by default.
-        self.look = (scaled.x as i32 as i8, scaled.y as i32 as i8);
+        self.look = StdbI8Vec2 {
+            x: scaled.x as i32 as i8,
+            y: scaled.y as i32 as i8
+        };
     }
 
     /// Update the last known velocity of this entity.
+    /// TODO(jdetter): redo this impl - we need to write this data back to stdb
     pub fn set_vel(&mut self, vel: DVec3) {
-        // The Notchian client clamps the input velocity, this ensure that the scaled 
+        // The Notchian client clamps the input velocity, this ensure that the scaled
         // vector is in i16 range or integers.
         let scaled = vel.clamp(DVec3::splat(-3.9), DVec3::splat(3.9)).mul(8000.0).as_ivec3();
-        self.vel = (scaled.x as i16, scaled.y as i16, scaled.z as i16);
+        self.vel = StdbI16Vec3 {
+            x: scaled.x as i16,
+            y: scaled.y as i16,
+            z: scaled.z as i16
+        };
     }
 
     /// Tick this entity tracker and update players if needed. Only the players that
@@ -168,14 +210,14 @@ impl StdbEntityTracker {
 
         let mut update_type = StdbEntityTrackerUpdateType::None;
         let mut send_pos = true;
-        let send_look = self.look.0.abs_diff(self.sent_look.0) >= 8 || self.look.1.abs_diff(self.sent_look.1) >= 8;
+        let send_look = self.look.x.abs_diff(self.sent_look.x) >= 8 || self.look.y.abs_diff(self.sent_look.y) >= 8;
 
         // Check if the delta can be sent with a move packet.
-        let dx = i8::try_from(self.pos.0 - self.sent_pos.0).ok();
-        let dy = i8::try_from(self.pos.1 - self.sent_pos.1).ok();
-        let dz = i8::try_from(self.pos.2 - self.sent_pos.2).ok();
+        let dx = i8::try_from(self.pos.x - self.sent_pos.x).ok();
+        let dy = i8::try_from(self.pos.y - self.sent_pos.y).ok();
+        let dz = i8::try_from(self.pos.z - self.sent_pos.z).ok();
 
-        let mut move_packet = None;
+        // let mut move_packet = None;
         let forced_position = self.absolute_countdown_time > 400;
 
         if let (false, Some(dx), Some(dy), Some(dz)) = (forced_position, dx, dy, dz) {
@@ -244,249 +286,248 @@ impl StdbEntityTracker {
         if self.vel_enable {
 
             // We differ from the Notchian server because we don't check for the distance.
-            let dvx = self.vel.0 as i32 - self.sent_vel.0 as i32;
-            let dvy = self.vel.1 as i32 - self.sent_vel.1 as i32;
-            let dvz = self.vel.2 as i32 - self.sent_vel.2 as i32;
+            let dvx = self.vel.x as i32 - self.sent_vel.x as i32;
+            let dvy = self.vel.y as i32 - self.sent_vel.y as i32;
+            let dvz = self.vel.z as i32 - self.sent_vel.z as i32;
             // If any axis velocity change by 0.0125 (100 when encoded *8000).
             if dvx.abs() > 100 || dvy.abs() > 100 || dvz.abs() > 100 {
-                
-                for player in players {
-                    if player.tracked_entities.contains(&self.id) {
-                        player.send(OutPacket::EntityVelocity(proto::EntityVelocityPacket {
-                            entity_id: self.id,
-                            vx: self.vel.0,
-                            vy: self.vel.1,
-                            vz: self.vel.2,
-                        }));
-                    }
-                }
-        
+                self.was_velocity_update = true;
                 self.sent_vel = self.vel;
-
+                // for player in players {
+                //     if player.tracked_entities.contains(&self.id) {
+                //         player.send(OutPacket::EntityVelocity(proto::EntityVelocityPacket {
+                //             entity_id: self.id,
+                //             vx: self.vel.0,
+                //             vy: self.vel.1,
+                //             vz: self.vel.2,
+                //         }));
+                //     }
+                // }
             }
             
         }
 
+        StdbEntityTracker::update_by_entity_id(&self.entity_id, self.clone());
     }
 
-    /// Update players to track or untrack this entity. 
-    /// See [`update_tracking_player`](Self::update_tracking_player).
-    pub fn update_tracking_players(&self, players: &mut [ServerPlayer], world: &World) {
-        for player in players {
-            self.update_tracking_player(player, world);
-        }
-    }
+    // /// Update players to track or untrack this entity.
+    // /// See [`update_tracking_player`](Self::update_tracking_player).
+    // pub fn update_tracking_players(&self, players: &mut [ServerPlayer], world: &World) {
+    //     for player in players {
+    //         self.update_tracking_player(player, world);
+    //     }
+    // }
 
-    /// Update a player to track or untrack this entity. The correct packet is sent if
-    /// the entity needs to appear or disappear on the client side.
-    pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
-        // A player cannot track its own entity.
-        if player.entity_id == self.id {
-            return;
-        }
+    // /// Update a player to track or untrack this entity. The correct packet is sent if
+    // /// the entity needs to appear or disappear on the client side.
+    // pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
+    //     // A player cannot track its own entity.
+    //     if player.entity_id == self.entity_id {
+    //         return;
+    //     }
+    //
+    //     let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+    //
+    //     let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
+    //     if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
+    //         if player.tracked_entities.insert(self.entity_id) {
+    //             self.spawn_entity(player, world);
+    //         }
+    //     } else if player.tracked_entities.remove(&self.entity_id) {
+    //         self.kill_entity(player);
+    //     }
+    //
+    // }
 
-        let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+    // /// Force untrack this entity to this player if the player is already tracking it.
+    // pub fn untrack_player(&self, player: &mut ServerPlayer) {
+    //     if player.tracked_entities.remove(&self.entity_id) {
+    //         self.kill_entity(player);
+    //     }
+    // }
 
-        let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
-        if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
-            if player.tracked_entities.insert(self.id) {
-                self.spawn_entity(player, world);
-            }
-        } else if player.tracked_entities.remove(&self.id) {
-            self.kill_entity(player);
-        }
+    // /// Force untrack this entity to all given players, it applies only to players that
+    // /// were already tracking the entity.
+    // pub fn untrack_players(&self, players: &mut [ServerPlayer]) {
+    //     for player in players {
+    //         self.untrack_player(player);
+    //     }
+    // }
 
-    }
+    // /// Spawn the entity on the player side.
+    // pub fn spawn_entity(&self, player: &ServerPlayer, world: &World) {
+    //
+    //     // NOTE: Silently ignore dead if the entity is dead, it will be killed later.
+    //     let Some(entity) = world.get_entity(self.entity_id) else { return };
+    //     let metadata = self.make_entity_metadata(entity);
+    //
+    //     let Entity(base, base_kind) = entity;
+    //
+    //     match base_kind {
+    //         BaseKind::Item(item) => self.spawn_entity_item(player, base, item),
+    //         BaseKind::Painting(_) => todo!(),  // TODO:
+    //         BaseKind::Boat(_) => self.spawn_entity_object(player, 1, false),
+    //         BaseKind::Minecart(e::Minecart::Normal) => self.spawn_entity_object(player, 10, false),
+    //         BaseKind::Minecart(e::Minecart::Chest { .. }) => self.spawn_entity_object(player, 11, false),
+    //         BaseKind::Minecart(e::Minecart::Furnace { .. }) => self.spawn_entity_object(player, 12, false),
+    //         BaseKind::LightningBolt(_) => (),
+    //         BaseKind::FallingBlock(falling_block) => {
+    //             // NOTE: We use sand for any block id that is unsupported.
+    //             match falling_block.block_id {
+    //                 block::GRAVEL => self.spawn_entity_object(player, 71, false),
+    //                 _ => self.spawn_entity_object(player, 70, false),
+    //             }
+    //         }
+    //         BaseKind::Tnt(_) => self.spawn_entity_object(player, 50, false),
+    //         BaseKind::Projectile(_, projectile_kind) => {
+    //             match projectile_kind {
+    //                 ProjectileKind::Arrow(_) => self.spawn_entity_object(player, 60, true),
+    //                 ProjectileKind::Egg(_) => self.spawn_entity_object(player, 62, true),
+    //                 ProjectileKind::Fireball(_) => self.spawn_entity_object(player, 63, true),
+    //                 ProjectileKind::Snowball(_) => self.spawn_entity_object(player, 61, true),
+    //                 ProjectileKind::Bobber(_) => self.spawn_entity_object(player, 90, true),
+    //             }
+    //         }
+    //         BaseKind::Living(_, living_kind) => {
+    //             match living_kind {
+    //                 LivingKind::Human(pl) => self.spawn_entity_human(player, pl, metadata),
+    //                 LivingKind::Ghast(_) => self.spawn_entity_mob(player, 56, metadata),
+    //                 LivingKind::Slime(_) => self.spawn_entity_mob(player, 55, metadata),
+    //                 LivingKind::Pig(_) => self.spawn_entity_mob(player, 90, metadata),
+    //                 LivingKind::Chicken(_) => self.spawn_entity_mob(player, 93, metadata),
+    //                 LivingKind::Cow(_) => self.spawn_entity_mob(player, 92, metadata),
+    //                 LivingKind::Sheep(_) => self.spawn_entity_mob(player, 91, metadata),
+    //                 LivingKind::Squid(_) => self.spawn_entity_mob(player, 94, metadata),
+    //                 LivingKind::Wolf(_) => self.spawn_entity_mob(player, 95, metadata),
+    //                 LivingKind::Creeper(_) => self.spawn_entity_mob(player, 50, metadata),
+    //                 LivingKind::Giant(_) => self.spawn_entity_mob(player, 53, metadata),
+    //                 LivingKind::PigZombie(_) => self.spawn_entity_mob(player, 57, metadata),
+    //                 LivingKind::Skeleton(_) => self.spawn_entity_mob(player, 51, metadata),
+    //                 LivingKind::Spider(_) => self.spawn_entity_mob(player, 52, metadata),
+    //                 LivingKind::Zombie(_) => self.spawn_entity_mob(player, 54, metadata),
+    //             }
+    //         }
+    //     }
+    //
+    // }
 
-    /// Force untrack this entity to this player if the player is already tracking it.
-    pub fn untrack_player(&self, player: &mut ServerPlayer) {
-        if player.tracked_entities.remove(&self.id) {
-            self.kill_entity(player);
-        }
-    }
+    // fn spawn_entity_human(&self, player: &ServerPlayer, human: &e::Human, metadata: Vec<proto::Metadata>) {
+    //
+    //     player.send(OutPacket::HumanSpawn(proto::HumanSpawnPacket {
+    //         entity_id: self.entity_id,
+    //         username: human.username.clone(),
+    //         x: self.sent_pos.0,
+    //         y: self.sent_pos.1,
+    //         z: self.sent_pos.2,
+    //         yaw: self.sent_look.0,
+    //         pitch: self.sent_look.1,
+    //         current_item: 0, // TODO:
+    //     }));
+    //
+    //     player.send(OutPacket::EntityMetadata(proto::EntityMetadataPacket {
+    //         entity_id: self.entity_id,
+    //         metadata,
+    //     }));
+    //
+    // }
 
-    /// Force untrack this entity to all given players, it applies only to players that
-    /// were already tracking the entity.
-    pub fn untrack_players(&self, players: &mut [ServerPlayer]) {
-        for player in players {
-            self.untrack_player(player);
-        }
-    }
+    // fn spawn_entity_item(&self, player: &ServerPlayer, base: &e::Base, item: &e::Item) {
+    //     let vel = base.vel.mul(128.0).as_ivec3();
+    //     player.send(OutPacket::ItemSpawn(proto::ItemSpawnPacket {
+    //         entity_id: self.entity_id,
+    //         stack: item.stack,
+    //         x: self.sent_pos.0,
+    //         y: self.sent_pos.1,
+    //         z: self.sent_pos.2,
+    //         vx: vel.x as i8,
+    //         vy: vel.y as i8,
+    //         vz: vel.z as i8,
+    //     }));
+    // }
 
-    /// Spawn the entity on the player side.
-    pub fn spawn_entity(&self, player: &ServerPlayer, world: &World) {
+    // fn spawn_entity_object(&self, player: &ServerPlayer, kind: u8, vel: bool) {
+    //     player.send(OutPacket::ObjectSpawn(proto::ObjectSpawnPacket {
+    //         entity_id: self.entity_id,
+    //         kind,
+    //         x: self.sent_pos.0,
+    //         y: self.sent_pos.1,
+    //         z: self.sent_pos.2,
+    //         velocity: vel.then(|| self.sent_vel)
+    //     }));
+    // }
 
-        // NOTE: Silently ignore dead if the entity is dead, it will be killed later.
-        let Some(entity) = world.get_entity(self.id) else { return };
-        let metadata = self.make_entity_metadata(entity);
+    // fn spawn_entity_mob(&self, player: &ServerPlayer, kind: u8, metadata: Vec<proto::Metadata>) {
+    //     player.send(OutPacket::MobSpawn(proto::MobSpawnPacket {
+    //         entity_id: self.entity_id,
+    //         kind,
+    //         x: self.sent_pos.0,
+    //         y: self.sent_pos.1,
+    //         z: self.sent_pos.2,
+    //         yaw: self.sent_look.0,
+    //         pitch: self.sent_look.1,
+    //         metadata,
+    //     }));
+    // }
 
-        let Entity(base, base_kind) = entity;
+    // /// Kill the entity on the player side.
+    // pub fn kill_entity(&self, player: &ServerPlayer) {
+    //     player.send(OutPacket::EntityKill(proto::EntityKillPacket {
+    //         entity_id: self.entity_id
+    //     }));
+    // }
 
-        match base_kind {
-            BaseKind::Item(item) => self.spawn_entity_item(player, base, item),
-            BaseKind::Painting(_) => todo!(),  // TODO:
-            BaseKind::Boat(_) => self.spawn_entity_object(player, 1, false),
-            BaseKind::Minecart(e::Minecart::Normal) => self.spawn_entity_object(player, 10, false),
-            BaseKind::Minecart(e::Minecart::Chest { .. }) => self.spawn_entity_object(player, 11, false),
-            BaseKind::Minecart(e::Minecart::Furnace { .. }) => self.spawn_entity_object(player, 12, false),
-            BaseKind::LightningBolt(_) => (),
-            BaseKind::FallingBlock(falling_block) => {
-                // NOTE: We use sand for any block id that is unsupported.
-                match falling_block.block_id {
-                    block::GRAVEL => self.spawn_entity_object(player, 71, false),
-                    _ => self.spawn_entity_object(player, 70, false),
-                }
-            }
-            BaseKind::Tnt(_) => self.spawn_entity_object(player, 50, false),
-            BaseKind::Projectile(_, projectile_kind) => {
-                match projectile_kind {
-                    ProjectileKind::Arrow(_) => self.spawn_entity_object(player, 60, true),
-                    ProjectileKind::Egg(_) => self.spawn_entity_object(player, 62, true),
-                    ProjectileKind::Fireball(_) => self.spawn_entity_object(player, 63, true),
-                    ProjectileKind::Snowball(_) => self.spawn_entity_object(player, 61, true),
-                    ProjectileKind::Bobber(_) => self.spawn_entity_object(player, 90, true),
-                }
-            }
-            BaseKind::Living(_, living_kind) => {
-                match living_kind {
-                    LivingKind::Human(pl) => self.spawn_entity_human(player, pl, metadata),
-                    LivingKind::Ghast(_) => self.spawn_entity_mob(player, 56, metadata),
-                    LivingKind::Slime(_) => self.spawn_entity_mob(player, 55, metadata),
-                    LivingKind::Pig(_) => self.spawn_entity_mob(player, 90, metadata),
-                    LivingKind::Chicken(_) => self.spawn_entity_mob(player, 93, metadata),
-                    LivingKind::Cow(_) => self.spawn_entity_mob(player, 92, metadata),
-                    LivingKind::Sheep(_) => self.spawn_entity_mob(player, 91, metadata),
-                    LivingKind::Squid(_) => self.spawn_entity_mob(player, 94, metadata),
-                    LivingKind::Wolf(_) => self.spawn_entity_mob(player, 95, metadata),
-                    LivingKind::Creeper(_) => self.spawn_entity_mob(player, 50, metadata),
-                    LivingKind::Giant(_) => self.spawn_entity_mob(player, 53, metadata),
-                    LivingKind::PigZombie(_) => self.spawn_entity_mob(player, 57, metadata),
-                    LivingKind::Skeleton(_) => self.spawn_entity_mob(player, 51, metadata),
-                    LivingKind::Spider(_) => self.spawn_entity_mob(player, 52, metadata),
-                    LivingKind::Zombie(_) => self.spawn_entity_mob(player, 54, metadata),
-                }
-            }
-        }
+    // /// Update an entity metadata on player side.
+    // pub fn update_entity(&self, player: &ServerPlayer, world: &World) {
+    //
+    //     // NOTE: Silently ignore dead if the entity is dead, it will be killed later.
+    //     let Some(entity) = world.get_entity(self.entity_id) else { return };
+    //     let metadata = self.make_entity_metadata(entity);
+    //
+    //     player.send(OutPacket::EntityMetadata(proto::EntityMetadataPacket {
+    //         entity_id: self.entity_id,
+    //         metadata,
+    //     }));
+    //
+    // }
 
-    }
-
-    fn spawn_entity_human(&self, player: &ServerPlayer, human: &e::Human, metadata: Vec<proto::Metadata>) {
-        
-        player.send(OutPacket::HumanSpawn(proto::HumanSpawnPacket {
-            entity_id: self.id,
-            username: human.username.clone(),
-            x: self.sent_pos.0, 
-            y: self.sent_pos.1, 
-            z: self.sent_pos.2, 
-            yaw: self.sent_look.0,
-            pitch: self.sent_look.1,
-            current_item: 0, // TODO:
-        }));
-
-        player.send(OutPacket::EntityMetadata(proto::EntityMetadataPacket { 
-            entity_id: self.id,
-            metadata,
-        }));
-
-    }
-
-    fn spawn_entity_item(&self, player: &ServerPlayer, base: &e::Base, item: &e::Item) {
-        let vel = base.vel.mul(128.0).as_ivec3();
-        player.send(OutPacket::ItemSpawn(proto::ItemSpawnPacket { 
-            entity_id: self.id, 
-            stack: item.stack, 
-            x: self.sent_pos.0, 
-            y: self.sent_pos.1, 
-            z: self.sent_pos.2, 
-            vx: vel.x as i8,
-            vy: vel.y as i8,
-            vz: vel.z as i8,
-        }));
-    }
-
-    fn spawn_entity_object(&self, player: &ServerPlayer, kind: u8, vel: bool) {
-        player.send(OutPacket::ObjectSpawn(proto::ObjectSpawnPacket {
-            entity_id: self.id,
-            kind,
-            x: self.sent_pos.0, 
-            y: self.sent_pos.1, 
-            z: self.sent_pos.2, 
-            velocity: vel.then(|| self.sent_vel)
-        }));
-    }
-
-    fn spawn_entity_mob(&self, player: &ServerPlayer, kind: u8, metadata: Vec<proto::Metadata>) {
-        player.send(OutPacket::MobSpawn(proto::MobSpawnPacket {
-            entity_id: self.id,
-            kind,
-            x: self.sent_pos.0, 
-            y: self.sent_pos.1, 
-            z: self.sent_pos.2, 
-            yaw: self.sent_look.0,
-            pitch: self.sent_look.1,
-            metadata,
-        }));
-    }
-
-    /// Kill the entity on the player side.
-    pub fn kill_entity(&self, player: &ServerPlayer) {
-        player.send(OutPacket::EntityKill(proto::EntityKillPacket { 
-            entity_id: self.id
-        }));
-    }
-
-    /// Update an entity metadata on player side.
-    pub fn update_entity(&self, player: &ServerPlayer, world: &World) {
-
-        // NOTE: Silently ignore dead if the entity is dead, it will be killed later.
-        let Some(entity) = world.get_entity(self.id) else { return };
-        let metadata = self.make_entity_metadata(entity);
-
-        player.send(OutPacket::EntityMetadata(proto::EntityMetadataPacket { 
-            entity_id: self.id,
-            metadata,
-        }));
-
-    }
-
-    /// Internal method to generate an entity metadata vector.
-    #[inline(always)]
-    fn make_entity_metadata(&self, Entity(_, base_kind): &Entity) -> Vec<proto::Metadata> {
-        match base_kind {
-            BaseKind::Living(living, living_kind) => {
-                match living_kind {
-                    LivingKind::Human(human) => vec![
-                        proto::Metadata::new_byte(0, (human.sneaking as i8) << 1),
-                    ],
-                    LivingKind::Ghast(_) => vec![
-                        proto::Metadata::new_byte(16, (living.attack_time > 50) as _),
-                    ],
-                    LivingKind::Slime(slime) => vec![
-                        proto::Metadata::new_byte(16, (slime.size as i8).saturating_add(1)),
-                    ],
-                    LivingKind::Pig(pig) => vec![
-                        proto::Metadata::new_byte(16, pig.saddle as _),
-                    ],
-                    LivingKind::Sheep(sheep) => vec![
-                        proto::Metadata::new_byte(16, 
-                            ((sheep.sheared as i8) << 4) | 
-                            ((sheep.color as i8) & 15)),
-                    ],
-                    LivingKind::Wolf(wolf) => vec![
-                        proto::Metadata::new_byte(16, 
-                            ((wolf.sitting as i8) << 0) |
-                            ((wolf.angry as i8) << 1) |
-                            ((wolf.owner.is_some() as i8) << 2))
-                    ],
-                    LivingKind::Creeper(creeper) => vec![
-                        proto::Metadata::new_byte(16, if creeper.ignited_time.is_some() { 1 } else { -1 }),
-                        proto::Metadata::new_byte(17, creeper.powered as _),
-                    ],
-                    _ => vec![]
-                }
-            }
-            _ => vec![]
-        }
-    }
+    // /// Internal method to generate an entity metadata vector.
+    // #[inline(always)]
+    // fn make_entity_metadata(&self, Entity(_, base_kind): &Entity) -> Vec<proto::Metadata> {
+    //     match base_kind {
+    //         BaseKind::Living(living, living_kind) => {
+    //             match living_kind {
+    //                 LivingKind::Human(human) => vec![
+    //                     proto::Metadata::new_byte(0, (human.sneaking as i8) << 1),
+    //                 ],
+    //                 LivingKind::Ghast(_) => vec![
+    //                     proto::Metadata::new_byte(16, (living.attack_time > 50) as _),
+    //                 ],
+    //                 LivingKind::Slime(slime) => vec![
+    //                     proto::Metadata::new_byte(16, (slime.size as i8).saturating_add(1)),
+    //                 ],
+    //                 LivingKind::Pig(pig) => vec![
+    //                     proto::Metadata::new_byte(16, pig.saddle as _),
+    //                 ],
+    //                 LivingKind::Sheep(sheep) => vec![
+    //                     proto::Metadata::new_byte(16,
+    //                         ((sheep.sheared as i8) << 4) |
+    //                         ((sheep.color as i8) & 15)),
+    //                 ],
+    //                 LivingKind::Wolf(wolf) => vec![
+    //                     proto::Metadata::new_byte(16,
+    //                         ((wolf.sitting as i8) << 0) |
+    //                         ((wolf.angry as i8) << 1) |
+    //                         ((wolf.owner.is_some() as i8) << 2))
+    //                 ],
+    //                 LivingKind::Creeper(creeper) => vec![
+    //                     proto::Metadata::new_byte(16, if creeper.ignited_time.is_some() { 1 } else { -1 }),
+    //                     proto::Metadata::new_byte(17, creeper.powered as _),
+    //                 ],
+    //                 _ => vec![]
+    //             }
+    //         }
+    //         _ => vec![]
+    //     }
+    // }
 
 }

@@ -28,7 +28,7 @@ use mc173_module::storage::ChunkStorage;
 use mc173_module::vec2::StdbVec2;
 use crate::config::SPAWN_POS;
 use crate::offline::StdbOfflinePlayer;
-use crate::player::{StdbClientState, StdbConnectionStatus, StdbEntity, StdbOfflineServerPlayer, StdbServerPlayer};
+use crate::player::{StdbClientState, StdbConnectionStatus, StdbEntity, StdbOfflineServerPlayer, StdbPlayingState, StdbServerPlayer};
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 use crate::world::{StdbServerWorld, StdbTickMode};
 
@@ -115,32 +115,30 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     //     .next()
     //     .expect("invalid offline player world name");
 
-    if let Some(player) = StdbOfflineServerPlayer::filter_by_username(&packet.username) {
+    let (entity, player) = if let Some(player) = StdbOfflineServerPlayer::filter_by_username(&packet.username) {
         let existing_player = player.player;
-        StdbServerPlayer::insert(existing_player.clone()).unwrap();
-        StdbEntity::filter_by_entity_id(&existing_player.entity_id).unwrap()
+        let player = StdbServerPlayer::insert(existing_player.clone()).unwrap();
+        (StdbEntity::filter_by_entity_id(&existing_player.entity_id).unwrap(), player)
     } else {
         let new_entity = StdbEntity::insert(StdbEntity {
             entity_id: 0,
-            world_id: 1,
             on_ground: false,
             pos: std::convert::Into::<StdbDVec3>::into(spawn_pos).clone(),
             look: StdbVec2 {
                 x: 1.0,
                 y: 0.0,
             },
-            dimension: DIMENSION_OVERWORLD,
+            dimension_id: DIMENSION_OVERWORLD,
         }).unwrap();
 
-        let _ = StdbServerPlayer::insert(StdbServerPlayer {
+        let player = StdbServerPlayer::insert(StdbServerPlayer {
             entity_id: new_entity.entity_id.clone(),
             username: packet.username,
             connection_id,
             spawn_pos: spawn_pos.into(),
-        });
-        new_entity
+        }).unwrap();
+        (new_entity, player)
     };
-
 
     // TODO(jdetter): Create an entity for this player
     // let entity = e::Human::new_with(|base, living, player| {
@@ -193,6 +191,9 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     // Finally insert the player tracker.
     // let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
     // let player_index = world.handle_player_join(server_player);
+    let mut world = StdbServerWorld::filter_by_dimension_id(&entity.dimension_id).unwrap();
+    world.handle_player_join(player);
+
 
     // Replace the previous state with a playing state containing the world and
     // player indices, used to get to the player instance.
@@ -200,6 +201,14 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     //     world_index,
     //     player_index,
     // });
+    let mut connection_status = StdbConnectionStatus::filter_by_connection_id(&connection_id).unwrap();
+    connection_status.status = StdbClientState::Playing {
+        0: StdbPlayingState {
+            dimension_id: entity.dimension_id,
+            player_index: entity.entity_id,
+        },
+    };
+    StdbConnectionStatus::update_by_connection_id(&connection_id, connection_status);
 
     // Just a sanity check...
     // debug_assert_eq!(previous_state, Some(ClientState::Handshaking));
@@ -607,7 +616,7 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     } else if packet.status == 2 {
         // Block breaking should be finished.
         if let Some(some_breaking_block) = stdb_breaking_block.take() {
-            if <mc173_module::ivec3::StdbIVec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.is_block(pos, some_breaking_block.state.id, &mut cache) {
+            if <mc173_module::i32vec3::StdbI32Vec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.is_block(pos, some_breaking_block.state.id, &mut cache) {
                 // let break_duration = world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
                 let break_duration = world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
                 let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;

@@ -29,7 +29,7 @@ use crate::rand::JavaRandom;
 use crate::item::ItemStack;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
-use crate::ivec3::StdbIVec3;
+use crate::i32vec3::StdbI32Vec3;
 use crate::stdb::chunk::StdbChunk;
 use crate::stdb::weather::StdbWeather;
 
@@ -182,7 +182,7 @@ pub struct StdbWorld {
 
 #[spacetimedb(table(public))]
 pub struct StdbSetBlockEvent {
-    pub pos: StdbIVec3,
+    pub pos: StdbI32Vec3,
     pub old_id: u8,
     pub old_metadata: u8,
     pub new_id: u8,
@@ -1557,7 +1557,7 @@ impl StdbWorld {
             let mut max_face_emission = 0;
             for face in Face::ALL {
 
-                let face_pos = <StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta();
+                let face_pos = <StdbI32Vec3 as Into<IVec3>>::into(update.pos) + face.delta();
 
                 let Some((cx, cz)) = calc_chunk_pos(face_pos) else { continue };
                 let Some(mut chunk) = self.get_chunk(cx, cz, cache) else { continue };
@@ -1632,7 +1632,7 @@ impl StdbWorld {
                     self.push_light_update_inner(LightUpdate {
                         kind: update.kind,
                         // pos: update.pos.into() + face.delta(),
-                        pos: (<StdbIVec3 as Into<IVec3>>::into(update.pos) + face.delta()).into(),
+                        pos: (<StdbI32Vec3 as Into<IVec3>>::into(update.pos) + face.delta()).into(),
                         credit: update.credit - 1,
                     });
                 }
@@ -2034,7 +2034,7 @@ pub struct LightUpdate {
     /// Light kind targeted by this update, the update only applies to one of the kind.
     kind: LightKind,
     /// The position of the light update.
-    pos: StdbIVec3,
+    pos: StdbI32Vec3,
     // pos: Vec<i32>,
     /// Credit remaining to update light, this is used to limit the number of updates
     /// produced by a block chance initial update. Initial value is something like 15

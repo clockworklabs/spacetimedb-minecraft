@@ -8,7 +8,7 @@ use glam::{DVec3, Vec2, IVec3};
 use spacetimedb::SpacetimeType;
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::item::ItemStack;
-use mc173_module::ivec3::StdbIVec3;
+use mc173_module::i32vec3::StdbI32Vec3;
 use mc173_module::vec2::StdbVec2;
 
 /// Type alias for Minecraft protocol server.

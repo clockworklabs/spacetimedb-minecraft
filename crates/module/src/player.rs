@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use glam::{DVec3, Vec2, IVec3};
 use spacetimedb::{spacetimedb, SpacetimeType};
 use mc173_module::dvec3::StdbDVec3;
-use mc173_module::ivec3::StdbIVec3;
+use mc173_module::i32vec3::StdbI32Vec3;
 use mc173_module::vec2::StdbVec2;
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 
@@ -120,14 +120,14 @@ pub struct StdbEntity {
     #[autoinc]
     #[primarykey]
     pub entity_id: u32,
-    pub world_id: i32,
     // TODO: This should be part of proper entities
     pub on_ground: bool,
     /// Last position sent by the client.
     pub pos: StdbDVec3,
     /// Last look sent by the client.
     pub look: StdbVec2,
-    pub dimension: i32,
+    /// The dimension in which this entity lives
+    pub dimension_id: i32,
 }
 
 /// Describe an opened window and how to handle clicks into it.
