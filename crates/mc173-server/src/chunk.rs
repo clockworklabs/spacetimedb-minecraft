@@ -48,7 +48,6 @@ impl ChunkTrackers {
         };
 
         tracker.set_block(local_pos, block, metadata);
-
     }
 
     pub fn flush_chunk(&mut self, cx: i32, cz: i32) {
@@ -56,7 +55,7 @@ impl ChunkTrackers {
         tracker.flush();
     }
 
-    /// Mark a chunk dirty, to be saved later.
+    //// Mark a chunk dirty, to be saved later.
     // pub fn set_dirty(&mut self, cx: i32, cz: i32) {
     //     let tracker = self.inner.entry((cx, cz)).or_default();
     //     if let Some(instant) = tracker.set_dirty() {
@@ -77,13 +76,13 @@ impl ChunkTrackers {
 
     }
 
-    /// Update the given player list to send new block changes into account. The given
-    /// world is used to get the chunk if it is full of changes.
-    pub fn update_players(&mut self, players: &[ServerPlayer], world: &World) {
-        for (&(cx, cz), tracker) in &mut self.inner {
-            tracker.update_players(cx, cz, players, world);
-        }
-    }
+    // /// Update the given player list to send new block changes into account. The given
+    // /// world is used to get the chunk if it is full of changes.
+    // pub fn update_players(&mut self, players: &[ServerPlayer], world: &World) {
+    //     for (&(cx, cz), tracker) in &mut self.inner {
+    //         tracker.update_players(cx, cz, players, world);
+    //     }
+    // }
 
     /// Get the next chunk to save, if any.
     pub fn next_save(&mut self) -> Option<(i32, i32)> {

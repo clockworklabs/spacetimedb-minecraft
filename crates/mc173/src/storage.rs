@@ -190,12 +190,12 @@ impl ChunkStorage {
             .expect("worker should not disconnect while this handle exists");
     }
 
-    /// Request saving of the given chunk snapshot.
-    pub fn request_save(&mut self, snapshot: ChunkSnapshot) {
-        self.request_save.insert((snapshot.cx, snapshot.cz));
-        self.storage_request_sender.send(StorageRequest::Save { snapshot })
-            .expect("worker should not disconnect while this handle exists");
-    }
+    // /// Request saving of the given chunk snapshot.
+    // pub fn request_save(&mut self, snapshot: ChunkSnapshot) {
+    //     self.request_save.insert((snapshot.cx, snapshot.cz));
+    //     self.storage_request_sender.send(StorageRequest::Save { snapshot })
+    //         .expect("worker should not disconnect while this handle exists");
+    // }
 
     /// Poll without blocking this storage for new reply to requested load and save.
     /// This function returns none if there is not new reply to poll.

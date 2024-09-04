@@ -16,7 +16,7 @@ use crate::server::Server;
 /// Kill the entity on the player side.
 pub fn stdb_kill_entity(server: &Server, player_observer_id: u32, human_target_id: u32) {
     let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
-    let client = server.clients[observer.connection_id];
+    let client = server.clients.get(&observer.connection_id);
 
     server.net.send(client, OutPacket::EntityKill(proto::EntityKillPacket {
         entity_id: human_target_id
@@ -27,12 +27,12 @@ pub fn stdb_kill_entity(server: &Server, player_observer_id: u32, human_target_i
 pub fn stdb_spawn_entity_human(server: &Server, player_observer_id: u32, human_target_id: u32) {
     let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
     let tracker = StdbEntityTracker::find_by_entity_id(human_target_id).unwrap();
-    let client = server.clients[observer.connection_id];
+    let client = server.clients.get(&observer.connection_id).unwrap();
     let human = StdbHuman::find_by_entity_id(human_target_id).unwrap();
     let metadata = vec![
         proto::Metadata::new_byte(0, (human.sneaking as i8) << 1),
     ];
-    server.net.send(client, OutPacket::HumanSpawn(proto::HumanSpawnPacket {
+    server.net.send(client.clone(), OutPacket::HumanSpawn(proto::HumanSpawnPacket {
         entity_id: human.entity_id,
         username: human.username.clone(),
         x: tracker.sent_pos.x,
@@ -44,7 +44,7 @@ pub fn stdb_spawn_entity_human(server: &Server, player_observer_id: u32, human_t
         current_item: 0, // TODO:
     }));
 
-    server.net.send(client, OutPacket::EntityMetadata(proto::EntityMetadataPacket {
+    server.net.send(client.clone(), OutPacket::EntityMetadata(proto::EntityMetadataPacket {
         entity_id: human.entity_id,
         metadata,
     }));
@@ -165,29 +165,29 @@ impl EntityTracker {
         self.vel = (scaled.x as i16, scaled.y as i16, scaled.z as i16);
     }
 
-    /// Tick this entity tracker and update players if needed. Only the players that
-    /// already track this entity will be updated if relevant.
-    pub fn tick_and_update_players(&mut self, players: &[ServerPlayer]) {
-
-        // If the interval is 0, then entity should not be updated after being created.
-        if self.interval == 0 {
-            return;
-        }
-
-        if config::fast_entity() {
-            self.absolute_countdown_time += 20;
-        } else {
-            self.absolute_countdown_time += 1;
-        }
-
-        self.time += 1;
-
-        if self.time >= self.interval {
-            self.time = 0;
-            self.update_players(players);
-        }
-
-    }
+    // /// Tick this entity tracker and update players if needed. Only the players that
+    // /// already track this entity will be updated if relevant.
+    // pub fn tick_and_update_players(&mut self, players: &[ServerPlayer]) {
+    //
+    //     // If the interval is 0, then entity should not be updated after being created.
+    //     if self.interval == 0 {
+    //         return;
+    //     }
+    //
+    //     if config::fast_entity() {
+    //         self.absolute_countdown_time += 20;
+    //     } else {
+    //         self.absolute_countdown_time += 1;
+    //     }
+    //
+    //     self.time += 1;
+    //
+    //     if self.time >= self.interval {
+    //         self.time = 0;
+    //         self.update_players(players);
+    //     }
+    //
+    // }
 
     /// Update this tracker to determine which move packet to send and to which players.
     pub fn update_players(&mut self, players: &[ServerPlayer]) {
@@ -289,48 +289,48 @@ impl EntityTracker {
 
     }
 
-    /// Update players to track or untrack this entity. 
-    /// See [`update_tracking_player`](Self::update_tracking_player).
-    pub fn update_tracking_players(&self, players: &mut [ServerPlayer], world: &World) {
-        for player in players {
-            self.update_tracking_player(player, world);
-        }
-    }
+    // /// Update players to track or untrack this entity.
+    // /// See [`update_tracking_player`](Self::update_tracking_player).
+    // pub fn update_tracking_players(&self, players: &mut [ServerPlayer], world: &World) {
+    //     for player in players {
+    //         self.update_tracking_player(player, world);
+    //     }
+    // }
 
-    /// Update a player to track or untrack this entity. The correct packet is sent if
-    /// the entity needs to appear or disappear on the client side.
-    pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
-        // A player cannot track its own entity.
-        if player.entity_id == self.id {
-            return;
-        }
+    // /// Update a player to track or untrack this entity. The correct packet is sent if
+    // /// the entity needs to appear or disappear on the client side.
+    // pub fn update_tracking_player(&self, player: &mut ServerPlayer, world: &World) {
+    //     // A player cannot track its own entity.
+    //     if player.entity_id == self.id {
+    //         return;
+    //     }
+    //
+    //     let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+    //
+    //     let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
+    //     if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
+    //         if player.tracked_entities.insert(self.id) {
+    //             self.spawn_entity(player, world);
+    //         }
+    //     } else if player.tracked_entities.remove(&self.id) {
+    //         self.kill_entity(player);
+    //     }
+    // }
 
-        let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+    // /// Force untrack this entity to this player if the player is already tracking it.
+    // pub fn untrack_player(&self, player: &mut ServerPlayer) {
+    //     if player.tracked_entities.remove(&self.id) {
+    //         self.kill_entity(player);
+    //     }
+    // }
 
-        let delta = entity.pos.as_dvec3() - IVec3::new(self.pos.0, self.pos.1, self.pos.2).as_dvec3() / 32.0;
-        if delta.x.abs() <= self.distance as f64 && delta.z.abs() <= self.distance as f64 {
-            if player.tracked_entities.insert(self.id) {
-                self.spawn_entity(player, world);
-            }
-        } else if player.tracked_entities.remove(&self.id) {
-            self.kill_entity(player);
-        }
-    }
-
-    /// Force untrack this entity to this player if the player is already tracking it.
-    pub fn untrack_player(&self, player: &mut ServerPlayer) {
-        if player.tracked_entities.remove(&self.id) {
-            self.kill_entity(player);
-        }
-    }
-
-    /// Force untrack this entity to all given players, it applies only to players that
-    /// were already tracking the entity.
-    pub fn untrack_players(&self, players: &mut [ServerPlayer]) {
-        for player in players {
-            self.untrack_player(player);
-        }
-    }
+    // /// Force untrack this entity to all given players, it applies only to players that
+    // /// were already tracking the entity.
+    // pub fn untrack_players(&self, players: &mut [ServerPlayer]) {
+    //     for player in players {
+    //         self.untrack_player(player);
+    //     }
+    // }
 
     /// Spawn the entity on the player side.
     pub fn spawn_entity(&self, player: &ServerPlayer, world: &World) {

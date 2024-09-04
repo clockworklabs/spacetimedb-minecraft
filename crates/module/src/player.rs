@@ -15,11 +15,14 @@
 use std::collections::HashSet;
 
 use glam::{DVec3, Vec2, IVec3};
-use spacetimedb::{spacetimedb, SpacetimeType};
+use spacetimedb::{query, spacetimedb, SpacetimeType};
 use mc173_module::chunk;
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::i32vec3::StdbI32Vec3;
+use mc173_module::stdb::chunk::{StdbChunk, StdbChunkView};
 use mc173_module::vec2::StdbVec2;
+use crate::generate_chunk;
+use crate::player::StdbClientState::Playing;
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 
 /// A server player is an actual
@@ -306,8 +309,7 @@ impl StdbServerPlayer {
         }
 
         StdbEntity::update_by_entity_id(&entity.entity_id, entity.clone());
-
-        ServerPlayer::update_chunks
+        Self::update_chunks(entity.entity_id);
 
         // if pos.is_some() {
         //     world.push_event(Event::Entity { id: self.entity_id, inner: EntityEvent::Position { pos: self.pos } });
@@ -1448,36 +1450,50 @@ impl StdbServerPlayer {
     /// Update the chunks sent to this player.
     pub fn update_chunks(player_id: u32) {
 
-        let entity = StdbEntity::filter_by_entity_id(&player_id).unwrap();
-        let (ocx, ocz) = chunk::calc_entity_chunk_pos(entity.pos.as_dvec3());
-        let view_range = 20;
+        let player_entity = StdbEntity::filter_by_entity_id(&player_id).unwrap();
+        let (ocx, ocz) = chunk::calc_entity_chunk_pos(player_entity.pos.as_dvec3());
+        let view_range = 1;
 
         for cx in (ocx - view_range)..(ocx + view_range) {
             for cz in (ocz - view_range)..(ocz + view_range) {
 
-                if let Some(chunk) = world.get_chunk(cx, cz) {
-                    if self.tracked_chunks.insert((cx, cz)) {
+                let chunk_id = StdbChunk::xz_to_chunk_id(cx, cz);
+                let chunk = StdbChunk::filter_by_chunk_id(&chunk_id).unwrap_or_else(|| {
+                    generate_chunk(cx, cz);
+                    StdbChunk::filter_by_chunk_id(&chunk_id).unwrap()
+                });
 
-                        self.send(OutPacket::ChunkState(proto::ChunkStatePacket {
-                            cx, cz, init: true
-                        }));
-
-                        let from = IVec3 {
-                            x: cx * 16,
-                            y: 0,
-                            z: cz * 16,
-                        };
-
-                        let size = IVec3 {
-                            x: 16,
-                            y: 128,
-                            z: 16,
-                        };
-
-                        self.send(OutPacket::ChunkData(new_chunk_data_packet(chunk, from, size)));
-
-                    }
+                if query!(|view: StdbChunkView| view.chunk_id == chunk_id && view.observer_id == player_id).next().is_none() {
+                    let _ = StdbChunkView::insert(StdbChunkView {
+                        view_id: 0,
+                        chunk_id,
+                        observer_id: player_id,
+                    });
                 }
+
+                // if let Some(chunk) = world.get_chunk(cx, cz) {
+                //     if self.tracked_chunks.insert((cx, cz)) {
+                //
+                //         self.send(OutPacket::ChunkState(proto::ChunkStatePacket {
+                //             cx, cz, init: true
+                //         }));
+                //
+                //         let from = IVec3 {
+                //             x: cx * 16,
+                //             y: 0,
+                //             z: cz * 16,
+                //         };
+                //
+                //         let size = IVec3 {
+                //             x: 16,
+                //             y: 128,
+                //             z: 16,
+                //         };
+                //
+                //         self.send(OutPacket::ChunkData(new_chunk_data_packet(chunk, from, size)));
+                //
+                //     }
+                // }
 
             }
         }

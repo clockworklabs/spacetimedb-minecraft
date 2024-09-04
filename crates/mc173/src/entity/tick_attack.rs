@@ -9,19 +9,19 @@ use super::{Entity, BaseKind, LivingKind};
 use super::common::{self, let_expect};
 
 
-/// Tick an attack from the entity to its targeted entity. The targeted entity id is given
-/// as argument and the entity is guaranteed to be present in the world as living entity.
-/// 
-/// REF: EntityCreature::attackEntity
-pub(super) fn tick_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool) {
-    match entity {
-        Entity(_, BaseKind::Living(_, LivingKind::Spider(_))) => tick_spider_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        Entity(_, BaseKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        // Entity(_, BaseKind::Living(_, LivingKind::Skeleton(_))) => tick_skeleton_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        Entity(_, BaseKind::Living(_, _)) => tick_mob_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
-        _ => unreachable!("expected a living entity for this function")
-    }
-}
+// /// Tick an attack from the entity to its targeted entity. The targeted entity id is given
+// /// as argument and the entity is guaranteed to be present in the world as living entity.
+// ///
+// /// REF: EntityCreature::attackEntity
+// pub(super) fn tick_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool) {
+//     match entity {
+//         Entity(_, BaseKind::Living(_, LivingKind::Spider(_))) => tick_spider_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+//         Entity(_, BaseKind::Living(_, LivingKind::Creeper(_))) => tick_creeper_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+//         // Entity(_, BaseKind::Living(_, LivingKind::Skeleton(_))) => tick_skeleton_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+//         Entity(_, BaseKind::Living(_, _)) => tick_mob_attack(world, id, entity, target_id, dist_squared, eye_track, should_strafe),
+//         _ => unreachable!("expected a living entity for this function")
+//     }
+// }
 
 /// REF: EntityMob::attackEntity
 fn tick_mob_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, _should_strafe: &mut bool) {
@@ -94,54 +94,54 @@ fn tick_spider_attack(world: &mut World, id: u32, entity: &mut Entity, target_id
 
 }
 
-/// REF: EntityCreeper::attackEntity
-fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_id: u32, dist_squared: f64, eye_track: bool, _should_strafe: &mut bool) {
-
-    /// Minimum distance from a player to trigger a climb of the spider.
-    const IDLE_MAX_DIST_SQUARED: f64 = 3.0 * 3.0;
-    /// Maximum distance from a player to trigger a climb of the spider.
-    const IGNITED_MAX_DIST_SQUARED: f64 = 7.0 * 7.0;
-
-    let_expect!(Entity(base, BaseKind::Living(_, LivingKind::Creeper(creeper))) = entity);
-
-    // Check if the creeper should be ignited depending on its current state.
-    let ignited =
-        eye_track &&
-        (creeper.ignited_time.is_none() && dist_squared < IDLE_MAX_DIST_SQUARED) ||
-        (creeper.ignited_time.is_some() && dist_squared < IGNITED_MAX_DIST_SQUARED);
-
-    if ignited {
-
-        if creeper.ignited_time.is_none() {
-            world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
-        }
-
-        let ignited_time = creeper.ignited_time.unwrap_or(0) + 1;
-        creeper.ignited_time = Some(ignited_time);
-
-        if ignited_time >= 30 {
-
-            // Kill the creeper and return none in order to loose focus on the entity.
-            world.remove_entity(id, "creeper explode");
-
-            // if creeper.powered {
-            //     world.explode(base.pos, 6.0, false, Some(id));
-            // } else {
-            //     world.explode(base.pos, 3.0, false, Some(id));
-            // }
-
-        }
-
-    } else {
-
-        if creeper.ignited_time.is_some() {
-            world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
-            creeper.ignited_time = None;
-        }
-
-    }
-
-}
+// /// REF: EntityCreeper::attackEntity
+// fn tick_creeper_attack(world: &mut World, id: u32, entity: &mut Entity, _target_id: u32, dist_squared: f64, eye_track: bool, _should_strafe: &mut bool) {
+//
+//     /// Minimum distance from a player to trigger a climb of the spider.
+//     const IDLE_MAX_DIST_SQUARED: f64 = 3.0 * 3.0;
+//     /// Maximum distance from a player to trigger a climb of the spider.
+//     const IGNITED_MAX_DIST_SQUARED: f64 = 7.0 * 7.0;
+//
+//     let_expect!(Entity(base, BaseKind::Living(_, LivingKind::Creeper(creeper))) = entity);
+//
+//     // Check if the creeper should be ignited depending on its current state.
+//     let ignited =
+//         eye_track &&
+//         (creeper.ignited_time.is_none() && dist_squared < IDLE_MAX_DIST_SQUARED) ||
+//         (creeper.ignited_time.is_some() && dist_squared < IGNITED_MAX_DIST_SQUARED);
+//
+//     if ignited {
+//
+//         if creeper.ignited_time.is_none() {
+//             world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
+//         }
+//
+//         let ignited_time = creeper.ignited_time.unwrap_or(0) + 1;
+//         creeper.ignited_time = Some(ignited_time);
+//
+//         if ignited_time >= 30 {
+//
+//             // Kill the creeper and return none in order to loose focus on the entity.
+//             world.remove_entity(id, "creeper explode");
+//
+//             // if creeper.powered {
+//             //     world.explode(base.pos, 6.0, false, Some(id));
+//             // } else {
+//             //     world.explode(base.pos, 3.0, false, Some(id));
+//             // }
+//
+//         }
+//
+//     } else {
+//
+//         if creeper.ignited_time.is_some() {
+//             world.push_event(Event::Entity { id, inner: EntityEvent::Metadata });
+//             creeper.ignited_time = None;
+//         }
+//
+//     }
+//
+// }
 
 // /// REF: EntitySkeleton::attackEntity
 // fn tick_skeleton_attack(world: &mut World, id: u32, entity: &mut Entity, target_id: u32, dist_squared: f64, eye_track: bool, should_strafe: &mut bool) {

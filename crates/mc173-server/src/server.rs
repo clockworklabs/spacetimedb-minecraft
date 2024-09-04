@@ -8,7 +8,7 @@ use std::io;
 use glam::{DVec3, Vec2};
 
 use tracing::{warn, info};
-use autogen::autogen::{handle_connect, stdb_handle_accept, stdb_handle_connect, stdb_handle_disconnect, stdb_handle_lost, InLoginPacket, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer, StdbServerWorld, StdbTime, StdbWeather, StdbWorld};
+use autogen::autogen::{stdb_handle_accept, stdb_handle_lost, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer, StdbServerWorld, StdbTime, StdbWeather, StdbWorld};
 use mc173::world::{Dimension, Weather};
 use mc173::entity::{self as e};
 
@@ -54,14 +54,14 @@ impl Server {
 
     }
 
-    /// Force save this server and block waiting for all resources to be saved.
-    pub fn save(&mut self) {
-
-        for world in &mut self.worlds {
-            world.save();
-        }
-
-    }
+    // /// Force save this server and block waiting for all resources to be saved.
+    // pub fn save(&mut self) {
+    //
+    //     for world in &mut self.worlds {
+    //         world.save();
+    //     }
+    //
+    // }
 
 
 
@@ -107,7 +107,7 @@ impl Server {
     /// Handle a lost client.
     fn handle_lost(&mut self, client: NetworkClient, error: Option<io::Error>) {
         info!("lost client #{}: {:?}", client.id(), error);
-        stdb_handle_lost(client.id());
+        stdb_handle_lost(client.id(), true);
         // if let StdbClientState::Playing(playing_state) = StdbConnectionStatus::find_by_connection_id(client.id()) {
         //     // If the client was playing, remove it from its world.
         //     let world = &mut self.worlds[playing_state.world_index];
@@ -134,7 +134,7 @@ impl Server {
             StdbClientState::Playing(playing) => {
                 // let world = &mut self.worlds[playing.dimension_id];
                 // let player = &mut world.players[playing.player_index];
-                ServerPlayer::handle(&self, client.id());
+                ServerPlayer::handle(&self, client.id(), packet);
             }
         }
     }

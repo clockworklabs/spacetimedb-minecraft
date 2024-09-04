@@ -382,6 +382,7 @@ pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorld, cache: &mu
     // }
 
     // After we collected every block change, update all players accordingly.
+    // TODO(jdetter): We should update player trackers here!
     // self.state.chunk_trackers.update_players(&self.players, &self.world);
 
     // After world events are processed, tick entity trackers.
@@ -393,6 +394,7 @@ pub fn tick_world(world: &mut StdbWorld, state: &mut StdbServerWorld, cache: &mu
     // }
 
     // Drain dirty chunks coordinates and save them.
+    // TODO(jdetter): We should update player trackers here!
     // while let Some((cx, cz)) = self.state.chunk_trackers.next_save() {
     //     if let Some(snapshot) = self.world.take_chunk_snapshot(cx, cz) {
     //         self.state.storage.request_save(snapshot);

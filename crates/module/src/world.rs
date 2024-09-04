@@ -8,7 +8,7 @@ use spacetimedb::{query, spacetimedb, SpacetimeType};
 use mc173_module::world::StdbWorld;
 use crate::proto::{self, OutPacket};
 use crate::config;
-use crate::entity::StdbEntityTracker;
+use crate::entity::{StdbEntityTracker, StdbEntityView};
 use crate::player::{StdbConnectionStatus, StdbServerPlayer, StdbTrackedPlayer};
 /// A single world in the server, this structure keep tracks of players and entities
 /// tracked by players.
@@ -291,19 +291,21 @@ impl StdbServerWorld {
     pub fn handle_player_join(&mut self, player: StdbServerPlayer) {
 
         // Initial tracked entities.
-        for tracker in StdbEntityTracker::iter() {
+        for tracker in query!(|view: StdbEntityView| view.target_id == player.entity_id) {
+            let tracker = StdbEntityTracker::filter_by_entity_id(&tracker.target_id).unwrap();
             tracker.update_tracking_player(&player);
         }
+
         // for tracker in self.state.entity_trackers.values() {
         //     tracker.update_tracking_player(&mut player, &self.world);
         // }
-        //
+
+        StdbServerPlayer::update_chunks(player.entity_id);
         // player.update_chunks(&self.world);
-        //
+
         // let player_index = self.players.len();
         // self.players.push(player);
         // player_index
-
     }
 
     /// Handle a player leaving this world, this should remove its entity. The `lost`

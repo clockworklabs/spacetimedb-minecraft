@@ -95,12 +95,12 @@ const COMMANDS: &'static [Command] = &[
         description: "Give item to a player",
         handler: cmd_give
     },
-    Command {
-        name: "spawn",
-        usage: "<entity_kind> [<params>...]",
-        description: "Spawn an entity",
-        handler: cmd_spawn
-    },
+    // Command {
+    //     name: "spawn",
+    //     usage: "<entity_kind> [<params>...]",
+    //     description: "Spawn an entity",
+    //     handler: cmd_spawn
+    // },
     Command {
         name: "time",
         usage: "",
@@ -244,41 +244,41 @@ fn cmd_give(ctx: CommandContext) -> CommandResult {
 
 }
 
-fn cmd_spawn(ctx: CommandContext) -> CommandResult {
-    let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
-
-    let [entity_kind_raw] = *ctx.parts else {
-        return Err(None);
-    };
-
-    let entity_kind = match entity_kind_raw {
-        "item" => EntityKind::Item,
-        "boat" => EntityKind::Boat,
-        "minecart" => EntityKind::Minecart,
-        "pig" => EntityKind::Pig,
-        "chicken" => EntityKind::Chicken,
-        "cow" => EntityKind::Cow,
-        "sheep" => EntityKind::Sheep,
-        "zombie" => EntityKind::Zombie,
-        "skeleton" => EntityKind::Skeleton,
-        "ghast" => EntityKind::Ghast,
-        "slime" => EntityKind::Slime,
-        "creeper" => EntityKind::Creeper,
-        "squid" => EntityKind::Squid,
-        _ => return Err(Some(format!("§cError: invalid or unsupported entity kind:§r {entity_kind_raw}")))
-    };
-
-    let mut entity = entity_kind.new_default(entity.pos.as_dvec3());
-    entity.0.persistent = true;
-
-    entity.init_natural_spawn(ctx.world);
-
-    let entity_id = ctx.world.spawn_entity(entity);
-    ctx.player.send_chat(format!("§aEntity spawned:§r {entity_id}"));
-
-    Ok(())
-
-}
+// fn cmd_spawn(ctx: CommandContext) -> CommandResult {
+//     let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();
+//
+//     let [entity_kind_raw] = *ctx.parts else {
+//         return Err(None);
+//     };
+//
+//     let entity_kind = match entity_kind_raw {
+//         "item" => EntityKind::Item,
+//         "boat" => EntityKind::Boat,
+//         "minecart" => EntityKind::Minecart,
+//         "pig" => EntityKind::Pig,
+//         "chicken" => EntityKind::Chicken,
+//         "cow" => EntityKind::Cow,
+//         "sheep" => EntityKind::Sheep,
+//         "zombie" => EntityKind::Zombie,
+//         "skeleton" => EntityKind::Skeleton,
+//         "ghast" => EntityKind::Ghast,
+//         "slime" => EntityKind::Slime,
+//         "creeper" => EntityKind::Creeper,
+//         "squid" => EntityKind::Squid,
+//         _ => return Err(Some(format!("§cError: invalid or unsupported entity kind:§r {entity_kind_raw}")))
+//     };
+//
+//     let mut entity = entity_kind.new_default(entity.pos.as_dvec3());
+//     entity.0.persistent = true;
+//
+//     entity.init_natural_spawn(ctx.world);
+//
+//     let entity_id = ctx.world.spawn_entity(entity);
+//     ctx.player.send_chat(format!("§aEntity spawned:§r {entity_id}"));
+//
+//     Ok(())
+//
+// }
 
 fn cmd_time(ctx: CommandContext) -> CommandResult {
     ctx.player.send_chat(format!("§aWorld time:§r {}", ctx.world.get_time()));

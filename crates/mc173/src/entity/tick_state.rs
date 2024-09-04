@@ -23,96 +23,96 @@ use super::common::{self, let_expect};
 //     }
 // }
 
-/// REF: Entity::onEntityUpdate
-fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
-        
-    let Entity(base, base_kind) = entity;
-
-    // Compute the bounding box used for water collision, it depends on the entity kind.
-    let water_bb = match base_kind {
-        BaseKind::Item(_) => base.bb,
-        _ => base.bb.inflate(DVec3::new(-0.001, -0.4 - 0.001, -0.001)),
-    };
-
-    // Search for water block in the water bb.
-    base.in_water = false;
-    let mut water_vel = DVec3::ZERO;
-    for (pos, block, metadata) in world.iter_blocks_in_box(water_bb) {
-        let material = block::material::get_material(block);
-        if material == Material::Water {
-            let height = block::fluid::get_actual_height(metadata);
-            if water_bb.max.y.add(1.0).floor() >= pos.y as f64 + height as f64 {
-                base.in_water = true;
-                water_vel += common::calc_fluid_vel(world, pos, material, metadata);
-            }
-        }
-    }
-
-    // Finalize normalisation and apply if not zero.
-    let water_vel = water_vel.normalize_or_zero();
-    if water_vel != DVec3::ZERO {
-        base.vel += water_vel * 0.014;
-    }
-
-    // Extinguish and cancel fall if in water.
-    if base.in_water {
-        base.fire_time = 0;
-        base.fall_distance = 0.0;
-    } else if matches!(base_kind, BaseKind::Living(_, LivingKind::Ghast(_) | LivingKind::PigZombie(_))) {
-        base.fire_time = 0;
-    }
-
-    if base.fire_time > 0 {
-        if base.fire_time % 20 == 0 {
-            base.hurt.push(Hurt { damage: 1, origin_id: None });
-        }
-        base.fire_time -= 1;
-    }
-
-    // Check if there is a lava block colliding...
-    let lava_bb = base.bb.inflate(DVec3::new(-0.1, -0.4, -0.1));
-    base.in_lava = world.iter_blocks_in_box(lava_bb)
-        .any(|(_, block, _)| block::material::get_material(block) == Material::Lava);
-
-    // If this entity can pickup other ones, trigger an event.
-    if base.can_pickup {
-
-        // Temporarily owned vector to avoid allocation.
-        common::ENTITY_ID.with_borrow_mut(|picked_up_entities| {
-
-            debug_assert!(picked_up_entities.is_empty());
-            
-            for (entity_id, entity) in world.iter_entities_colliding(base.bb.inflate(DVec3::new(1.0, 0.0, 1.0))) {
-
-                match &entity.1 {
-                    BaseKind::Item(item) => {
-                        if item.frozen_time == 0 {
-                            picked_up_entities.push(entity_id);
-                        }
-                    }
-                    BaseKind::Projectile(projectile, ProjectileKind::Arrow(arrow)) => {
-                        if projectile.state.is_some() && arrow.from_player {
-                            picked_up_entities.push(entity_id);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            for entity_id in picked_up_entities.drain(..) {
-                world.push_event(Event::Entity { 
-                    id, 
-                    inner: EntityEvent::Pickup { 
-                        target_id: entity_id,
-                    },
-                });
-            }
-
-        });
-
-    }
-
-}
+// /// REF: Entity::onEntityUpdate
+// fn tick_state_base(world: &mut World, id: u32, entity: &mut Entity) {
+//
+//     let Entity(base, base_kind) = entity;
+//
+//     // Compute the bounding box used for water collision, it depends on the entity kind.
+//     let water_bb = match base_kind {
+//         BaseKind::Item(_) => base.bb,
+//         _ => base.bb.inflate(DVec3::new(-0.001, -0.4 - 0.001, -0.001)),
+//     };
+//
+//     // Search for water block in the water bb.
+//     base.in_water = false;
+//     let mut water_vel = DVec3::ZERO;
+//     for (pos, block, metadata) in world.iter_blocks_in_box(water_bb) {
+//         let material = block::material::get_material(block);
+//         if material == Material::Water {
+//             let height = block::fluid::get_actual_height(metadata);
+//             if water_bb.max.y.add(1.0).floor() >= pos.y as f64 + height as f64 {
+//                 base.in_water = true;
+//                 water_vel += common::calc_fluid_vel(world, pos, material, metadata);
+//             }
+//         }
+//     }
+//
+//     // Finalize normalisation and apply if not zero.
+//     let water_vel = water_vel.normalize_or_zero();
+//     if water_vel != DVec3::ZERO {
+//         base.vel += water_vel * 0.014;
+//     }
+//
+//     // Extinguish and cancel fall if in water.
+//     if base.in_water {
+//         base.fire_time = 0;
+//         base.fall_distance = 0.0;
+//     } else if matches!(base_kind, BaseKind::Living(_, LivingKind::Ghast(_) | LivingKind::PigZombie(_))) {
+//         base.fire_time = 0;
+//     }
+//
+//     if base.fire_time > 0 {
+//         if base.fire_time % 20 == 0 {
+//             base.hurt.push(Hurt { damage: 1, origin_id: None });
+//         }
+//         base.fire_time -= 1;
+//     }
+//
+//     // Check if there is a lava block colliding...
+//     let lava_bb = base.bb.inflate(DVec3::new(-0.1, -0.4, -0.1));
+//     base.in_lava = world.iter_blocks_in_box(lava_bb)
+//         .any(|(_, block, _)| block::material::get_material(block) == Material::Lava);
+//
+//     // If this entity can pickup other ones, trigger an event.
+//     if base.can_pickup {
+//
+//         // Temporarily owned vector to avoid allocation.
+//         common::ENTITY_ID.with_borrow_mut(|picked_up_entities| {
+//
+//             debug_assert!(picked_up_entities.is_empty());
+//
+//             for (entity_id, entity) in world.iter_entities_colliding(base.bb.inflate(DVec3::new(1.0, 0.0, 1.0))) {
+//
+//                 match &entity.1 {
+//                     BaseKind::Item(item) => {
+//                         if item.frozen_time == 0 {
+//                             picked_up_entities.push(entity_id);
+//                         }
+//                     }
+//                     BaseKind::Projectile(projectile, ProjectileKind::Arrow(arrow)) => {
+//                         if projectile.state.is_some() && arrow.from_player {
+//                             picked_up_entities.push(entity_id);
+//                         }
+//                     }
+//                     _ => {}
+//                 }
+//             }
+//
+//             for entity_id in picked_up_entities.drain(..) {
+//                 world.push_event(Event::Entity {
+//                     id,
+//                     inner: EntityEvent::Pickup {
+//                         target_id: entity_id,
+//                     },
+//                 });
+//             }
+//
+//         });
+//
+//     }
+//
+// }
 
 // /// REF: EntityLiving::onEntityUpdate
 // fn tick_state_living(world: &mut World, id: u32, entity: &mut Entity) {
