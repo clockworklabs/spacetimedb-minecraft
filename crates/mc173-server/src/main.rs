@@ -1,6 +1,6 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_handle_break_block, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_login, stdb_handle_login, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbEntityView, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
+use autogen::autogen::{connect, on_handle_break_block, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_login, stdb_handle_login, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbEntityView, StdbInLoginPacket, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;

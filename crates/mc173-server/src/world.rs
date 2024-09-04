@@ -186,12 +186,12 @@ impl ServerWorld {
 
         for event in events.drain(..) {
             match event {
-                Event::Block { pos, inner } => match inner {
-                    BlockEvent::Set { id, metadata, prev_id, prev_metadata } =>
-                        self.handle_block_set(pos, id, metadata, prev_id, prev_metadata),
-                    BlockEvent::Sound { id, metadata } =>
-                        self.handle_block_sound(pos, id, metadata),
-                }
+                // Event::Block { pos, inner } => match inner {
+                //     BlockEvent::Set { id, metadata, prev_id, prev_metadata } =>
+                //         self.handle_block_set(pos, id, metadata, prev_id, prev_metadata),
+                //     BlockEvent::Sound { id, metadata } =>
+                //         self.handle_block_sound(pos, id, metadata),
+                // }
                 // Event::Entity { id, inner } => match inner {
                     // EntityEvent::Spawn =>
                     //     self.handle_entity_spawn(id),
@@ -319,58 +319,58 @@ impl ServerWorld {
     //
     // }
 
-    /// Handle a player leaving this world, this should remove its entity. The `lost`
-    /// argument indicates if the player is leaving because of a lost connection or not.
-    /// If the connection was not lost, chunks and entities previously tracked by the
-    /// player are send to be untracked.
-    ///
-    /// **Note that** this function swap remove the player, so the last player in this
-    /// world's list is moved to the given player index. So if it exists, you should
-    /// update all indices pointing to the swapped player. This method returns, if
-    /// existing, the player that was swapped.
-    pub fn handle_player_leave(&mut self, player_index: usize, lost: bool) -> Option<&ServerPlayer> {
+    // /// Handle a player leaving this world, this should remove its entity. The `lost`
+    // /// argument indicates if the player is leaving because of a lost connection or not.
+    // /// If the connection was not lost, chunks and entities previously tracked by the
+    // /// player are send to be untracked.
+    // ///
+    // /// **Note that** this function swap remove the player, so the last player in this
+    // /// world's list is moved to the given player index. So if it exists, you should
+    // /// update all indices pointing to the swapped player. This method returns, if
+    // /// existing, the player that was swapped.
+    // pub fn handle_player_leave(&mut self, player_index: usize, lost: bool) -> Option<&ServerPlayer> {
+    //
+    //     // Remove the player tracker.
+    //     let mut player = self.players.swap_remove(player_index);
+    //
+    //     // Kill the entity associated to the player.
+    //     self.world.remove_entity(player.entity_id, "server player left");
+    //
+    //     // If player has not lost connection but it's just leaving the world, we just
+    //     // send it untrack packets.
+    //     if !lost {
+    //
+    //         // Take and replace it with an empty set (no overhead).
+    //         let tracked_entities = std::mem::take(&mut player.tracked_entities);
+    //
+    //         // Untrack all its entities.
+    //         for entity_id in tracked_entities {
+    //             let tracker = self.state.entity_trackers.get(&entity_id).expect("incoherent tracked entity");
+    //             tracker.kill_entity(&mut player);
+    //         }
+    //
+    //     }
+    //
+    //     self.players.get(player_index)
+    //
+    // }
 
-        // Remove the player tracker.
-        let mut player = self.players.swap_remove(player_index);
-
-        // Kill the entity associated to the player.
-        self.world.remove_entity(player.entity_id, "server player left");
-
-        // If player has not lost connection but it's just leaving the world, we just
-        // send it untrack packets.
-        if !lost {
-
-            // Take and replace it with an empty set (no overhead).
-            let tracked_entities = std::mem::take(&mut player.tracked_entities);
-
-            // Untrack all its entities.
-            for entity_id in tracked_entities {
-                let tracker = self.state.entity_trackers.get(&entity_id).expect("incoherent tracked entity");
-                tracker.kill_entity(&mut player);
-            }
-
-        }
-
-        self.players.get(player_index)
-
-    }
-
-    /// Handle a block change world event.
-    fn handle_block_set(&mut self, pos: IVec3, id: u8, metadata: u8, prev_id: u8, _prev_metadata: u8) {
-
-        // Notify the tracker of the block change, this is used to notify the player 
-        self.state.chunk_trackers.set_block(pos, id, metadata);
-
-        // If the block was a crafting table, if any player has a crafting table
-        // window referencing this block then we force close it.
-        let break_crafting_table = id != prev_id && prev_id == block::CRAFTING_TABLE;
-        if break_crafting_table {
-            for player in &mut self.players {
-                player.close_block_window(&mut self.world, pos);
-            }
-        }
-
-    }
+    // /// Handle a block change world event.
+    // fn handle_block_set(&mut self, pos: IVec3, id: u8, metadata: u8, prev_id: u8, _prev_metadata: u8) {
+    //
+    //     // Notify the tracker of the block change, this is used to notify the player
+    //     self.state.chunk_trackers.set_block(pos, id, metadata);
+    //
+    //     // If the block was a crafting table, if any player has a crafting table
+    //     // window referencing this block then we force close it.
+    //     let break_crafting_table = id != prev_id && prev_id == block::CRAFTING_TABLE;
+    //     if break_crafting_table {
+    //         for player in &mut self.players {
+    //             player.close_block_window(&mut self.world, pos);
+    //         }
+    //     }
+    //
+    // }
 
     fn handle_block_sound(&mut self, pos: IVec3, _block: u8, _metadata: u8) {
         let (cx, cz) = chunk::calc_chunk_pos_unchecked(pos);

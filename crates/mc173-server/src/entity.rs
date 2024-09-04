@@ -16,7 +16,7 @@ use crate::server::Server;
 /// Kill the entity on the player side.
 pub fn stdb_kill_entity(server: &Server, player_observer_id: u32, human_target_id: u32) {
     let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
-    let client = server.clients.get(&observer.connection_id);
+    let client = server.clients.get(&observer.connection_id).unwrap().clone();
 
     server.net.send(client, OutPacket::EntityKill(proto::EntityKillPacket {
         entity_id: human_target_id
@@ -189,105 +189,105 @@ impl EntityTracker {
     //
     // }
 
-    /// Update this tracker to determine which move packet to send and to which players.
-    pub fn update_players(&mut self, players: &[ServerPlayer]) {
-
-        let mut send_pos = true;
-        let send_look = self.look.0.abs_diff(self.sent_look.0) >= 8 || self.look.1.abs_diff(self.sent_look.1) >= 8;
-
-        // Check if the delta can be sent with a move packet.
-        let dx = i8::try_from(self.pos.0 - self.sent_pos.0).ok();
-        let dy = i8::try_from(self.pos.1 - self.sent_pos.1).ok();
-        let dz = i8::try_from(self.pos.2 - self.sent_pos.2).ok();
-
-        let mut move_packet = None;
-        let forced_position = self.absolute_countdown_time > 400;
-
-        if let (false, Some(dx), Some(dy), Some(dz)) = (forced_position, dx, dy, dz) {
-
-            // We don't send position if delta is too small.
-            send_pos = dx.unsigned_abs() >= 8 || dy.unsigned_abs() >= 8 || dz.unsigned_abs() >= 8;
-
-            if send_pos && send_look {
-                move_packet = Some(OutPacket::EntityMoveAndLook(proto::EntityMoveAndLookPacket {
-                    entity_id: self.id,
-                    dx,
-                    dy,
-                    dz,
-                    yaw: self.look.0,
-                    pitch: self.look.1,
-                }))
-            } else if send_pos {
-                move_packet = Some(OutPacket::EntityMove(proto::EntityMovePacket {
-                    entity_id: self.id,
-                    dx,
-                    dy,
-                    dz,
-                }))
-            } else if send_look {
-                move_packet = Some(OutPacket::EntityLook(proto::EntityLookPacket {
-                    entity_id: self.id,
-                    yaw: self.look.0,
-                    pitch: self.look.1,
-                }))
-            }
-
-        } else {
-            self.absolute_countdown_time = 0;
-            move_packet = Some(OutPacket::EntityPositionAndLook(proto::EntityPositionAndLookPacket {
-                entity_id: self.id,
-                x: self.pos.0,
-                y: self.pos.1,
-                z: self.pos.2,
-                yaw: self.look.0,
-                pitch: self.look.1,
-            }));
-        }
-
-        if send_pos {
-            self.sent_pos = self.pos;
-        }
-
-        if send_look {
-            self.sent_look = self.look;
-        }
-
-        if let Some(packet) = move_packet {
-            for player in players {
-                if player.tracked_entities.contains(&self.id) {
-                    player.send(packet.clone());
-                }
-            }
-        }
-
-        // If velocity tracking is enabled...
-        if self.vel_enable {
-
-            // We differ from the Notchian server because we don't check for the distance.
-            let dvx = self.vel.0 as i32 - self.sent_vel.0 as i32;
-            let dvy = self.vel.1 as i32 - self.sent_vel.1 as i32;
-            let dvz = self.vel.2 as i32 - self.sent_vel.2 as i32;
-            // If any axis velocity change by 0.0125 (100 when encoded *8000).
-            if dvx.abs() > 100 || dvy.abs() > 100 || dvz.abs() > 100 {
-                
-                for player in players {
-                    if player.tracked_entities.contains(&self.id) {
-                        player.send(OutPacket::EntityVelocity(proto::EntityVelocityPacket {
-                            entity_id: self.id,
-                            vx: self.vel.0,
-                            vy: self.vel.1,
-                            vz: self.vel.2,
-                        }));
-                    }
-                }
-        
-                self.sent_vel = self.vel;
-
-            }
-            
-        }
-
-    }
+    // /// Update this tracker to determine which move packet to send and to which players.
+    // pub fn update_players(&mut self, players: &[ServerPlayer]) {
+    //
+    //     let mut send_pos = true;
+    //     let send_look = self.look.0.abs_diff(self.sent_look.0) >= 8 || self.look.1.abs_diff(self.sent_look.1) >= 8;
+    //
+    //     // Check if the delta can be sent with a move packet.
+    //     let dx = i8::try_from(self.pos.0 - self.sent_pos.0).ok();
+    //     let dy = i8::try_from(self.pos.1 - self.sent_pos.1).ok();
+    //     let dz = i8::try_from(self.pos.2 - self.sent_pos.2).ok();
+    //
+    //     let mut move_packet = None;
+    //     let forced_position = self.absolute_countdown_time > 400;
+    //
+    //     if let (false, Some(dx), Some(dy), Some(dz)) = (forced_position, dx, dy, dz) {
+    //
+    //         // We don't send position if delta is too small.
+    //         send_pos = dx.unsigned_abs() >= 8 || dy.unsigned_abs() >= 8 || dz.unsigned_abs() >= 8;
+    //
+    //         if send_pos && send_look {
+    //             move_packet = Some(OutPacket::EntityMoveAndLook(proto::EntityMoveAndLookPacket {
+    //                 entity_id: self.id,
+    //                 dx,
+    //                 dy,
+    //                 dz,
+    //                 yaw: self.look.0,
+    //                 pitch: self.look.1,
+    //             }))
+    //         } else if send_pos {
+    //             move_packet = Some(OutPacket::EntityMove(proto::EntityMovePacket {
+    //                 entity_id: self.id,
+    //                 dx,
+    //                 dy,
+    //                 dz,
+    //             }))
+    //         } else if send_look {
+    //             move_packet = Some(OutPacket::EntityLook(proto::EntityLookPacket {
+    //                 entity_id: self.id,
+    //                 yaw: self.look.0,
+    //                 pitch: self.look.1,
+    //             }))
+    //         }
+    //
+    //     } else {
+    //         self.absolute_countdown_time = 0;
+    //         move_packet = Some(OutPacket::EntityPositionAndLook(proto::EntityPositionAndLookPacket {
+    //             entity_id: self.id,
+    //             x: self.pos.0,
+    //             y: self.pos.1,
+    //             z: self.pos.2,
+    //             yaw: self.look.0,
+    //             pitch: self.look.1,
+    //         }));
+    //     }
+    //
+    //     if send_pos {
+    //         self.sent_pos = self.pos;
+    //     }
+    //
+    //     if send_look {
+    //         self.sent_look = self.look;
+    //     }
+    //
+    //     if let Some(packet) = move_packet {
+    //         for player in players {
+    //             if player.tracked_entities.contains(&self.id) {
+    //                 player.send(packet.clone());
+    //             }
+    //         }
+    //     }
+    //
+    //     // If velocity tracking is enabled...
+    //     if self.vel_enable {
+    //
+    //         // We differ from the Notchian server because we don't check for the distance.
+    //         let dvx = self.vel.0 as i32 - self.sent_vel.0 as i32;
+    //         let dvy = self.vel.1 as i32 - self.sent_vel.1 as i32;
+    //         let dvz = self.vel.2 as i32 - self.sent_vel.2 as i32;
+    //         // If any axis velocity change by 0.0125 (100 when encoded *8000).
+    //         if dvx.abs() > 100 || dvy.abs() > 100 || dvz.abs() > 100 {
+    //
+    //             for player in players {
+    //                 if player.tracked_entities.contains(&self.id) {
+    //                     player.send(OutPacket::EntityVelocity(proto::EntityVelocityPacket {
+    //                         entity_id: self.id,
+    //                         vx: self.vel.0,
+    //                         vy: self.vel.1,
+    //                         vz: self.vel.2,
+    //                     }));
+    //                 }
+    //             }
+    //
+    //             self.sent_vel = self.vel;
+    //
+    //         }
+    //
+    //     }
+    //
+    // }
 
     // /// Update players to track or untrack this entity.
     // /// See [`update_tracking_player`](Self::update_tracking_player).
