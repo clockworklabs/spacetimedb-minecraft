@@ -2,4 +2,4 @@
 
 set -euo pipefail
 
-spacetime generate --out-dir crates/autogen/src/autogen --lang rust --delete-files -S
+spacetime generate --out-dir crates/mc173-server/src/autogen --lang rust --delete-files -S

@@ -23,7 +23,7 @@ use mc173_module::chunk_cache::ChunkCache;
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::entity::StdbHuman;
 use mc173_module::geom::Face;
-use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime};
+use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime, StdbChunkUpdate, StdbChunk, ChunkUpdateType};
 use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
 use mc173_module::vec2::StdbVec2;
@@ -446,6 +446,11 @@ pub fn generate_chunks(from_x: i32, from_z: i32, to_x: i32, to_z: i32) {
             let inner_handle = spacetimedb::time_span::Span::start("spacetimedb individual chunk");
             ChunkStorage::request_load(&mut world, x, z, &mut cache);
             inner_handle.end();
+            let _ = StdbChunkUpdate::insert(StdbChunkUpdate {
+                update_id: 0,
+                chunk_id: StdbChunk::xz_to_chunk_id(x, z),
+                update_type: ChunkUpdateType::FullChunkUpdate,
+            });
         }
     }
     cache.apply();

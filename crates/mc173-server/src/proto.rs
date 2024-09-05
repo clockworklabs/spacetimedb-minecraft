@@ -8,10 +8,9 @@ use glam::{DVec3, Vec2, IVec3};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use mc173::io::{ReadJavaExt, WriteJavaExt};
-use mc173::item::ItemStack;
-
-use crate::net;
+use crate::io::{ReadJavaExt, WriteJavaExt};
+use crate::item::ItemStack;
+use crate::{autogen, net};
 
 /// Type alias for Minecraft protocol server.
 pub type Network = net::Network<InPacket, OutPacket>;
@@ -295,9 +294,9 @@ pub struct BreakBlockPacket {
     pub status: u8,
 }
 
-impl From<BreakBlockPacket> for autogen::autogen::StdbBreakBlockPacket {
+impl From<BreakBlockPacket> for autogen::StdbBreakBlockPacket {
     fn from(value: BreakBlockPacket) -> Self {
-        autogen::autogen::StdbBreakBlockPacket {
+        autogen::StdbBreakBlockPacket {
             x: value.x,
             y: value.y,
             z: value.z,

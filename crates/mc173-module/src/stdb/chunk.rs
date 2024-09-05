@@ -15,6 +15,35 @@ pub struct StdbChunk {
 }
 
 #[spacetimedb(table(public))]
+#[derive(Copy, Clone)]
+pub struct StdbChunkUpdate {
+    #[autoinc]
+    #[unique]
+    pub update_id: u32,
+    pub chunk_id: u32,
+    pub update_type: ChunkUpdateType,
+}
+
+#[derive(SpacetimeType, Copy, Clone)]
+pub enum ChunkUpdateType {
+    FullChunkUpdate,
+    BlockSet,
+}
+
+#[derive(Debug, Clone)]
+#[spacetimedb(table(public))]
+pub struct StdbBlockSetUpdate {
+    #[autoinc]
+    #[unique]
+    pub update_id: u32,
+    pub x: i32,
+    pub y: i8,
+    pub z: i32,
+    pub block: u8,
+    pub metadata: u8,
+}
+
+#[spacetimedb(table(public))]
 pub struct StdbChunkView {
     #[primarykey]
     #[autoinc]

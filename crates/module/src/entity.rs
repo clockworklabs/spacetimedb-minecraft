@@ -328,8 +328,8 @@ impl StdbEntityTracker {
     //     }
     // }
 
-    // /// Update a player to track or untrack this entity. The correct packet is sent if
-    // /// the entity needs to appear or disappear on the client side.
+    /// Update a player to track or untrack this entity. The correct packet is sent if
+    /// the entity needs to appear or disappear on the client side.
     pub fn update_tracking_player(&self, player: &StdbServerPlayer) {
         // A player cannot track its own entity.
         if player.entity_id == self.entity_id {
@@ -346,7 +346,6 @@ impl StdbEntityTracker {
                 target_id: self.entity_id,
                 observer_id: player.entity_id,
             }).is_ok() {
-                // TODO(jdetter): This needs to happen in the translation layer!
                 // self.spawn_entity(player, world);
             }
         } else {
@@ -354,13 +353,9 @@ impl StdbEntityTracker {
                 view.target_id == self.entity_id && view.observer_id == player.entity_id).next();
             if let Some(existing_view) = existing_view {
                 StdbEntityView::delete_by_view_id(&existing_view.view_id);
-                // TODO(jdetter): This needs to happen in the translation layer!
                 // self.kill_entity(player);
             }
-        // } else if player.tracked_entities.remove(&self.entity_id) {
-            // self.kill_entity(player);
         }
-
     }
 
     // /// Force untrack this entity to this player if the player is already tracking it.

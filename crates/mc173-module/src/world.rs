@@ -30,7 +30,7 @@ use crate::item::ItemStack;
 use crate::block;
 use crate::chunk_cache::ChunkCache;
 use crate::i32vec3::StdbI32Vec3;
-use crate::stdb::chunk::StdbChunk;
+use crate::stdb::chunk::{ChunkUpdateType, StdbBlockSetUpdate, StdbChunk, StdbChunkUpdate};
 use crate::stdb::weather::StdbWeather;
 
 
@@ -189,13 +189,6 @@ pub struct StdbSetBlockEvent {
     pub new_metadata: u8,
 }
 
-#[spacetimedb(table(public))]
-pub struct StdbChunkEvent {
-    pub x: i32,
-    pub z: i32,
-    pub inner: ChunkEvent,
-}
-
 /// Core methods for worlds.
 impl StdbWorld {
 
@@ -295,18 +288,18 @@ impl StdbWorld {
 
     /// Get the current weather in the world.
     pub fn get_weather(&self) -> Weather {
-        StdbWeather::filter_by_id(&0).unwrap().weather
+        StdbWeather::filter_by_dimension_id(&0).unwrap().weather
     }
 
     /// Set the current weather in this world. If the weather has changed an event will
     /// be pushed into the events queue.
-    pub fn set_weather(&mut self, new_weather: Weather) {
-        let mut current_weather = StdbWeather::filter_by_id(&0).unwrap();
+    pub fn set_weather(&self, new_weather: Weather) {
+        let mut current_weather = StdbWeather::filter_by_dimension_id(&self.dimension_id).unwrap();
         if current_weather.weather == new_weather {
             return;
         }
         current_weather.weather = new_weather;
-        StdbWeather::update_by_id(&0, current_weather);
+        StdbWeather::update_by_dimension_id(&self.dimension_id, current_weather);
     }
 
     // =================== //
@@ -413,12 +406,6 @@ impl StdbWorld {
         //         self.block_entities.get_mut(index).unwrap().loaded = true;
         //     }
         // }
-
-        StdbChunkEvent::insert(StdbChunkEvent {
-            x: cx,
-            z: cz,
-            inner: ChunkEvent::Set
-        });
         // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Set });
 
         cache.set_chunk(StdbChunk {
@@ -526,6 +513,21 @@ impl StdbWorld {
                 old_metadata: prev_metadata,
             });
 
+            let stdb_chunk_update = StdbChunkUpdate::insert(StdbChunkUpdate {
+                update_id: 0,
+                chunk_id: chunk.chunk_id,
+                update_type: ChunkUpdateType::BlockSet,
+            }).unwrap();
+
+            StdbBlockSetUpdate::insert(StdbBlockSetUpdate {
+                update_id: stdb_chunk_update.update_id,
+                x: pos.x,
+                y: pos.y as i8,
+                z: pos.z,
+                block: id,
+                metadata,
+            });
+
             // self.push_event(Event::Block {
             //     pos,
             //     inner: BlockEvent::Set {
@@ -535,12 +537,6 @@ impl StdbWorld {
             //         prev_metadata,
             //     }
             // });
-
-            StdbChunkEvent::insert(StdbChunkEvent {
-                x: chunk.x,
-                z: chunk.z,
-                inner: ChunkEvent::Dirty
-            });
             // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
 
         }
@@ -1133,7 +1129,8 @@ impl StdbWorld {
         // self.tick_entities(nano_time);
         // self.tick_block_entities();
 
-        self.tick_light(1000, cache);
+        // TODO(jdetter): Re-enable this
+        // self.tick_light(1000, cache);
         
     }
 
@@ -1145,7 +1142,7 @@ impl StdbWorld {
             return;
         }
 
-        let mut weather = StdbWeather::filter_by_id(&0).unwrap();
+        let mut weather = StdbWeather::filter_by_dimension_id(&self.dimension_id).unwrap();
 
         // When it's time to recompute weather.
         if self.time >= weather.weather_next_time {
@@ -1162,7 +1159,7 @@ impl StdbWorld {
             let bound = if weather.weather == Weather::Clear { 168000 } else { 12000 };
             let delay = self.rand.next_int_bounded(bound) as u64 + 12000;
             weather.weather_next_time = self.time + delay;
-            StdbWeather::update_by_id(&0, weather);
+            StdbWeather::update_by_dimension_id(&self.dimension_id, weather);
         }
 
     }
@@ -1363,7 +1360,7 @@ impl StdbWorld {
     /// the real light value of blocks.
     fn tick_sky_light(&mut self) {
 
-        let weather = StdbWeather::filter_by_id(&0).unwrap();
+        let weather = StdbWeather::filter_by_dimension_id(&self.dimension_id).unwrap();
         let time_wrapped = self.time % 24000;
         let mut half_turn = (time_wrapped as f32 + 1.0) / 24000.0 - 0.25;
 
@@ -1546,6 +1543,8 @@ impl StdbWorld {
 
     /// Tick pending light updates for a maximum number of light updates. This function
     /// returns true only if all light updates have been processed.
+    /// TODO(jdetter): Look through this because this impl is super suspicious and I think *very*
+    ///  likely there are some bugs here in the stdb impl.
     pub fn tick_light(&mut self, limit: usize, cache: &mut ChunkCache) {
 
         // IMPORTANT NOTE: This algorithm is terrible but works, I've been trying to come
@@ -1611,11 +1610,12 @@ impl StdbWorld {
 
 
             if changed {
-                StdbChunkEvent::insert(StdbChunkEvent {
-                    x: cx,
-                    z: cz,
-                    inner: ChunkEvent::Dirty,
-                });
+                // TODO: There is probably a bug here
+                // StdbChunkEvent::insert(StdbChunkEvent {
+                //     x: cx,
+                //     z: cz,
+                //     inner: ChunkEvent::Dirty,
+                // });
 
                 // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
                 cache.set_chunk(chunk);

@@ -8,15 +8,10 @@ use std::io;
 use glam::{DVec3, Vec2};
 
 use tracing::{warn, info};
-use autogen::autogen::{stdb_handle_accept, stdb_handle_lost, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer, StdbServerWorld, StdbTime, StdbWeather, StdbWorld};
-use mc173::world::{Dimension, Weather};
-use mc173::entity::{self as e};
-
-use crate::config;
-use crate::proto::{self, Network, NetworkEvent, NetworkClient, InPacket, OutPacket};
-use crate::offline::OfflinePlayer;
+use crate::autogen::{stdb_handle_accept, stdb_handle_lost, StdbClientState, StdbConnectionStatus, StdbEntity, StdbInLoginPacket, StdbServerPlayer, StdbServerWorld, StdbTime, StdbWeather, StdbWorld};
+use crate::{autogen, config};
 use crate::player::ServerPlayer;
-use crate::world::ServerWorld;
+use crate::proto::{self, Network, NetworkEvent, NetworkClient, InPacket, OutPacket};
 
 
 /// Target tick duration. Currently 20 TPS, so 50 ms/tick.
@@ -30,10 +25,10 @@ pub struct Server {
     pub net: Network,
     /// Clients of this server, these structures track the network state of each client.
     pub clients: HashMap<u64, NetworkClient>,
-    /// Worlds list.
-    pub worlds: Vec<ServerWorld>,
-    /// Offline players
-    offline_players: HashMap<String, OfflinePlayer>,
+    //// Worlds list.
+    // pub worlds: Vec<ServerWorld>,
+    //// Offline players
+    // offline_players: HashMap<String, OfflinePlayer>,
 }
 
 impl Server {
@@ -46,10 +41,10 @@ impl Server {
         Ok(Self {
             net: Network::bind(addr)?,
             clients: HashMap::<u64, NetworkClient>::new(),
-            worlds: vec![
-                ServerWorld::new("overworld"),
-            ],
-            offline_players: HashMap::new(),
+            // worlds: vec![
+            //     ServerWorld::new("overworld"),
+            // ],
+            // offline_players: HashMap::new(),
         })
 
     }
@@ -70,9 +65,9 @@ impl Server {
 
         self.tick_net()?;
 
-        for world in &mut self.worlds {
-            world.tick();
-        }
+        // for world in &mut self.worlds {
+        //     world.tick();
+        // }
 
         Ok(())
 
@@ -195,7 +190,7 @@ impl Server {
         //     player.username = packet.username.clone();
         // });
 
-        autogen::autogen::stdb_handle_login(
+        autogen::stdb_handle_login(
             client.id(),
             StdbInLoginPacket {
                 protocol_version: packet.protocol_version,
@@ -246,7 +241,7 @@ impl Server {
             time: StdbTime::find_by_id(0).unwrap().time
         }));
 
-        if StdbWeather::find_by_id(0).unwrap().weather != autogen::autogen::Weather::Clear {
+        if StdbWeather::find_by_dimension_id(entity.dimension_id).unwrap().weather != autogen::Weather::Clear {
         // if world.world.get_weather() != Weather::Clear {
             self.net.send(client, OutPacket::Notification(proto::NotificationPacket {
                 reason: 1,

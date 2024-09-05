@@ -1,6 +1,5 @@
 //! A Minecraft beta 1.7.3 server in Rust.
 
-use autogen::autogen::{connect, on_handle_break_block, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_login, stdb_handle_login, HandleLookArgs, HandlePositionArgs, HandlePositionLookArgs, ReducerEvent, StdbBreakBlockPacket, StdbChunk, StdbChunkEvent, StdbEntity, StdbEntityView, StdbInLoginPacket, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather, StdbWorld};
 use clap::{Arg, Command};
 use glam::IVec3;
 use lazy_static::lazy_static;
@@ -9,14 +8,16 @@ use spacetimedb_sdk::reducer::Status;
 use spacetimedb_sdk::table::TableType;
 use spacetimedb_sdk::table::TableWithPrimaryKey;
 use spacetimedb_sdk::{subscribe, Address, on_subscription_applied, log};
-use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::warn;
-use mc173::world::Event;
-use crate::entity::{stdb_kill_entity, stdb_spawn_entity_human};
+use crate::autogen::{connect, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_login, ReducerEvent, StdbChunk, StdbChunkView, StdbEntity, StdbEntityTracker, StdbEntityView, StdbHuman, StdbInLoginPacket, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather};
+use crate::player::ServerPlayer;
 use crate::proto::{InLoginPacket, OutPacket};
+use crate::server::Server;
+use crate::types::Event;
+use crate::autogen::Weather;
 
 // The common configuration of the server.
 pub mod config;
@@ -27,15 +28,21 @@ pub mod proto;
 
 // This modules use each others, this is usually a bad design but here this was too huge
 // for a single module and it will be easier to maintain like this.
-pub mod chunk;
 pub mod command;
-pub mod entity;
-pub mod offline;
-pub mod player;
-pub mod world;
+mod block;
+mod item;
+mod geom;
+mod craft;
 
 // This module link the previous ones to make a fully functional, multi-world server.
 pub mod server;
+pub mod io;
+mod types;
+mod player;
+mod world;
+mod convert;
+mod autogen;
+mod chunk;
 
 /// Storing true while the server should run.
 static RUNNING: AtomicBool = AtomicBool::new(true);
@@ -48,17 +55,30 @@ lazy_static! {
 fn on_weather_updated(old_weather: &StdbWeather, new_weather: &StdbWeather, _reducer_event: Option<&ReducerEvent>) {
     println!("Received new weather!");
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().worlds[0].world.push_event(Event::Weather { prev: old_weather.weather.clone().into(), new: new_weather.weather.clone().into() });
+    let mut server = s.as_mut().unwrap();
+
+    for player in StdbServerPlayer::iter() {
+        let entity = StdbEntity::find_by_entity_id(player.entity_id).unwrap();
+        if entity.dimension_id != new_weather.dimension_id {
+            continue;
+        }
+
+        ServerPlayer::send(server, player.connection_id, OutPacket::Notification(proto::NotificationPacket {
+            reason: if new_weather.weather == Weather::Clear { 2 } else { 1 },
+        }));
+    }
 }
 
 fn on_chunk_inserted(chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
     println!("Received chunk inserted!");
     let mut s = SERVER.lock().unwrap();
-    s.as_mut().unwrap().worlds[0].world.set_chunk(
-        chunk.x,
-        chunk.z,
-        Arc::new(chunk.chunk.clone().into()),
-    );
+    let server = s.as_ref().unwrap();
+
+    // Who needs this chunk?
+    for view in StdbChunkView::filter_by_chunk_id(chunk.chunk_id) {
+        let player = StdbServerPlayer::find_by_entity_id(view.observer_id).unwrap();
+        chunk.send_full(server, player.connection_id);
+    }
 }
 
 fn on_chunk_update(
@@ -67,31 +87,33 @@ fn on_chunk_update(
     _reducer_event: Option<&ReducerEvent>,
 ) {
     println!("Received chunk update!");
-    let mut s = SERVER.lock().unwrap();
-    let mut server = s.as_mut().unwrap();
-    server.worlds[0].world.set_chunk(
-        chunk.x,
-        chunk.z,
-        Arc::new(chunk.chunk.clone().into()),
-    );
-    server.worlds[0].state.chunk_trackers.flush_chunk(chunk.x, chunk.z);
+    // TODO(jdetter): reimpl this
+    // let mut s = SERVER.lock().unwrap();
+    // let mut server = s.as_mut().unwrap();
+    // server.worlds[0].world.set_chunk(
+    //     chunk.x,
+    //     chunk.z,
+    //     Arc::new(chunk.chunk.clone().into()),
+    // );
+    // server.worlds[0].state.chunk_trackers.flush_chunk(chunk.x, chunk.z);
 }
 
 fn on_set_block_event_insert(event: &StdbSetBlockEvent, _reducer_event: Option<&ReducerEvent>) {
     let mut s = SERVER.lock().unwrap();
     let mut server = s.as_mut().unwrap();
-    server.worlds[0]
-        .world
-        .push_set_block_event(event.clone());
+    // TODO(jdetter): reimpl this
+    // server.worlds[0]
+    //     .world
+    //     .push_set_block_event(event.clone());
 }
 
-fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>) {
-    let mut s = SERVER.lock().unwrap();
-    let mut server = s.as_mut().unwrap();
-    server.worlds[0]
-        .world
-        .push_chunk_event(event.clone());
-}
+// fn on_chunk_event(event: &StdbChunkEvent, _reducer_event: Option<&ReducerEvent>) {
+//     let mut s = SERVER.lock().unwrap();
+//     let mut server = s.as_mut().unwrap();
+//     server.worlds[0]
+//         .world
+//         .push_chunk_event(event.clone());
+// }
 
 fn on_entity_view_inserted(
     new_view: &StdbEntityView,
@@ -103,6 +125,32 @@ fn on_entity_view_inserted(
     let server = s.as_mut().unwrap();
     stdb_spawn_entity_human(server, new_view.observer_id, new_view.target_id);
 }
+pub fn stdb_spawn_entity_human(server: &Server, player_observer_id: u32, human_target_id: u32) {
+    let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
+    let tracker = StdbEntityTracker::find_by_entity_id(human_target_id).unwrap();
+    let client = server.clients.get(&observer.connection_id).unwrap();
+    let human = StdbHuman::find_by_entity_id(human_target_id).unwrap();
+    let metadata = vec![
+        proto::Metadata::new_byte(0, (human.sneaking as i8) << 1),
+    ];
+    server.net.send(client.clone(), OutPacket::HumanSpawn(proto::HumanSpawnPacket {
+        entity_id: human.entity_id,
+        username: human.username.clone(),
+        x: tracker.sent_pos.x,
+        y: tracker.sent_pos.y,
+        z: tracker.sent_pos.z,
+        yaw: tracker.sent_look.x,
+        pitch: tracker.sent_look.y,
+        // Is this the item they're holding?
+        current_item: 0, // TODO:
+    }));
+
+    server.net.send(client.clone(), OutPacket::EntityMetadata(proto::EntityMetadataPacket {
+        entity_id: human.entity_id,
+        metadata,
+    }));
+
+}
 
 fn on_entity_view_deleted(
     new_view: &StdbEntityView,
@@ -113,6 +161,43 @@ fn on_entity_view_deleted(
     let mut s = SERVER.lock().unwrap();
     let server = s.as_mut().unwrap();
     stdb_kill_entity(server, new_view.observer_id, new_view.target_id);
+}
+
+/// Kill the entity on the player side.
+pub fn stdb_kill_entity(server: &Server, player_observer_id: u32, human_target_id: u32) {
+    let observer = StdbServerPlayer::find_by_entity_id(player_observer_id).unwrap();
+    let client = server.clients.get(&observer.connection_id).unwrap().clone();
+
+    server.net.send(client, OutPacket::EntityKill(proto::EntityKillPacket {
+        entity_id: human_target_id
+    }));
+}
+
+fn on_chunk_view_inserted(
+    new_view: &StdbChunkView,
+    _reducer_event: Option<&ReducerEvent>,
+) {
+    println!("New chunk tracked! observer_id: {} chunk_id: {}",
+             new_view.observer_id, new_view.chunk_id);
+    let mut s = SERVER.lock().unwrap();
+    let server = s.as_mut().unwrap();
+    let chunk = StdbChunk::find_by_chunk_id(new_view.chunk_id).unwrap();
+    let player = StdbServerPlayer::find_by_entity_id(new_view.observer_id).unwrap();
+    chunk.send_full(server, player.connection_id);
+}
+
+fn on_chunk_view_deleted(
+    new_view: &StdbChunkView,
+    _reducer_event: Option<&ReducerEvent>,
+) {
+    println!("Chunk no longer tracked! observer_id: {} chunk_id: {}",
+             new_view.observer_id, new_view.chunk_id);
+
+    // TODO(jdetter): I think there's nothing to do here, it appears that minecraft doesn't care
+    //  when you go out of range of a chunk.
+    // let mut s = SERVER.lock().unwrap();
+    // let server = s.as_mut().unwrap();
+    // stdb_kill_entity(server, new_view.observer_id, new_view.chunk_id);
 }
 
 fn on_handle_login_callback(ident: &Identity, _: Option<Address>, _: &Status, connection_id: &u64, packet: &StdbInLoginPacket) {
@@ -182,6 +267,8 @@ pub fn main() {
     on_stdb_handle_login(on_handle_login_callback);
     StdbEntityView::on_insert(on_entity_view_inserted);
     StdbEntityView::on_delete(on_entity_view_deleted);
+    StdbChunkView::on_insert(on_chunk_view_inserted);
+    StdbChunkView::on_delete(on_chunk_view_deleted);
     connect(server, module, None).expect("Failed to connect");
     subscribe(&["SELECT * FROM *"]).unwrap();
     println!("Connected to SpacetimeDB");

@@ -27,7 +27,7 @@ pub const CHUNK_3D_SIZE: usize = CHUNK_HEIGHT * CHUNK_2D_SIZE;
 /// is the same layout used by Minecraft's code `_xxx xzzz zyyy yyyy`. Only firsts 
 /// relevant bits are taken in each coordinate component.
 #[inline]
-fn calc_3d_index(pos: IVec3) -> usize {
+pub fn calc_3d_index(pos: IVec3) -> usize {
     debug_assert!(pos.y >= 0 && pos.y < CHUNK_HEIGHT as i32);
     let x = pos.x as u32 & 0b1111;
     let z = pos.z as u32 & 0b1111;

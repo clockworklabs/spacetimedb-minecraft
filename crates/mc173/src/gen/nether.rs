@@ -1,3 +1,0 @@
-//! Nether chunk generator.
-
-

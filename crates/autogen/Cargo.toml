@@ -1,8 +1,0 @@
-[package]
-name = "autogen"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-spacetimedb-sdk = "0.10"
-glam = "0.24"
