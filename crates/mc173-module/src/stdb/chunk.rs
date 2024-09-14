@@ -30,8 +30,8 @@ pub enum ChunkUpdateType {
     BlockSet,
 }
 
-#[derive(Debug, Clone)]
 #[spacetimedb(table(public))]
+#[derive(Debug, Clone)]
 pub struct StdbBlockSetUpdate {
     #[autoinc]
     #[unique]

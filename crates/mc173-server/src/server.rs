@@ -117,9 +117,18 @@ impl Server {
     }
 
     fn handle_packet(&mut self, client: NetworkClient, packet: InPacket) {
-        
-        // println!("[{client:?}] Packet: {packet:?}");
-        let status = StdbConnectionStatus::find_by_connection_id(client.id()).unwrap();
+
+        let packet_str = format!("{packet:?}");
+        if !packet_str.starts_with("Position") && !packet_str.starts_with("Flying") && !packet_str.starts_with("Look") {
+            println!("[{client:?}] Packet: {packet:?}");
+        }
+
+        let status = StdbConnectionStatus::find_by_connection_id(client.id()).unwrap_or(
+            StdbConnectionStatus {
+                connection_id: 0,
+                status: StdbClientState::Handshaking,
+            }
+        );
 
         // match *self.clients.get(&client).unwrap() {
         match status.status {
@@ -202,7 +211,11 @@ impl Server {
     }
 
     pub fn handle_login_result(&mut self, connection_id: u64) {
-        let new_player = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
+        let new_player = StdbServerPlayer::find_by_connection_id(connection_id);
+        if new_player.is_none() {
+            return;
+        }
+        let new_player = new_player.unwrap();
         let client = self.clients.get(&connection_id).unwrap().clone();
         // let world = self.worlds.get_mut(0).unwrap();
         let entity = StdbEntity::find_by_entity_id(new_player.entity_id.clone()).unwrap();

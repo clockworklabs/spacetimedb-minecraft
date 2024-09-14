@@ -5,11 +5,16 @@ use std::time::Instant;
 
 use glam::{DVec3, IVec3, Vec2};
 use spacetimedb::{query, spacetimedb, SpacetimeType};
-use mc173_module::world::StdbWorld;
+use mc173_module::block;
+use mc173_module::chunk::calc_chunk_pos;
+use mc173_module::chunk_cache::ChunkCache;
+use mc173_module::geom::Face;
+use mc173_module::stdb::chunk::{ChunkUpdateType, StdbBlockSetUpdate, StdbChunk, StdbChunkUpdate};
+use mc173_module::world::{LightKind, StdbWorld};
 use crate::proto::{self, OutPacket};
 use crate::config;
 use crate::entity::{StdbEntityTracker, StdbEntityView};
-use crate::player::{StdbConnectionStatus, StdbServerPlayer, StdbTrackedPlayer};
+use crate::player::{StdbConnectionStatus, StdbEntity, StdbServerPlayer, StdbTrackedPlayer};
 /// A single world in the server, this structure keep tracks of players and entities
 /// tracked by players.
 // pub struct StdbServerWorld {
@@ -291,9 +296,28 @@ impl StdbServerWorld {
     pub fn handle_player_join(&mut self, player: StdbServerPlayer) {
 
         // Initial tracked entities.
-        for tracker in query!(|view: StdbEntityView| view.target_id == player.entity_id) {
-            let tracker = StdbEntityTracker::filter_by_entity_id(&tracker.target_id).unwrap();
-            tracker.update_tracking_player(&player);
+        for tracker in StdbEntityView::filter_by_target_id(&player.entity_id) {
+            StdbEntityView::delete_by_view_id(&tracker.view_id);
+            // let tracker = StdbEntityTracker::filter_by_entity_id(&tracker.target_id).unwrap();
+            // tracker.update_tracking_player(&player);
+        }
+
+        let player_entity = StdbEntity::filter_by_entity_id(&player.entity_id).unwrap();
+        for other_entity in StdbEntity::filter_by_dimension_id(&player_entity.dimension_id) {
+            if other_entity.entity_id != player_entity.entity_id {
+                // TODO(jdetter): Check distance
+                let _ = StdbEntityView::insert(StdbEntityView {
+                    view_id: 0,
+                    observer_id: other_entity.entity_id,
+                    target_id: player_entity.entity_id,
+                });
+
+                let _ = StdbEntityView::insert(StdbEntityView {
+                    view_id: 0,
+                    observer_id: player_entity.entity_id,
+                    target_id: other_entity.entity_id,
+                });
+            }
         }
 
         // for tracker in self.state.entity_trackers.values() {
@@ -575,4 +599,107 @@ impl StdbServerWorld {
     //         }
     //     }
     // }
+
+    /// Same as the [`set_block_self_notify`] method, but additionally the blocks around
+    /// are notified of that neighbor change.
+    ///
+    /// [`set_block_self_notify`]: Self::set_block_self_notify
+    pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata, cache)?;
+        // self.notify_blocks_around(pos, id, cache);
+        Some((prev_id, prev_metadata))
+    }
+
+    /// Same as the [`set_block`] method, but the previous block and new block are
+    /// notified of that removal and addition.
+    ///
+    /// [`set_block`]: Self::set_block
+    pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = self.set_block(pos, id, metadata, cache)?;
+        // self.notify_change_unchecked(pos, prev_id, prev_metadata, id, metadata);
+        Some((prev_id, prev_metadata))
+    }
+
+    /// Set block and metadata at given position in the world, if the chunk is not
+    /// loaded, none is returned, but if it is existing the previous block and metadata
+    /// is returned. This function also push a block change event and update lights
+    /// accordingly.
+    pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (cx, cz) = calc_chunk_pos(pos)?;
+        let mut chunk = cache.get_chunk(cx, cz)?;
+
+        let result = self.set_block_inner(pos, id, metadata, &mut chunk);
+
+        if result.0 {
+            let id = chunk.chunk_id;
+            cache.set_chunk(chunk);
+            // StdbChunk::update_by_chunk_id(&id, chunk);
+        }
+
+        Some((result.1, result.2))
+    }
+
+    pub fn set_block_inner(&mut self, pos: IVec3, id: u8, metadata: u8, chunk: &mut StdbChunk) -> (bool, u8, u8) {
+
+        let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
+        let mut changed = false;
+
+        if id != prev_id || metadata != prev_metadata {
+            changed = true;
+
+            chunk.chunk.set_block(pos, id, metadata);
+            chunk.chunk.recompute_height(pos);
+
+            // Schedule light updates if the block light properties have changed.
+            // if block::material::get_light_opacity(id) != block::material::get_light_opacity(prev_id)
+            //     || block::material::get_light_emission(id) != block::material::get_light_emission(prev_id) {
+            //     self.schedule_light_update(pos, LightKind::Block);
+            //     self.schedule_light_update(pos, LightKind::Sky);
+            // }
+
+            // TODO: Another event that we don't care about in the SpacetimeDB module
+            // StdbSetBlockEvent::insert(StdbSetBlockEvent {
+            //     pos: pos.into(),
+            //     new_id: id,
+            //     new_metadata: metadata,
+            //     old_id: prev_id,
+            //     old_metadata: prev_metadata,
+            // });
+
+            // self.push_event(Event::Block {
+            //     pos,
+            //     inner: BlockEvent::Set {
+            //         id,
+            //         metadata,
+            //         prev_id,
+            //         prev_metadata,
+            //     }
+            // });
+
+            let chunk_update = StdbChunkUpdate::insert(StdbChunkUpdate {
+                update_id: 0,
+                chunk_id: StdbChunk::xz_to_chunk_id(chunk.x, chunk.z),
+                update_type: ChunkUpdateType::BlockSet,
+            }).unwrap();
+
+            StdbBlockSetUpdate::insert(StdbBlockSetUpdate {
+                update_id: chunk_update.update_id,
+                x: pos.x,
+                y: pos.y as i8,
+                z: pos.z,
+                block: id,
+                metadata,
+            }).unwrap();
+
+            // StdbChunkEvent::insert(StdbChunkEvent {
+            //     x: chunk.x,
+            //     z: chunk.z,
+            //     inner: ChunkEvent::Dirty
+            // });
+            // self.push_event(Event::Chunk { cx, cz, inner: ChunkEvent::Dirty });
+
+        }
+
+        (changed, prev_id, prev_metadata)
+    }
 }

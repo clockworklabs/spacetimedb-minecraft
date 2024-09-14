@@ -398,13 +398,12 @@ pub struct Human {
     pub sneaking: bool,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 #[derive(Clone)]
 pub struct StdbHuman {
     #[primarykey]
     pub entity_id: u32,
     /// The player username.
-    #[unique]
     pub username: String,
     /// True when the player is sleeping.
     pub sleeping: bool,

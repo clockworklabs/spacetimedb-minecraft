@@ -26,7 +26,7 @@ use crate::player::StdbClientState::Playing;
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 
 /// A server player is an actual
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 #[derive(Clone)]
 pub struct StdbServerPlayer {
     /// The network handle for the network server.
@@ -76,9 +76,10 @@ pub struct StdbServerPlayer {
     // breaking_block: Option<BreakingBlock>,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbOfflineServerPlayer {
     #[primarykey]
+    pub connection_id: u64,
     pub username: String,
     pub player: StdbServerPlayer,
 }
@@ -110,7 +111,7 @@ pub struct StdbPlayingState {
     pub entity_id: u32,
 }
 
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbConnectionStatus {
     #[unique]
     pub connection_id: u64,
@@ -118,7 +119,7 @@ pub struct StdbConnectionStatus {
 }
 
 // TODO(jdetter): This will be removed when we actually implement entities
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 #[derive(Clone)]
 pub struct StdbEntity {
     #[autoinc]
@@ -286,7 +287,7 @@ impl StdbServerPlayer {
         self.handle_position_look_inner(Some(packet.pos), Some(packet.look), packet.on_ground);
     }
 
-    pub fn handle_position_look_inner(self, pos: Option<StdbDVec3>, look: Option<StdbVec2>, on_ground: bool) {
+    pub fn handle_position_look_inner(&self, pos: Option<StdbDVec3>, look: Option<StdbVec2>, on_ground: bool) {
 
         let mut entity = StdbEntity::filter_by_entity_id(&self.entity_id).expect(
             format!("Could not find player with id: {}", self.entity_id).as_str());
@@ -1452,7 +1453,7 @@ impl StdbServerPlayer {
 
         let player_entity = StdbEntity::filter_by_entity_id(&player_id).unwrap();
         let (ocx, ocz) = chunk::calc_entity_chunk_pos(player_entity.pos.as_dvec3());
-        let view_range = 1;
+        let view_range = 2;
 
         for cx in (ocx - view_range)..(ocx + view_range) {
             for cz in (ocz - view_range)..(ocz + view_range) {

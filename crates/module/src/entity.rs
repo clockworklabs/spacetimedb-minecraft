@@ -17,8 +17,8 @@ use crate::player::{StdbEntity, StdbServerPlayer};
 /// This structure tracks every entity spawned in the world and save their previous
 /// position/look (and motion for some entities). It handle allows sending the right
 /// packets to the right players when these properties are changed.
-#[derive(Debug, Clone)]
 #[spacetimedb(table(public))]
+#[derive(Debug, Clone)]
 pub struct StdbEntityTracker {
     /// The entity id.
     #[primarykey]
@@ -54,6 +54,8 @@ pub struct StdbEntityTracker {
 }
 
 #[spacetimedb(table(public))]
+#[spacetimedb(index(btree, observer_id))]
+#[spacetimedb(index(btree, target_id))]
 pub struct StdbEntityView {
     #[primarykey]
     #[autoinc]

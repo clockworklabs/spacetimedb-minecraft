@@ -122,7 +122,7 @@ thread_local! {
 /// # Roadmap
 /// 
 /// - Make a diagram to better explain the world structure with entity caching.
-#[spacetimedb(table)]
+#[spacetimedb(table(public))]
 pub struct StdbWorld {
     /// When enabled, this contains the list of events that happened in the world since
     /// it was last swapped. This swap behavior is really useful in order to avoid 

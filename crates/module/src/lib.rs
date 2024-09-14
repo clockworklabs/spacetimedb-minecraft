@@ -23,11 +23,15 @@ use mc173_module::chunk_cache::ChunkCache;
 use mc173_module::dvec3::StdbDVec3;
 use mc173_module::entity::StdbHuman;
 use mc173_module::geom::Face;
+use mc173_module::i16vec3::StdbI16Vec3;
+use mc173_module::i32vec3::StdbI32Vec3;
+use mc173_module::i8vec3::StdbI8Vec2;
 use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime, StdbChunkUpdate, StdbChunk, ChunkUpdateType};
 use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
 use mc173_module::vec2::StdbVec2;
 use crate::config::SPAWN_POS;
+use crate::entity::{StdbEntityTracker, StdbEntityTrackerUpdateType};
 use crate::offline::StdbOfflinePlayer;
 use crate::player::{StdbClientState, StdbConnectionStatus, StdbEntity, StdbOfflineServerPlayer, StdbPlayingState, StdbServerPlayer};
 use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
@@ -80,6 +84,7 @@ pub fn init(context: ReducerContext) {
 
 #[spacetimedb(reducer)]
 pub fn stdb_handle_accept(connection_id: u64) {
+    log::info!("New connection started: {}", connection_id);
     let _ = StdbConnectionStatus::insert(StdbConnectionStatus {
         connection_id,
         status: StdbClientState::Handshaking,
@@ -88,7 +93,7 @@ pub fn stdb_handle_accept(connection_id: u64) {
 
 #[spacetimedb(reducer)]
 fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
-    log::info!("New player logged in: {}", packet.username);
+    log::info!("New player logged in: {} {}", packet.username, connection_id);
 
     // This is checked by the translation layer
     // if packet.protocol_version != 14 {
@@ -116,7 +121,7 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     //     .next()
     //     .expect("invalid offline player world name");
 
-    let (entity, player) = if let Some(player) = StdbOfflineServerPlayer::filter_by_username(&packet.username) {
+    let (entity, player) = if let Some(player) = StdbOfflineServerPlayer::filter_by_connection_id(&connection_id) {
         let existing_player = player.player;
         let player = StdbServerPlayer::insert(existing_player.clone()).unwrap();
         (StdbEntity::filter_by_entity_id(&existing_player.entity_id).unwrap(), player)
@@ -139,12 +144,12 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
             spawn_pos: spawn_pos.into(),
         }).unwrap();
 
-        let _ = StdbHuman::insert(StdbHuman {
+        StdbHuman::insert(StdbHuman {
             entity_id: new_entity.entity_id.clone(),
             username: packet.username,
             sleeping: false,
             sneaking: false,
-        });
+        }).unwrap();
         (new_entity, player)
     };
 
@@ -196,6 +201,27 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
     //         reason: 1,
     //     }));
     // }
+
+    // If this player doesn't already have a tracker, add one
+    if StdbEntityTracker::filter_by_entity_id(&player.entity_id).is_none() {
+        log::info!("Created new entity tracker: connection_id: {} entity_id: {}", connection_id, player.entity_id);
+        StdbEntityTracker::insert(StdbEntityTracker {
+            entity_id: player.entity_id,
+            distance: 512,
+            interval: 2,
+            time: 0,
+            absolute_countdown_time: 0,
+            vel_enable: false,
+            pos: StdbI32Vec3 { x: 0, y: 0, z: 0, },
+            vel: StdbI16Vec3 { x: 0, y: 0, z: 0, },
+            look: StdbI8Vec2 { x: 0, y: 0 },
+            sent_pos: StdbI32Vec3 { x: 0, y: 0, z: 0, },
+            sent_vel: StdbI16Vec3 { x: 0, y: 0, z: 0, },
+            sent_look: StdbI8Vec2 { x: 0, y: 0 },
+            last_update_type: StdbEntityTrackerUpdateType::None,
+            was_velocity_update: false,
+        }).unwrap();
+    }
 
     // Finally insert the player tracker.
     // let server_player = ServerPlayer::new(&self.net, client, entity_id, packet.username, &offline_player);
@@ -540,15 +566,15 @@ pub fn generate_chunk(x: i32, z: i32) {
 // }
 
 #[spacetimedb(reducer)]
-fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
+pub fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
 
     let mut cache = ChunkCache::new();
 
-    // TODO(jdetter): replace this when we migrate entities
-    let username = "Boppy";
-
     // NOTE: Instead of just grabbing an arbirary world, we should use the world that the player is in
-    let mut world = StdbWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
+    let entity = StdbEntity::filter_by_entity_id(&entity_id).unwrap();
+    let player = StdbServerPlayer::filter_by_entity_id(&entity_id).unwrap();
+    let username = player.username;
+    let mut world = StdbWorld::filter_by_dimension_id(&entity.dimension_id).unwrap();
 
     let face = match packet.face {
         0 => Face::NegY,
@@ -568,7 +594,7 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     };
 
     // tracing::trace!("packet: {packet:?}");
-    log::info!("Breaking block: {} {} {}", packet.x, packet.y, packet.z);
+    log::info!("Breaking block: {} {} {} status={}", packet.x, packet.y, packet.z, packet.status);
     // TODO: Use server time for breaking blocks.
 
     // let in_water = entity.0.in_water;
@@ -634,15 +660,15 @@ fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
         if let Some(some_breaking_block) = stdb_breaking_block.take() {
             if <mc173_module::i32vec3::StdbI32Vec3 as Into<IVec3>>::into(some_breaking_block.state.pos) == pos && world.is_block(pos, some_breaking_block.state.id, &mut cache) {
                 // let break_duration = world.get_break_duration(stack.id, breaking_block.id, in_water, on_ground);
-                let break_duration = world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
-                let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;
-                if world.get_time() >= min_time {
-                    world.break_block(pos, &mut cache);
-                } else {
+                // let break_duration = world.get_break_duration(hand_item, some_breaking_block.state.id, in_water, on_ground);
+                // let min_time = some_breaking_block.state.start_time + (break_duration * 0.7) as u64;
+                // if world.get_time() >= min_time {
+                //     world.break_block(pos, &mut cache);
+                // } else {
+                //     log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.get_time());
+                // }
 
-                    log::warn!("from {}, incoherent break time, expected {min_time} but got {}", username, world.get_time());
-
-                }
+                world.break_block(pos, &mut cache);
             } else {
                 log::warn!("from {}, incoherent break position", username);
             }
@@ -674,7 +700,7 @@ fn handle_position(entity_id: u32, packet: StdbPositionPacket) {
     let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
         format!("Could not find player with id: {}", entity_id).as_str());
     player.handle_position_look_inner(Some(packet.pos), None, packet.on_ground);
-    log::info!("Updated Player position");
+    log::info!("Updated Player position connection_id: {} username: {}", player.connection_id, player.username);
 }
 
 /// Handle a look packet.
@@ -683,7 +709,7 @@ fn handle_look(entity_id: u32, packet: StdbLookPacket) {
     let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
         format!("Could not find player with id: {}", entity_id).as_str());
     player.handle_position_look_inner(None, Some(packet.look), packet.on_ground);
-    log::info!("Updated Player look");
+    log::info!("Updated Player look connection_id: {} username: {}", player.connection_id, player.username);
 }
 
 /// Handle a position and look packet.
@@ -692,5 +718,5 @@ fn handle_position_look(entity_id: u32, packet: StdbPositionLookPacket) {
     let mut player = StdbServerPlayer::filter_by_entity_id(&entity_id).expect(
         format!("Could not find player with id: {}", entity_id).as_str());
     player.handle_position_look_inner(Some(packet.pos), Some(packet.look), packet.on_ground);
-    log::info!("Updated Player position and look");
+    log::info!("Updated Player position and look: connection_id {} username: {}", player.connection_id, player.username);
 }
