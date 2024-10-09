@@ -46,10 +46,6 @@ impl StdbHuman {
         Self::filter(|row| row.username == username)
     }
     #[allow(unused)]
-    pub fn find_by_username(username: String) -> Option<Self> {
-        Self::find(|row| row.username == username)
-    }
-    #[allow(unused)]
     pub fn filter_by_sleeping(sleeping: bool) -> TableIter<Self> {
         Self::filter(|row| row.sleeping == sleeping)
     }

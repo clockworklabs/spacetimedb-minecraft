@@ -42,7 +42,7 @@ pub enum InPacket {
     /// The client's player break a block.
     BreakBlock(BreakBlockPacket),
     /// The client's player place a block.
-    PlaceBlock(PlaceBlockPacket),
+    PlaceBlock(StdbPlaceBlockPacket),
     /// The client's player change its hand item.
     HandSlot(HandSlotPacket),
     /// The client's player has an animation, vanilla client usually only send swing arm.
@@ -294,8 +294,8 @@ pub struct BreakBlockPacket {
 }
 
 /// Packet 15
-#[derive(Debug, Clone)]
-pub struct PlaceBlockPacket {
+#[derive(Debug, Clone, SpacetimeType)]
+pub struct StdbPlaceBlockPacket {
     pub x: i32,
     pub y: i8,
     pub z: i32,
@@ -304,7 +304,7 @@ pub struct PlaceBlockPacket {
 }
 
 /// Packet 16
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, SpacetimeType)]
 pub struct HandSlotPacket {
     pub slot: i16,
 }

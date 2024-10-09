@@ -153,8 +153,8 @@ impl ServerPlayer {
             InPacket::Disconnect(_) =>
                 ServerPlayer::handle_disconnect(server, connection_id),
             // TODO(jdetter): Add support for chat!
-            // InPacket::Chat(packet) =>
-                // ServerPlayer::handle_chat(world, state, packet.message),
+            InPacket::Chat(packet) =>
+                ServerPlayer::handle_chat(server, connection_id, packet.message),
             InPacket::Position(packet) => 
                 ServerPlayer::handle_position(connection_id, packet),
             InPacket::Look(packet) =>
@@ -163,10 +163,10 @@ impl ServerPlayer {
                 ServerPlayer::handle_position_look(connection_id, packet),
             InPacket::BreakBlock(packet) =>
                 ServerPlayer::handle_break_block(connection_id, packet),
-            //InPacket::PlaceBlock(packet) =>
-                // self.handle_place_block(world, packet),
-            // InPacket::HandSlot(packet) =>
-            //     self.handle_hand_slot(world, packet.slot),
+            InPacket::PlaceBlock(packet) =>
+                ServerPlayer::handle_place_block(connection_id, packet),
+            InPacket::HandSlot(packet) =>
+                ServerPlayer::handle_hand_slot(connection_id, packet),
             // InPacket::WindowClick(packet) =>
             //     self.handle_window_click(world, packet),
             // InPacket::WindowClose(packet) =>
@@ -279,98 +279,19 @@ impl ServerPlayer {
 
     fn handle_break_block(connection_id: u64, packet: proto::BreakBlockPacket) {
         let entity = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
-        autogen::handle_break_block(entity.entity_id, packet.into());
+        autogen::stdb_handle_break_block(entity.entity_id, packet.into());
     }
 
-    //// Handle a break block packet.
-    // fn handle_break_block(&mut self, world: &mut World, packet: proto::BreakBlockPacket) {
-    //
-    //     let face = match packet.face {
-    //         0 => Face::NegY,
-    //         1 => Face::PosY,
-    //         2 => Face::NegZ,
-    //         3 => Face::PosZ,
-    //         4 => Face::NegX,
-    //         5 => Face::PosX,
-    //         _ => return,
-    //     };
-    //
-    //     let Some(entity) = world.get_entity_mut(self.entity_id) else { return };
-    //     let pos = IVec3::new(packet.x, packet.y as i32, packet.z);
-    //
-    //     tracing::trace!("packet: {packet:?}");
-    //     // TODO: Use server time for breaking blocks.
-    //
-    //     let in_water = entity.0.in_water;
-    //     let on_ground = entity.0.on_ground;
-    //     let mut stack = self.main_inv[self.hand_slot as usize];
-    //
-    //     if packet.status == 0 {
-    //
-    //         // Special case to extinguish fire.
-    //         if world.is_block(pos + face.delta(), block::FIRE) {
-    //             world.set_block_notify(pos + face.delta(), block::AIR, 0);
-    //         }
-    //
-    //         // We ignore any interaction result for the left click (break block) to
-    //         // avoid opening an inventory when breaking a container.
-    //         // NOTE: Interact before 'get_block': relevant for redstone_ore lit.
-    //         world.interact_block(pos);
-    //
-    //         // Start breaking a block, ignore if the position is invalid.
-    //         if let Some((id, _)) = world.get_block(pos) {
-    //
-    //             let break_duration = world.get_break_duration(stack.id, id, in_water, on_ground);
-    //             if break_duration.is_infinite() {
-    //                 // Do nothing, the block is unbreakable.
-    //             } else if break_duration == 0.0 {
-    //                 world.break_block(pos);
-    //             } else {
-    //                 self.breaking_block = Some(BreakingBlock {
-    //                     start_time: world.get_time(), // + (break_duration * 0.7) as u64,
-    //                     pos,
-    //                     id,
-    //                 });
-    //             }
-    //
-    //         }
-    //
-    //     } else if packet.status == 2 {
-    //         // Block breaking should be finished.
-    //         if let Some(state) = self.breaking_block.take() {
-    //             if state.pos == pos && world.is_block(pos, state.id) {
-    //                 let break_duration = world.get_break_duration(stack.id, state.id, in_water, on_ground);
-    //                 let min_time = state.start_time + (break_duration * 0.7) as u64;
-    //                 if world.get_time() >= min_time {
-    //                     world.break_block(pos);
-    //                 } else {
-    //                     warn!("from {}, incoherent break time, expected {min_time} but got {}", self.username, world.get_time());
-    //                 }
-    //             } else {
-    //                 warn!("from {}, incoherent break position, expected  {}, got {}", self.username, pos, state.pos);
-    //             }
-    //         }
-    //     } else if packet.status == 4 {
-    //         // Drop the selected item.
-    //
-    //         if !stack.is_empty() {
-    //
-    //             stack.size -= 1;
-    //             self.main_inv[self.hand_slot as usize] = stack.to_non_empty().unwrap_or_default();
-    //
-    //             self.send(OutPacket::WindowSetItem(proto::WindowSetItemPacket {
-    //                 window_id: 0,
-    //                 slot: 36 + self.hand_slot as i16,
-    //                 stack: stack.to_non_empty(),
-    //             }));
-    //
-    //             self.drop_stack(world, stack.with_size(1), false);
-    //
-    //         }
-    //
-    //     }
-    //
-    // }
+    fn handle_place_block(connection_id: u64, packet: proto::PlaceBlockPacket) {
+        let entity = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
+        autogen::stdb_handle_place_block(entity.entity_id, packet.into());
+    }
+
+    fn handle_hand_slot(connection_id: u64, packet: proto::HandSlotPacket) {
+        let entity = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
+        autogen::stdb_handle_hand_slot(entity.entity_id, packet.into());
+    }
+
 
     // Handle a place block packet.
     // fn handle_place_block(&mut self, world: &mut World, packet: proto::PlaceBlockPacket) {
@@ -435,18 +356,18 @@ impl ServerPlayer {
     //
     //         // If the previous item was a fishing rod, then we ensure that the bobber id
     //         // is unset from the player's entity, so that the bobber will be removed.
-    //         let prev_stack = self.main_inv[self.hand_slot as usize];
-    //         if prev_stack.size != 0 && prev_stack.id == item::FISHING_ROD {
-    //             if prev_stack.id == item::FISHING_ROD {
-    //
-    //                 let Entity(base, _) = world.get_entity_mut(self.entity_id).expect("incoherent player entity");
-    //                 base.bobber_id = None;
-    //
-    //             }
-    //         }
+    //         // TODO(jdetter): If the player was holding a fishing rod, we need to destroy their bobber
+    //         // let prev_stack = self.main_inv[self.hand_slot as usize];
+    //         // if prev_stack.size != 0 && prev_stack.id == item::FISHING_ROD {
+    //         //     if prev_stack.id == item::FISHING_ROD {
+    //         //
+    //         //         let Entity(base, _) = world.get_entity_mut(self.entity_id).expect("incoherent player entity");
+    //         //         base.bobber_id = None;
+    //         //
+    //         //     }
+    //         // }
     //
     //         self.hand_slot = slot as u8;
-    //
     //     } else {
     //         warn!("from {}, invalid hand slot: {slot}", self.username);
     //     }

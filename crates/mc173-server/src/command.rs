@@ -80,12 +80,12 @@ const COMMANDS: &'static [Command] = &[
         description: "Print all available commands",
         handler: cmd_help
     },
-    // Command {
-    //     name: "give",
-    //     usage: "<item>[:<damage>] [<size>]",
-    //     description: "Give item to a player",
-    //     handler: cmd_give
-    // },
+    Command {
+        name: "give",
+        usage: "<item>[:<damage>] [<size>]",
+        description: "Give item to a player",
+        handler: cmd_give
+    },
     // Command {
     //     name: "spawn",
     //     usage: "<entity_kind> [<params>...]",
@@ -188,52 +188,53 @@ fn cmd_help(ctx: CommandContext) -> CommandResult {
     
 }
 
-// fn cmd_give(ctx: CommandContext) -> CommandResult {
-//
-//     if ctx.parts.len() != 1 && ctx.parts.len() != 2 {
-//         return Err(None);
-//     }
-//
-//     let item_raw = ctx.parts[0];
-//
-//     let (
-//         id_raw,
-//         metadata_raw
-//     ) = item_raw.split_once(':').unwrap_or((item_raw, ""));
-//
-//     let id;
-//     if let Ok(direct_id) = id_raw.parse::<u16>() {
-//         id = direct_id;
-//     } else if let Some(name_id) = item::from_name(id_raw.trim_start_matches("i/")) {
-//         id = name_id;
-//     } else if let Some(block_id) = block::from_name(id_raw.trim_start_matches("b/")) {
-//         id = block_id as u16;
-//     } else {
-//         return Err(Some(format!("§cError: unknown item name or id:§r {id_raw}")));
-//     }
-//
-//     let item = item::from_id(id);
-//     if item.name.is_empty() {
-//         return Err(Some(format!("§cError: unknown item id:§r {id_raw}")));
-//     }
-//
-//     let mut stack = ItemStack::new_sized(id, 0, item.max_stack_size);
-//
-//     if !metadata_raw.is_empty() {
-//         stack.damage = metadata_raw.parse::<u16>()
-//             .map_err(|_| format!("§cError: invalid item damage:§r {metadata_raw}"))?;
-//     }
-//
-//     if let Some(size_raw) = ctx.parts.get(1) {
-//         stack.size = size_raw.parse::<u16>()
-//             .map_err(|_| format!("§cError: invalid stack size:§r {size_raw}"))?;
-//     }
-//
-//     ServerPlayer::send_chat(ctx.server, ctx.connection_id, format!("§aGiving §r{}§a (§r{}:{}§a) x§r{}§a to §r{}", item.name, stack.id, stack.damage, stack.size, ctx.player.username));
-//     ctx.player.pickup_stack(&mut stack);
-//     Ok(())
-//
-// }
+fn cmd_give(ctx: CommandContext) -> CommandResult {
+
+    if ctx.parts.len() != 1 && ctx.parts.len() != 2 {
+        return Err(None);
+    }
+
+    let item_raw = ctx.parts[0];
+
+    let (
+        id_raw,
+        metadata_raw
+    ) = item_raw.split_once(':').unwrap_or((item_raw, ""));
+
+    let id;
+    if let Ok(direct_id) = id_raw.parse::<u16>() {
+        id = direct_id;
+    } else if let Some(name_id) = item::from_name(id_raw.trim_start_matches("i/")) {
+        id = name_id;
+    } else if let Some(block_id) = block::from_name(id_raw.trim_start_matches("b/")) {
+        id = block_id as u16;
+    } else {
+        return Err(Some(format!("§cError: unknown item name or id:§r {id_raw}")));
+    }
+
+    let item = item::from_id(id);
+    if item.name.is_empty() {
+        return Err(Some(format!("§cError: unknown item id:§r {id_raw}")));
+    }
+
+    let mut stack = ItemStack::new_sized(id, 0, item.max_stack_size);
+
+    if !metadata_raw.is_empty() {
+        stack.damage = metadata_raw.parse::<u16>()
+            .map_err(|_| format!("§cError: invalid item damage:§r {metadata_raw}"))?;
+    }
+
+    if let Some(size_raw) = ctx.parts.get(1) {
+        stack.size = size_raw.parse::<u16>()
+            .map_err(|_| format!("§cError: invalid stack size:§r {size_raw}"))?;
+    }
+
+    let connection_id = ctx.connection_id;
+    let player = StdbServerPlayer::find_by_connection_id(connection_id).unwrap();
+    ServerPlayer::send_chat(ctx.server, ctx.connection_id, format!("§aGiving §r{}§a (§r{}:{}§a) x§r{}§a to §r{}", item.name, stack.id, stack.damage, stack.size, player.username));
+    autogen::stdb_give_item(player.entity_id, stack.id, stack.damage, stack.size);
+    Ok(())
+}
 
 // fn cmd_spawn(ctx: CommandContext) -> CommandResult {
 //     let entity = StdbEntity::find_by_entity_id(ctx.player.entity_id).unwrap();

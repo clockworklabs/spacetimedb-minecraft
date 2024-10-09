@@ -316,10 +316,30 @@ pub struct PlaceBlockPacket {
     pub stack: Option<ItemStack>,
 }
 
+impl From<PlaceBlockPacket> for autogen::StdbPlaceBlockPacket {
+    fn from(value: PlaceBlockPacket) -> Self {
+        autogen::StdbPlaceBlockPacket {
+            x: value.x,
+            y: value.y,
+            z: value.z,
+            direction: value.direction,
+            stack: value.stack.map(|f| f.into())
+        }
+    }
+}
+
 /// Packet 16
 #[derive(Debug, Clone)]
 pub struct HandSlotPacket {
     pub slot: i16,
+}
+
+impl From<HandSlotPacket> for autogen::HandSlotPacket {
+    fn from(value: HandSlotPacket) -> Self {
+        autogen::HandSlotPacket {
+            slot: value.slot,
+        }
+    }
 }
 
 /// Packet 17

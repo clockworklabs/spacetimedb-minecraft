@@ -13,12 +13,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::warn;
-use crate::autogen::{connect, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_accept, on_stdb_handle_login, ChunkUpdateType, ReducerEvent, StdbBlockSetUpdate, StdbChunk, StdbChunkUpdate, StdbChunkView, StdbEntity, StdbEntityTracker, StdbEntityView, StdbHuman, StdbInLoginPacket, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather};
+use crate::autogen::{connect, on_handle_look, on_handle_position, on_handle_position_look, on_stdb_handle_accept, on_stdb_handle_login, ChunkUpdateType, ReducerEvent, StdbBlockSetUpdate, StdbChunk, StdbChunkUpdate, StdbChunkView, StdbEntity, StdbEntityTracker, StdbEntityView, StdbHuman, StdbInLoginPacket, StdbItemStack, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket, StdbServerPlayer, StdbSetBlockEvent, StdbWeather};
 use crate::player::ServerPlayer;
 use crate::proto::{InLoginPacket, OutPacket};
 use crate::server::Server;
 use crate::types::Event;
 use crate::autogen::Weather;
+use crate::proto::MetadataKind::ItemStack;
 
 // The common configuration of the server.
 pub mod config;
@@ -68,6 +69,25 @@ fn on_weather_updated(old_weather: &StdbWeather, new_weather: &StdbWeather, _red
             reason: if new_weather.weather == Weather::Clear { 2 } else { 1 },
         }));
     }
+}
+
+fn on_stdb_item_stack_inserted(slot: &StdbItemStack, reducer_event: Option<&ReducerEvent>) {
+    let mut s = SERVER.lock().unwrap();
+    let server = s.as_ref().unwrap();
+    let player = StdbServerPlayer::find_by_entity_id(slot.inventory_id).unwrap();
+    let mut client = server.clients[&player.connection_id];
+
+    let mc_item_stack = item::ItemStack {
+        id: slot.stack.id,
+        size: slot.stack.size,
+        damage: slot.stack.damage,
+    };
+
+    server.net.send(client, OutPacket::WindowSetItem(proto::WindowSetItemPacket {
+        window_id: 0,
+        slot: slot.index as i16,
+        stack: Some(mc_item_stack),
+    }));
 }
 
 fn on_chunk_inserted(chunk: &StdbChunk, _reducer_event: Option<&ReducerEvent>) {
@@ -389,6 +409,7 @@ pub fn main() {
 
     init_tracing();
     // ctrlc::set_handler(|| RUNNING.store(false, Ordering::Relaxed)).unwrap();
+    StdbItemStack::on_insert(on_stdb_item_stack_inserted);
     StdbChunk::on_insert(on_chunk_inserted);
     StdbChunk::on_update(on_chunk_update);
     StdbWeather::on_update(on_weather_updated);
