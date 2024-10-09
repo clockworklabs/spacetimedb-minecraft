@@ -16,7 +16,7 @@ use std::process::exit;
 use std::time::Duration;
 use glam::{DVec3, IVec3};
 use mc173_module::world::{StdbWorld, DIMENSION_OVERWORLD};
-use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp};
+use spacetimedb::{ReducerContext, schedule, spacetimedb, SpacetimeType, Timestamp, query};
 use mc173_module::{block, item};
 use mc173_module::chunk::calc_entity_chunk_pos;
 use mc173_module::chunk_cache::ChunkCache;
@@ -26,15 +26,18 @@ use mc173_module::geom::Face;
 use mc173_module::i16vec3::StdbI16Vec3;
 use mc173_module::i32vec3::StdbI32Vec3;
 use mc173_module::i8vec3::StdbI8Vec2;
+use mc173_module::inventory::{StdbHandSlot, StdbInventory, StdbItemStack};
+use mc173_module::item::ItemStack;
 use mc173_module::stdb::chunk::{StdbBreakBlockPacket, BreakingBlock, StdbBreakingBlock, StdbTime, StdbChunkUpdate, StdbChunk, ChunkUpdateType};
 use mc173_module::stdb::weather::StdbWeather;
 use mc173_module::storage::ChunkStorage;
 use mc173_module::vec2::StdbVec2;
+use mc173_module::world::interact::Interaction;
 use crate::config::SPAWN_POS;
 use crate::entity::{StdbEntityTracker, StdbEntityTrackerUpdateType};
 use crate::offline::StdbOfflinePlayer;
 use crate::player::{StdbClientState, StdbConnectionStatus, StdbEntity, StdbOfflineServerPlayer, StdbPlayingState, StdbServerPlayer};
-use crate::proto::{StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
+use crate::proto::{HandSlotPacket, StdbLookPacket, StdbPositionLookPacket, StdbPositionPacket};
 use crate::world::{StdbServerWorld, StdbTickMode};
 
 pub mod player;
@@ -150,6 +153,17 @@ fn stdb_handle_login(connection_id: u64, packet: proto::StdbInLoginPacket) {
             sleeping: false,
             sneaking: false,
         }).unwrap();
+
+        StdbInventory::insert(StdbInventory {
+            inventory_id: new_entity.entity_id.clone(),
+            size: 36,
+        }).unwrap();
+
+        StdbHandSlot::insert(StdbHandSlot {
+            player_id: new_entity.entity_id.clone(),
+            slot_id: 0,
+        }).unwrap();
+        
         (new_entity, player)
     };
 
@@ -566,7 +580,7 @@ pub fn generate_chunk(x: i32, z: i32) {
 // }
 
 #[spacetimedb(reducer)]
-pub fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
+pub fn stdb_handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
 
     let mut cache = ChunkCache::new();
 
@@ -693,6 +707,114 @@ pub fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
     }
 
     cache.apply();
+}
+
+#[spacetimedb(reducer)]
+fn stdb_give_item(player_id: u32, id: u16, damage: u16, size: u16) {
+    let mut stack = ItemStack {
+        id,
+        size,
+        damage,
+    };
+    StdbInventory::push_front(player_id, &mut stack);
+    if stack.size != 0 {
+        log::warn!("Failed to insert entire stack. Remaining items: {}", stack.size);
+    } else {
+        log::info!("Stack successfully given to player.");
+    }
+}
+
+/// Handle a place block packet.
+#[spacetimedb(reducer)]
+fn stdb_handle_place_block(player_id: u32, packet: proto::StdbPlaceBlockPacket) {
+
+    let mut cache = ChunkCache::new();
+
+    let face = match packet.direction {
+        0 => Some(Face::NegY),
+        1 => Some(Face::PosY),
+        2 => Some(Face::NegZ),
+        3 => Some(Face::PosZ),
+        4 => Some(Face::NegX),
+        5 => Some(Face::PosX),
+        0xFF => None,
+        _ => return,
+    };
+
+    let pos = IVec3 {
+        x: packet.x,
+        y: packet.y as i32,
+        z: packet.z,
+    };
+
+    let mut world = StdbServerWorld::filter_by_dimension_id(&DIMENSION_OVERWORLD).unwrap();
+    let inv = StdbInventory::filter_by_inventory_id(&player_id).expect(
+        format!("Failed to find inventory for player: {}", player_id).as_str());
+    let inv_index = StdbHandSlot::filter_by_player_id(&player_id).expect(
+        format!("Failed to find hand slot for player: {}", player_id).as_str()).slot_id;
+
+    // Check if the player is reasonably near the block.
+    // TODO(jdetter): Reenable this check
+    // if face.is_none() || self.pos.distance_squared(pos.as_dvec3() + 0.5) < 64.0 {
+    // The real action depends on
+    if let Some(face) = face {
+        match StdbServerWorld::interact_block(pos, false) {
+            Interaction::None => {
+                // No interaction, use the item at that block.
+                world.use_stack(inv.inventory_id, inv_index, pos, face, player_id, &mut cache);
+            }
+            // Interaction::CraftingTable { pos } => {
+            //     return self.open_window(sw, WindowKind::CraftingTable { pos });
+            // }
+            // Interaction::Chest { pos } => {
+            //     return self.open_window(sw, WindowKind::Chest { pos });
+            // }
+            // Interaction::Furnace { pos } => {
+            //     return self.open_window(sw, WindowKind::Furnace { pos });
+            // }
+            // Interaction::Dispenser { pos } => {
+            //     return self.open_window(sw, WindowKind::Dispenser { pos });
+            // }
+            // Interaction::Handled => {}
+            _ => {}
+        }
+    } else {
+        // world.use_raw_stack(&mut inv, inv_index, self.entity_id);
+    }
+    // }
+
+/*    for index in inv.iter_changes() {
+        self.send_main_inv_item(index);
+    }*/
+
+    cache.apply();
+}
+
+#[spacetimedb(reducer)]
+fn stdb_handle_hand_slot(player_id: u32, packet: HandSlotPacket) -> Result<(), String> {
+    let slot = packet.slot;
+    let player = StdbServerPlayer::filter_by_entity_id(&player_id).unwrap();
+    if slot >= 0 && slot < 9 {
+        let mut hand_slot = StdbHandSlot::filter_by_player_id(&player_id).expect(
+            format!("Player hand slot not found: {}", player_id).as_str());
+
+        // If the previous item was a fishing rod, then we ensure that the bobber id
+        // is unset from the player's entity, so that the bobber will be removed.
+        let previous_hand_slot = StdbInventory::get(player_id, hand_slot.slot_id);
+        // let prev_stack = self.main_inv[self.hand_slot as usize];
+        if previous_hand_slot.size != 0 && previous_hand_slot.id == item::FISHING_ROD {
+            todo!("Handle player fishing rod");
+            // let Entity(base, _) = world.get_entity_mut(self.entity_id).expect("incoherent player entity");
+            // base.bobber_id = None;
+        }
+
+        hand_slot.slot_id = slot as u32;
+        StdbHandSlot::update_by_player_id(&player_id, hand_slot);
+        log::info!("Player {} changed their slot to index: {}", player.username, packet.slot);
+        Ok(())
+    } else {
+        Err(format!("from player with ID {}, invalid hand slot: {slot}", player_id))
+    }
 }
 
 #[spacetimedb(reducer)]

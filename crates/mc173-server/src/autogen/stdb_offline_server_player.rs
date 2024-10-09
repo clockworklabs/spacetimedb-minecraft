@@ -15,6 +15,7 @@ use spacetimedb_sdk::{
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct StdbOfflineServerPlayer {
+    pub connection_id: u64,
     pub username: String,
     pub player: StdbServerPlayer,
 }
@@ -25,19 +26,23 @@ impl TableType for StdbOfflineServerPlayer {
 }
 
 impl TableWithPrimaryKey for StdbOfflineServerPlayer {
-    type PrimaryKey = String;
+    type PrimaryKey = u64;
     fn primary_key(&self) -> &Self::PrimaryKey {
-        &self.username
+        &self.connection_id
     }
 }
 
 impl StdbOfflineServerPlayer {
     #[allow(unused)]
-    pub fn filter_by_username(username: String) -> TableIter<Self> {
-        Self::filter(|row| row.username == username)
+    pub fn filter_by_connection_id(connection_id: u64) -> TableIter<Self> {
+        Self::filter(|row| row.connection_id == connection_id)
     }
     #[allow(unused)]
-    pub fn find_by_username(username: String) -> Option<Self> {
-        Self::find(|row| row.username == username)
+    pub fn find_by_connection_id(connection_id: u64) -> Option<Self> {
+        Self::find(|row| row.connection_id == connection_id)
+    }
+    #[allow(unused)]
+    pub fn filter_by_username(username: String) -> TableIter<Self> {
+        Self::filter(|row| row.username == username)
     }
 }

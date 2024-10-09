@@ -1,6 +1,7 @@
 //! Server world structure.
 
 use std::collections::HashMap;
+use std::fmt::format;
 use std::time::Instant;
 
 use glam::{DVec3, IVec3, Vec2};
@@ -9,8 +10,10 @@ use mc173_module::block;
 use mc173_module::chunk::calc_chunk_pos;
 use mc173_module::chunk_cache::ChunkCache;
 use mc173_module::geom::Face;
+use mc173_module::inventory::StdbInventory;
 use mc173_module::stdb::chunk::{ChunkUpdateType, StdbBlockSetUpdate, StdbChunk, StdbChunkUpdate};
 use mc173_module::world::{LightKind, StdbWorld};
+use mc173_module::world::interact::Interaction;
 use crate::proto::{self, OutPacket};
 use crate::config;
 use crate::entity::{StdbEntityTracker, StdbEntityView};
@@ -291,6 +294,269 @@ impl StdbServerWorld {
     //     // }
     //
     // }
+
+    /// Interact with a block at given position. This function returns the interaction
+    /// result to indicate if the interaction was handled, or if it was
+    ///
+    /// The second argument `breaking` indicates if the interaction originate from a
+    /// player breaking the block.
+    pub fn interact_block(pos: IVec3, breaking: bool) -> Interaction {
+
+        if let Some((id, metadata)) = Self::get_block(pos) {
+            Self::interact_block_unchecked(pos, id, metadata, breaking)
+        } else {
+            Interaction::None
+        }
+    }
+
+    /// Use an item stack on a given block, this is basically the action of left click.
+    /// This function returns the item stack after, if used, this may return an item stack
+    /// with size of 0. The face is where the click has hit on the target block.
+    pub fn use_stack(&mut self, inventory_id: u32, index: u32, pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) {
+
+        let stack = StdbInventory::get(inventory_id, index);
+        if stack.is_empty() {
+            return;
+        }
+
+        let success = match stack.id {
+            0 => false,
+            1..=255 => Self::use_block_stack(stack.id as u8, stack.damage as u8, pos, face, entity_id, cache),
+            // item::SUGAR_CANES => self.use_block_stack(block::SUGAR_CANES, 0, pos, face, entity_id),
+            // item::CAKE => self.use_block_stack(block::CAKE, 0, pos, face, entity_id),
+            // item::REPEATER => self.use_block_stack(block::REPEATER, 0, pos, face, entity_id),
+            // item::REDSTONE => self.use_block_stack(block::REDSTONE, 0, pos, face, entity_id),
+            // item::WOOD_DOOR => self.use_door_stack(block::WOOD_DOOR, pos, face, entity_id),
+            // item::IRON_DOOR => self.use_door_stack(block::IRON_DOOR, pos, face, entity_id),
+            // item::BED => self.use_bed_stack(pos, face, entity_id),
+            // item::SIGN => self.use_sign_stack(pos, face, entity_id),
+            // item::DIAMOND_HOE |
+            // item::IRON_HOE |
+            // item::STONE_HOE |
+            // item::GOLD_HOE |
+            // item::WOOD_HOE => self.use_hoe_stack(pos, face),
+            // item::WHEAT_SEEDS => self.use_wheat_seeds_stack(pos, face),
+            // item::DYE if stack.damage == 15 => self.use_bone_meal_stack(pos),
+            // item::FLINT_AND_STEEL => self.use_flint_and_steel(pos, face),
+            // item::PAINTING => self.use_painting(pos, face),
+            _ => false
+        };
+
+        if success {
+            StdbInventory::set(inventory_id, index, stack.inc_damage(1));
+        }
+
+    }
+
+    /// Place a block toward the given face. This is used for single blocks, multi blocks
+    /// are handled apart by other functions that do not rely on the block placing logic.
+    fn use_block_stack(id: u8, metadata: u8, mut pos: IVec3, mut face: Face, entity_id: u32, cache: &mut ChunkCache) -> bool {
+        let look = StdbEntity::filter_by_entity_id(&entity_id).expect(
+            format!("Player has no entity: {}", entity_id).as_str());
+        // let look = self.get_entity(entity_id).unwrap().0.look;
+
+        if let Some((block::SNOW, _)) = Self::get_block(pos) {
+            // If a block is placed by clicking on a snow block, replace that snow block.
+            face = Face::NegY;
+        } else {
+            // Get position of the block facing the clicked face.
+            pos += face.delta();
+            // The block is oriented toward that clicked face.
+            face = face.opposite();
+        }
+
+        // Some block have special facing when placed.
+        match id {
+            // TODO(jdetter): come back to these when we have entities properly implemented
+            // block::WOOD_STAIR | block::COBBLESTONE_STAIR |
+            // block::REPEATER | block::REPEATER_LIT => {
+            //     face = Face::from_yaw(look.x);
+            // }
+            // block::DISPENSER |
+            // block::FURNACE | block::FURNACE_LIT |
+            // block::PUMPKIN | block::PUMPKIN_LIT => {
+            //     face = Face::from_yaw(look.x).opposite();
+            // }
+            // block::PISTON |
+            // block::STICKY_PISTON => {
+            //     face = Face::from_look(look.x, look.y).opposite();
+            // }
+            _ => {}
+        }
+
+        if pos.y >= 127 && block::material::get_material(id).is_solid() {
+            return false;
+        }
+
+        if !Self::can_place_block(pos, face, id) {
+            return false;
+        }
+
+        Self::place_block(pos, face, id, metadata, cache);
+        true
+    }
+
+    /// Place the block at the given position in the world oriented toward given face. Note
+    /// that this function do not check if this is legal, it will do what's asked. Also, the
+    /// given metadata may be modified to account for the placement.
+    pub fn place_block(pos: IVec3, face: Face, id: u8, metadata: u8, cache: &mut ChunkCache) {
+
+        match id {
+            // TODO(jdetter): Implement these when we support entities
+            // block::BUTTON => self.place_faced(pos, face, id, metadata, block::button::set_face),
+            // block::TRAPDOOR => self.place_faced(pos, face, id, metadata, block::trapdoor::set_face),
+            // block::PISTON |
+            // block::STICKY_PISTON => self.place_faced(pos, face, id, metadata, block::piston::set_face),
+            // block::WOOD_STAIR |
+            // block::COBBLESTONE_STAIR => self.place_faced(pos, face, id, metadata, block::stair::set_face),
+            // block::REPEATER |
+            // block::REPEATER_LIT => self.place_faced(pos, face, id, metadata, block::repeater::set_face),
+            // block::PUMPKIN |
+            // block::PUMPKIN_LIT => self.place_faced(pos, face, id, metadata, block::pumpkin::set_face),
+            // block::FURNACE |
+            // block::FURNACE_LIT |
+            // block::DISPENSER => self.place_faced(pos, face, id, metadata, block::dispenser::set_face),
+            // block::TORCH |
+            // block::REDSTONE_TORCH |
+            // block::REDSTONE_TORCH_LIT => self.place_faced(pos, face, id, metadata, block::torch::set_face),
+            // block::LEVER => self.place_lever(pos, face, metadata),
+            // block::LADDER => self.place_ladder(pos, face, metadata),
+            _ => {
+                Self::set_block_notify(pos, id, metadata, cache);
+            }
+        }
+
+        // match id {
+        //     block::CHEST => self.set_block_entity(pos, BlockEntity::Chest(def())),
+        //     block::FURNACE => self.set_block_entity(pos, BlockEntity::Furnace(def())),
+        //     block::DISPENSER => self.set_block_entity(pos, BlockEntity::Dispenser(def())),
+        //     block::SPAWNER => self.set_block_entity(pos, BlockEntity::Spawner(def())),
+        //     block::NOTE_BLOCK => self.set_block_entity(pos, BlockEntity::NoteBlock(def())),
+        //     block::JUKEBOX => self.set_block_entity(pos, BlockEntity::Jukebox(def())),
+        //     _ => {}
+        // }
+    }
+
+    /// This function checks if the given block id can be placed at a particular position in
+    /// the world, the given face indicates toward which face this block should be oriented.
+    pub fn can_place_block(pos: IVec3, face: Face, id: u8) -> bool {
+
+        let base = match id {
+            // TODO(jdetter): Come back to these after we have entities properly implemented
+            // block::BUTTON if face.is_y() => false,
+            // block::BUTTON => self.is_block_opaque_cube(pos + face.delta()),
+            // block::LEVER if face == Face::PosY => false,
+            // block::LEVER => self.is_block_opaque_cube(pos + face.delta()),
+            // block::LADDER => self.is_block_opaque_around(pos),
+            // block::TRAPDOOR if face.is_y() => false,
+            // block::TRAPDOOR => self.is_block_opaque_cube(pos + face.delta()),
+            // block::PISTON_EXT |
+            // block::PISTON_MOVING => false,
+            // block::DEAD_BUSH => matches!(self.get_block(pos - IVec3::Y), Some((block::SAND, _))),
+            // // PARITY: Notchian impl checks block light >= 8 or see sky
+            // block::DANDELION |
+            // block::POPPY |
+            // block::SAPLING |
+            // block::TALL_GRASS => matches!(self.get_block(pos - IVec3::Y), Some((block::GRASS | block::DIRT | block::FARMLAND, _))),
+            // block::WHEAT => matches!(self.get_block(pos - IVec3::Y), Some((block::FARMLAND, _))),
+            // block::CACTUS => self.can_place_cactus(pos),
+            // block::SUGAR_CANES => self.can_place_sugar_canes(pos),
+            // block::CAKE => self.is_block_solid(pos - IVec3::Y),
+            // block::CHEST => self.can_place_chest(pos),
+            // block::WOOD_DOOR |
+            // block::IRON_DOOR => self.can_place_door(pos),
+            // block::FENCE => matches!(self.get_block(pos - IVec3::Y), Some((block::FENCE, _))) || self.is_block_solid(pos - IVec3::Y),
+            // block::FIRE => self.can_place_fire(pos),
+            // block::TORCH |
+            // block::REDSTONE_TORCH |
+            // block::REDSTONE_TORCH_LIT => self.is_block_normal_cube(pos + face.delta()),
+            // // Common blocks that needs opaque block below.
+            // block::RED_MUSHROOM |        // PARITY: Notchian impl checks block light >= 8 or see sky
+            // block::BROWN_MUSHROOM => self.is_block_opaque_cube(pos - IVec3::Y),
+            // block::SNOW => self.is_block_opaque_cube(pos - IVec3::Y),
+            // block::WOOD_PRESSURE_PLATE |
+            // block::STONE_PRESSURE_PLATE |
+            // block::PUMPKIN |
+            // block::PUMPKIN_LIT |
+            // block::RAIL |
+            // block::POWERED_RAIL |
+            // block::DETECTOR_RAIL |
+            // block::REPEATER |
+            // block::REPEATER_LIT |
+            // block::REDSTONE => self.is_block_normal_cube(pos - IVec3::Y),
+            _ => true,
+        };
+
+        // If the block we are placing has an exclusion box and any hard entity is inside,
+        // we cancel the prevent the placing.
+        // TODO(jdetter): Add this back in when we add support for collision boxes in stdb
+        // if let Some(bb) = self.get_block_exclusion_box(pos, id) {
+        //     if self.has_entity_colliding(bb, true) {
+        //         return false;
+        //     }
+        // }
+
+        base && Self::is_block_replaceable(pos)
+
+    }
+
+    /// Return true if the block at given position can be replaced.
+    pub fn is_block_replaceable(pos: IVec3) -> bool {
+        if let Some((id, _)) = Self::get_block(pos) {
+            block::material::get_material(id).is_replaceable()
+        } else {
+            false
+        }
+    }
+
+    /// Internal function to handle block interaction at given position and with known
+    /// block and metadata.
+    pub(super) fn interact_block_unchecked(pos: IVec3, id: u8, metadata: u8, breaking: bool) -> Interaction {
+        match id {
+            // block::BUTTON => self.interact_button(pos, metadata),
+            // block::LEVER => self.interact_lever(pos, metadata),
+            // block::TRAPDOOR => self.interact_trapdoor(pos, metadata),
+            // block::IRON_DOOR => true,
+            // block::WOOD_DOOR => self.interact_wood_door(pos, metadata),
+            // block::REPEATER |
+            // block::REPEATER_LIT => self.interact_repeater(pos, id, metadata),
+            // block::REDSTONE_ORE => self.interact_redstone_ore(pos),
+            // block::CRAFTING_TABLE => return Interaction::CraftingTable { pos },
+            // block::CHEST => return self.interact_chest(pos),
+            // block::FURNACE |
+            // block::FURNACE_LIT => return self.interact_furnace(pos),
+            // block::DISPENSER => return self.interact_dispenser(pos),
+            // block::NOTE_BLOCK => self.interact_note_block(pos, breaking),
+            block::BUTTON => Interaction::Handled,
+            block::LEVER => Interaction::Handled,
+            block::TRAPDOOR => Interaction::Handled,
+            block::IRON_DOOR => Interaction::Handled,
+            block::WOOD_DOOR => Interaction::Handled,
+            block::REPEATER |
+            block::REPEATER_LIT => Interaction::Handled,
+            block::REDSTONE_ORE => Interaction::Handled,
+            block::CRAFTING_TABLE => Interaction::Handled,
+            block::CHEST => Interaction::Handled,
+            block::FURNACE |
+            block::FURNACE_LIT => Interaction::Handled,
+            block::DISPENSER => Interaction::Handled,
+            block::NOTE_BLOCK => Interaction::Handled,
+            _ => return Interaction::None
+        }.into()
+    }
+
+    /// Get block and metadata at given position in the world, if the chunk is not
+    /// loaded, none is returned.
+    pub fn get_block(pos: IVec3) -> Option<(u8, u8)> {
+        let (cx, cz) = calc_chunk_pos(pos)?;
+        let chunk = Self::get_chunk(cx, cz)?;
+        Some(chunk.chunk.get_block(pos))
+    }
+
+    pub fn get_chunk(cx: i32, cz: i32) -> Option<StdbChunk> {
+        let chunk_id = StdbChunk::xz_to_chunk_id(cx, cz);
+        StdbChunk::filter_by_chunk_id(&chunk_id)
+    }
 
     /// Handle a player joining this world.
     pub fn handle_player_join(&mut self, player: StdbServerPlayer) {
@@ -604,8 +870,8 @@ impl StdbServerWorld {
     /// are notified of that neighbor change.
     ///
     /// [`set_block_self_notify`]: Self::set_block_self_notify
-    pub fn set_block_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block_self_notify(pos, id, metadata, cache)?;
+    pub fn set_block_notify(pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = Self::set_block_self_notify(pos, id, metadata, cache)?;
         // self.notify_blocks_around(pos, id, cache);
         Some((prev_id, prev_metadata))
     }
@@ -614,8 +880,8 @@ impl StdbServerWorld {
     /// notified of that removal and addition.
     ///
     /// [`set_block`]: Self::set_block
-    pub fn set_block_self_notify(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
-        let (prev_id, prev_metadata) = self.set_block(pos, id, metadata, cache)?;
+    pub fn set_block_self_notify(pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+        let (prev_id, prev_metadata) = Self::set_block(pos, id, metadata, cache)?;
         // self.notify_change_unchecked(pos, prev_id, prev_metadata, id, metadata);
         Some((prev_id, prev_metadata))
     }
@@ -624,11 +890,11 @@ impl StdbServerWorld {
     /// loaded, none is returned, but if it is existing the previous block and metadata
     /// is returned. This function also push a block change event and update lights
     /// accordingly.
-    pub fn set_block(&mut self, pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
+    pub fn set_block(pos: IVec3, id: u8, metadata: u8, cache: &mut ChunkCache) -> Option<(u8, u8)> {
         let (cx, cz) = calc_chunk_pos(pos)?;
         let mut chunk = cache.get_chunk(cx, cz)?;
 
-        let result = self.set_block_inner(pos, id, metadata, &mut chunk);
+        let result = Self::set_block_inner(pos, id, metadata, &mut chunk);
 
         if result.0 {
             let id = chunk.chunk_id;
@@ -639,7 +905,7 @@ impl StdbServerWorld {
         Some((result.1, result.2))
     }
 
-    pub fn set_block_inner(&mut self, pos: IVec3, id: u8, metadata: u8, chunk: &mut StdbChunk) -> (bool, u8, u8) {
+    pub fn set_block_inner(pos: IVec3, id: u8, metadata: u8, chunk: &mut StdbChunk) -> (bool, u8, u8) {
 
         let (prev_id, prev_metadata) = chunk.chunk.get_block(pos);
         let mut changed = false;

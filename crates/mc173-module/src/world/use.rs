@@ -3,7 +3,6 @@
 use glam::{IVec3, DVec3, Vec3};
 
 use crate::entity::{Arrow, Entity, Snowball, Tnt, Bobber, BaseKind, ProjectileKind, Item};
-use crate::inventory::InventoryHandle;
 use crate::gen::tree::TreeGenerator;
 use crate::block::sapling::TreeKind;
 use crate::item::{ItemStack, self};
@@ -17,42 +16,42 @@ use super::bound::RayTraceKind;
 /// Methods related to item usage in the world.
 impl StdbWorld {
 
-    /// Use an item stack on a given block, this is basically the action of left click. 
-    /// This function returns the item stack after, if used, this may return an item stack
-    /// with size of 0. The face is where the click has hit on the target block.
-    pub fn use_stack(&mut self, inv: &mut InventoryHandle, index: usize, pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) {
-
-        let stack = inv.get(index);
-        if stack.is_empty() {
-            return;
-        }
-        
-        let success = match stack.id {
-            0 => false,
-            1..=255 => self.use_block_stack(stack.id as u8, stack.damage as u8, pos, face, entity_id, cache),
-            item::SUGAR_CANES => self.use_block_stack(block::SUGAR_CANES, 0, pos, face, entity_id, cache),
-            item::CAKE => self.use_block_stack(block::CAKE, 0, pos, face, entity_id, cache),
-            item::REPEATER => self.use_block_stack(block::REPEATER, 0, pos, face, entity_id, cache),
-            item::REDSTONE => self.use_block_stack(block::REDSTONE, 0, pos, face, entity_id, cache),
-            item::WOOD_DOOR => self.use_door_stack(block::WOOD_DOOR, pos, face, entity_id, cache),
-            item::IRON_DOOR => self.use_door_stack(block::IRON_DOOR, pos, face, entity_id, cache),
-            item::BED => self.use_bed_stack(pos, face, entity_id, cache),
-            item::DIAMOND_HOE |
-            item::IRON_HOE |
-            item::STONE_HOE |
-            item::GOLD_HOE |
-            item::WOOD_HOE => self.use_hoe_stack(pos, face, cache),
-            item::WHEAT_SEEDS => self.use_wheat_seeds_stack(pos, face, cache),
-            item::DYE if stack.damage == 15 => self.use_bone_meal_stack(pos, cache),
-            item::FLINT_AND_STEEL => self.use_flint_and_steel(pos, face, cache),
-            _ => false
-        };
-
-        if success {
-            inv.set(index, stack.inc_damage(1));
-        }
-
-    }
+    // /// Use an item stack on a given block, this is basically the action of left click.
+    // /// This function returns the item stack after, if used, this may return an item stack
+    // /// with size of 0. The face is where the click has hit on the target block.
+    // pub fn use_stack(&mut self, inv: &mut InventoryHandle, index: usize, pos: IVec3, face: Face, entity_id: u32, cache: &mut ChunkCache) {
+    //
+    //     let stack = inv.get(index);
+    //     if stack.is_empty() {
+    //         return;
+    //     }
+    //
+    //     let success = match stack.id {
+    //         0 => false,
+    //         1..=255 => self.use_block_stack(stack.id as u8, stack.damage as u8, pos, face, entity_id, cache),
+    //         item::SUGAR_CANES => self.use_block_stack(block::SUGAR_CANES, 0, pos, face, entity_id, cache),
+    //         item::CAKE => self.use_block_stack(block::CAKE, 0, pos, face, entity_id, cache),
+    //         item::REPEATER => self.use_block_stack(block::REPEATER, 0, pos, face, entity_id, cache),
+    //         item::REDSTONE => self.use_block_stack(block::REDSTONE, 0, pos, face, entity_id, cache),
+    //         item::WOOD_DOOR => self.use_door_stack(block::WOOD_DOOR, pos, face, entity_id, cache),
+    //         item::IRON_DOOR => self.use_door_stack(block::IRON_DOOR, pos, face, entity_id, cache),
+    //         item::BED => self.use_bed_stack(pos, face, entity_id, cache),
+    //         item::DIAMOND_HOE |
+    //         item::IRON_HOE |
+    //         item::STONE_HOE |
+    //         item::GOLD_HOE |
+    //         item::WOOD_HOE => self.use_hoe_stack(pos, face, cache),
+    //         item::WHEAT_SEEDS => self.use_wheat_seeds_stack(pos, face, cache),
+    //         item::DYE if stack.damage == 15 => self.use_bone_meal_stack(pos, cache),
+    //         item::FLINT_AND_STEEL => self.use_flint_and_steel(pos, face, cache),
+    //         _ => false
+    //     };
+    //
+    //     if success {
+    //         inv.set(index, stack.inc_damage(1));
+    //     }
+    //
+    // }
 
     // /// Use an item that is not meant to be used on blocks. Such as buckets, boats, bows or
     // /// food items...

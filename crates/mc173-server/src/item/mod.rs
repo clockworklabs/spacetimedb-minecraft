@@ -1,6 +1,7 @@
 //! Item enumeration and behaviors.
 
-use crate::block;
+use crate::{autogen, block};
+use crate::proto::PlaceBlockPacket;
 
 pub mod attack;
 
@@ -210,6 +211,18 @@ pub struct ItemStack {
     /// The damage value of the stack.
     pub damage: u16,
 }
+
+impl From<ItemStack> for autogen::ItemStack {
+    fn from(value: ItemStack) -> Self {
+        autogen::ItemStack {
+            id: value.id,
+            size: value.size,
+            damage: value.damage,
+        }
+    }
+}
+
+
 
 impl ItemStack {
 

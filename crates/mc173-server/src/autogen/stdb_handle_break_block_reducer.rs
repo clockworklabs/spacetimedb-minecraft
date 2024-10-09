@@ -14,45 +14,45 @@ use spacetimedb_sdk::{
 };
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct HandleBreakBlockArgs {
+pub struct StdbHandleBreakBlockArgs {
     pub entity_id: u32,
     pub packet: StdbBreakBlockPacket,
 }
 
-impl Reducer for HandleBreakBlockArgs {
-    const REDUCER_NAME: &'static str = "handle_break_block";
+impl Reducer for StdbHandleBreakBlockArgs {
+    const REDUCER_NAME: &'static str = "stdb_handle_break_block";
 }
 
 #[allow(unused)]
-pub fn handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
-    HandleBreakBlockArgs { entity_id, packet }.invoke();
+pub fn stdb_handle_break_block(entity_id: u32, packet: StdbBreakBlockPacket) {
+    StdbHandleBreakBlockArgs { entity_id, packet }.invoke();
 }
 
 #[allow(unused)]
-pub fn on_handle_break_block(
+pub fn on_stdb_handle_break_block(
     mut __callback: impl FnMut(&Identity, Option<Address>, &Status, &u32, &StdbBreakBlockPacket)
         + Send
         + 'static,
-) -> ReducerCallbackId<HandleBreakBlockArgs> {
-    HandleBreakBlockArgs::on_reducer(move |__identity, __addr, __status, __args| {
-        let HandleBreakBlockArgs { entity_id, packet } = __args;
+) -> ReducerCallbackId<StdbHandleBreakBlockArgs> {
+    StdbHandleBreakBlockArgs::on_reducer(move |__identity, __addr, __status, __args| {
+        let StdbHandleBreakBlockArgs { entity_id, packet } = __args;
         __callback(__identity, __addr, __status, entity_id, packet);
     })
 }
 
 #[allow(unused)]
-pub fn once_on_handle_break_block(
+pub fn once_on_stdb_handle_break_block(
     __callback: impl FnOnce(&Identity, Option<Address>, &Status, &u32, &StdbBreakBlockPacket)
         + Send
         + 'static,
-) -> ReducerCallbackId<HandleBreakBlockArgs> {
-    HandleBreakBlockArgs::once_on_reducer(move |__identity, __addr, __status, __args| {
-        let HandleBreakBlockArgs { entity_id, packet } = __args;
+) -> ReducerCallbackId<StdbHandleBreakBlockArgs> {
+    StdbHandleBreakBlockArgs::once_on_reducer(move |__identity, __addr, __status, __args| {
+        let StdbHandleBreakBlockArgs { entity_id, packet } = __args;
         __callback(__identity, __addr, __status, entity_id, packet);
     })
 }
 
 #[allow(unused)]
-pub fn remove_on_handle_break_block(id: ReducerCallbackId<HandleBreakBlockArgs>) {
-    HandleBreakBlockArgs::remove_on_reducer(id);
+pub fn remove_on_stdb_handle_break_block(id: ReducerCallbackId<StdbHandleBreakBlockArgs>) {
+    StdbHandleBreakBlockArgs::remove_on_reducer(id);
 }
